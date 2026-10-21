@@ -39,7 +39,7 @@ FAMISTUDIO_DPCM_OFF              = $C000   ; los samples van al inicio de $C000 
 
 ; -----------------------------------------------------------------------------
 ; update_music: arranca/detiene la canción según el reloj y avanza el motor.
-; Se llama una vez por cuadro desde main_loop.
+; Se llama una vez por cuadro desde play_update.
 ; -----------------------------------------------------------------------------
 update_music:
     lda song_frame
@@ -52,10 +52,10 @@ update_music:
     jsr famistudio_music_play
 @not_start:
     lda song_frame
-    cmp #<SONG_END_FRAME
+    cmp song_end
     bne @not_end
     lda song_frame+1
-    cmp #>SONG_END_FRAME
+    cmp song_end+1
     bne @not_end
     jsr famistudio_music_stop
 @not_end:
@@ -72,12 +72,17 @@ update_music:
 apply_mute:
     lda player_muted
     beq @done
-.if SONG_PLAYER_CHANNEL = 2
+    lda player_channel
+    cmp #2
+    bne @pulse_or_noise
     lda #$80                    ; triángulo: contador lineal en 0 = silencio
     sta APU_TRI_CTRL
-.else
+    rts
+@pulse_or_noise:
+    asl a                       ; cada canal ocupa 4 registros: $4000, $4004, $400C
+    asl a
+    tax
     lda #%00110000              ; pulso/ruido: volumen constante 0
-    sta $4000 + SONG_PLAYER_CHANNEL * 4
-.endif
+    sta $4000,x
 @done:
     rts

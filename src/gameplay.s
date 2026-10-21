@@ -171,6 +171,10 @@ lane_advance:
 note_hit:
     lda #0
     sta player_muted        ; acertaste: tu instrumento vuelve a sonar
+    inc notes_hit
+    bne @counted
+    inc notes_hit+1
+@counted:
     jsr erase_gem
     jsr combo_inc
     jmp score_add
@@ -180,6 +184,8 @@ note_miss:
     sta combo_digits
     sta combo_digits+1
     sta combo_digits+2
+    sta combo_bin
+    sta combo_bin+1
     lda #1
     sta multiplier
     sta player_muted        ; fallaste: tu instrumento se calla
@@ -242,7 +248,23 @@ erase_gem:
 ;   0-9 -> x1, 10-19 -> x2, 20-29 -> x3, 30+ -> x4
 ; -----------------------------------------------------------------------------
 combo_inc:
-    ldx #2                  ; empezamos por las unidades
+    ; En binario, para las estadísticas: combo_bin + 1 y, si supera al máximo, guardarlo
+    inc combo_bin
+    bne @bin_ok
+    inc combo_bin+1
+@bin_ok:
+    lda max_combo           ; max_combo - combo_bin: carry = 1 si max_combo >= combo_bin
+    cmp combo_bin
+    lda max_combo+1
+    sbc combo_bin+1
+    bcs @max_ok
+    lda combo_bin
+    sta max_combo
+    lda combo_bin+1
+    sta max_combo+1
+@max_ok:
+
+    ldx #2                  ; en decimal, para dibujarlo: empezamos por las unidades
 @digit:
     inc combo_digits,x
     lda combo_digits,x

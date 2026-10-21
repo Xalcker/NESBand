@@ -2,10 +2,11 @@
 
 Un juego de ritmo estilo Guitar Hero / Rock Band para el NES, con canciones de otros juegos de NES.
 
-**Estado actual:** suena *Dr. Wily's Castle* (Mega Man 2) importada desde un NSF, con charts generados
-automáticamente en 4 dificultades. Hay autopista de 5 carriles, aciertos y fallos sincronizados al cuadro
-con la música, combo, multiplicador y puntaje. Si fallas, tu instrumento se calla hasta tu siguiente
-acierto, como en Rock Band.
+**Estado actual:** título, menú (canción, instrumento y dificultad), juego con pausa y pantalla de
+resultados con precisión, combo máximo y estrellas. Suena *Dr. Wily's Castle* (Mega Man 2) importada
+desde un NSF, con charts generados automáticamente para guitarra, teclado y bajo en 4 dificultades. Los
+aciertos y fallos están sincronizados al cuadro con la música. Si fallas, tu instrumento se calla hasta
+tu siguiente acierto, como en Rock Band.
 
 ## Sobre este proyecto
 
@@ -63,7 +64,12 @@ de las variables y las etiquetas del código en lugar de direcciones sueltas.
 
 Compilar la ROM **no** necesita FamiStudio ni Python: la canción ya convertida vive en `src/songs/`.
 
-### Controles (modo "tap", un botón por carril)
+### Controles
+
+**Menú:** ↑/↓ elige la opción (canción, instrumento, dificultad), ←/→ cambia el valor, Start juega y
+B regresa al título. Mientras eliges, suena la canción.
+
+**Juego** (modo "tap", un botón por carril):
 
 | Carril   | Botón |
 |----------|-------|
@@ -72,26 +78,32 @@ Compilar la ROM **no** necesita FamiStudio ni Python: la canción ya convertida 
 | Amarillo | →     |
 | Azul     | B     |
 | Naranja  | A     |
-| Reiniciar | Start |
-| Cambiar dificultad (y reiniciar) | Select |
+| Pausa    | Start |
+| Salir al menú (en pausa) | Select |
 
-La dificultad aparece arriba a la izquierda: 1 = fácil (3 carriles), 2 = medio (4), 3 = difícil, 4 = experto.
+Fácil usa 3 carriles, medio 4, difícil y experto los 5.
 En Mesen configura qué teclas corresponden a cada botón en *Settings → Input*.
 
 ## Importar canciones
 
 ```bash
-uv run nesband import-song songs_src/megaman2.nsf --name wily --duration 75
+uv run nesband import-song songs_src/megaman2.nsf --name wily --title "Dr. Wily's Castle" --game "Mega Man 2" --duration 75
 ```
 
 Acepta NSF, proyectos de FamiStudio (`.fms`) y de FamiTracker (`.ftm`). Opciones útiles:
 
 | Opción | Para qué |
 |---|---|
+| `--title` / `--game` | Lo que se muestra en el menú (sin acentos; se convierte a mayúsculas) |
 | `--song N` | Canción N del archivo (un NSF trae todas las del juego; empieza en 0) |
 | `--duration S` | Solo NSF: cuántos segundos grabar. Un NSF no dice cuándo termina la canción |
-| `--instrument X` | `guitarra` (pulso 1), `teclado` (pulso 2), `bajo` (triángulo) o `bateria` (ruido) |
 | `--beat-frames N` | Cuadros por tiempo, si el tempo detectado sale mal (las líneas de beat no cuadran) |
+
+Cada canción importada se agrega a la lista del menú (`src/songs/list.s`, en orden alfabético). Para
+quitar una, borra su carpeta en `src/songs/` y corre `uv run nesband list-songs`.
+
+Se generan charts de **guitarra** (pulso 1), **teclado** (pulso 2) y **bajo** (triángulo), si el canal
+tiene notas. La **batería** (ruido) aún no: necesita su propio criterio.
 
 Qué hace, paso a paso:
 
@@ -99,12 +111,12 @@ Qué hace, paso a paso:
    (`src/songs/<nombre>/music.s`) y texto con cada nota y el cuadro exacto en que suena.
 2. **Tempo**: un NSF no trae tempo, así que se estima a partir de los ataques de todas las notas
    (el intervalo más común, duplicado hasta caer entre 100 y 200 BPM).
-3. **Charts**, uno por dificultad, generados con las notas del canal del instrumento:
+3. **Charts**, uno por instrumento y dificultad, generados con las notas del canal de cada instrumento:
    - se quitan notas demasiado juntas, conservando primero las que caen en el tiempo;
    - a cada nota le toca un carril según su altura respecto a sus vecinas, respetando el contorno:
      si la melodía sube, sube el carril; si repite nota, repite carril.
-4. Se escribe `src/songs/<nombre>/song.s` con los datos que necesita el juego (inicio, fin, tempo,
-   canal a silenciar) y la canción queda seleccionada en `src/songs/current.s`.
+4. Se escribe `src/songs/<nombre>/song.s`, la ficha que lee el juego (título, fin, tempo, charts), y
+   se regenera la lista de canciones.
 
 `songs_src/megaman2.nsf` es la versión de *Mega Man 2* que viene como demo de FamiStudio, exportada a NSF
 para simular un rip. Ojo: la música de juegos comerciales tiene copyright; esto es un proyecto fan.
@@ -116,11 +128,14 @@ para simular un rip. Ojo: la música de juegos comerciales tiene copyright; esto
 uv run pytest
 ```
 
-- `run_tests.ps1` corre la ROM en Mesen, sin ventana, con un bot (`tests/autoplay.lua`):
-  - **perfect**: acierta todas las notas; el puntaje debe ser exacto y **cada nota del chart debe caer en
-    el mismo cuadro en que el motor dispara esa nota** en el canal del jugador (prueba de sincronía).
+- `run_tests.ps1` corre la ROM en Mesen, sin ventana, con un bot (`tests/autoplay.lua`) que recorre
+  todo: título → menú (elige instrumento y experto) → juego → resultados. Lo hace con guitarra, teclado
+  y bajo, en dos modos:
+  - **perfect**: acierta todas las notas y pausa a media canción. El puntaje y los resultados (100%,
+    5 estrellas) deben ser exactos, y **cada nota del chart debe caer en el mismo cuadro en que el motor
+    dispara esa nota** en el canal del jugador (prueba de sincronía), también después de la pausa.
   - **idle**: no toca nada; todo debe fallar y el canal del jugador debe quedar silenciado.
-  - Las capturas de pantalla quedan en `build/test-*/`.
+  - Las capturas de cada pantalla quedan en `build/test-<modo>-<instrumento>/`.
 - `pytest` prueba el generador de charts (lectura de FamiStudio, tempo, reducción, carriles).
 
 Requisito de Mesen: el script de Lua necesita permiso para escribir archivos (`AllowIoOsAccess: true` en
@@ -131,14 +146,19 @@ toca tu configuración normal.
 
 | Archivo | Qué hace |
 |---|---|
-| `src/main.s` | Arranque (`reset`), ciclo principal, interrupción de vblank (`nmi`), variables, paletas |
+| `src/main.s` | Arranque (`reset`), ciclo principal con los estados del juego, interrupción de vblank (`nmi`), variables, paletas |
+| `src/title.s` | Pantalla de título y el logo |
+| `src/menu.s` | Menú de canción, instrumento y dificultad |
+| `src/play.s` | Preparar la canción elegida, cada cuadro de juego, pausa y fin |
+| `src/results.s` | Pantalla de resultados: precisión, combo máximo, estrellas |
+| `src/text.s` | Escribir textos y números en pantalla |
 | `src/highway.s` | La autopista: reloj de la canción, scroll, armado de cada fila de notas |
 | `src/gameplay.s` | Control, ventana de acierto, fallos, combo, puntaje |
 | `src/hud.s` | Sprites: aros de golpe y marcador |
 | `src/audio.s` | Configuración del motor de FamiStudio, arranque/fin de la música, silenciar al fallar |
 | `src/famistudio/` | Motor de sonido de FamiStudio 4.5.3 (licencia MIT, sin modificar) |
 | `src/songs/` | Canciones convertidas (generadas por `nesband import-song`) |
-| `src/chr.s` | Los gráficos (tiles), dibujados como texto |
+| `src/chr.s` | Los gráficos (tiles) dibujados como texto; la fuente usa el código ASCII como número de tile |
 | `src/nes.inc` | Direcciones de los registros del hardware |
 | `nes.cfg` | Mapa de memoria del cartucho (NROM-256) para el linker |
 | `pctools/` | Herramientas de PC en Python (`nesband import-song`) |
@@ -171,8 +191,9 @@ toca tu configuración normal.
 1. ~~Prototipo: autopista, notas, aciertos, puntaje~~ ✅
 2. ~~Música de verdad: NSF → FamiStudio → motor de sonido, sincronizada al cuadro~~ ✅
 3. ~~Generador automático de charts por canal y dificultad~~ ✅ (primera versión)
-4. Charts de bajo, teclado y batería (la batería necesita su propio criterio: bombo/tarola/platillo por tipo de ruido)
-5. Editor visual de charts para retocar lo generado
-6. Menús: selección de canción, instrumento y dificultad; pantalla de resultados
-7. Mapper con más espacio (MMC3 o similar) para muchas canciones
+4. ~~Charts de bajo y teclado~~ ✅ · batería pendiente (necesita su propio criterio: bombo/tarola/platillo por tipo de ruido)
+5. ~~Menús: título, selección de canción/instrumento/dificultad, pausa, resultados~~ ✅
+6. Mapper con más espacio (MMC3 o similar) para muchas canciones y una pantalla de título ilustrada
+   (ver [docs/ideas.md](docs/ideas.md))
+7. Editor visual de charts para retocar lo generado
 8. Multijugador con el Four Score; batería "pro" con la Power Pad; modo con rasgueo para un adaptador de guitarra

@@ -96,8 +96,9 @@ step_next_row:
 @vrow_ok:
     dec beat_count
     bpl @done
-    lda #SONG_BEAT_ROWS - 1
-    sta beat_count
+    ldx beat_rows
+    dex
+    stx beat_count
 @done:
     rts
 

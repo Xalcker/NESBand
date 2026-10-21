@@ -1,20 +1,24 @@
 ; =============================================================================
-; NESBand - prototipo
+; NESBand
 ;
-; Una autopista de 5 carriles con notas que bajan al ritmo de la canción.
-; Presionas el botón del carril cuando la nota pasa por el aro de abajo; si
-; fallas, tu instrumento se calla hasta el siguiente acierto.
+; Un juego de ritmo: notas que bajan al ritmo de canciones de NES. Presionas
+; el botón del carril cuando la nota pasa por el aro de abajo; si fallas, tu
+; instrumento se calla hasta el siguiente acierto.
 ;
 ; Cómo está armado el programa (todo el NES funciona así):
 ;
 ;   1. reset:     el NES enciende y salta aquí. Preparamos hardware y memoria.
-;   2. main_loop: una vuelta por cuadro (60 por segundo). Lee el control,
-;                 avanza el tiempo, juzga aciertos y prepara qué dibujar.
+;   2. main_loop: una vuelta por cuadro (60 por segundo). Lee el control y
+;                 llama a la rutina del estado actual del juego:
+;                   título -> menú -> juego -> resultados -> menú ...
 ;   3. nmi:       interrupción que el PPU dispara al terminar de dibujar cada
 ;                 cuadro (el "vblank"). Es el ÚNICO momento seguro para
 ;                 escribir en la memoria de video, y dura muy poco (~2270
 ;                 ciclos), así que main_loop deja todo listo en buffers y la
 ;                 NMI solo los copia.
+;
+; Cada estado tiene una rutina enter_... (apaga el dibujo, arma su pantalla
+; y lo vuelve a prender) y una ..._update (lo que pasa en cada cuadro).
 ;
 ; Este archivo incluye a los demás (.include), así se ensambla todo junto y
 ; no hace falta exportar/importar símbolos entre archivos.
@@ -26,6 +30,7 @@
 ; Parámetros del juego
 ; -----------------------------------------------------------------------------
 NUM_LANES       = 5
+NUM_INSTRUMENTS = 4                    ; guitarra, teclado, bajo, batería
 NUM_DIFFICULTIES = 4                   ; fácil, medio, difícil, experto
 FRAMES_PER_ROW  = 4                    ; una fila (8 px) dura 4 cuadros -> las notas bajan 2 px por cuadro
 CHART_ENTRY     = 5                    ; bytes por nota del chart: fila (2), cuadro (2), carriles (1)
@@ -33,6 +38,9 @@ HIT_ROW         = 25                   ; fila de pantalla del aro (25 * 8 = pixe
 HIT_Y           = HIT_ROW * 8
 WINDOW          = 6                    ; tolerancia: +-6 cuadros (~100 ms) para acertar
 MAX_ERASE       = NUM_LANES            ; gemas que se pueden borrar en un mismo cuadro
+SONG_LEAD_IN    = 128                  ; cuadros de autopista antes de que arranque la música
+RESULTS_DELAY   = 60                   ; cuadros entre el fin de la música y los resultados
+VBUF_SIZE       = 128                  ; bytes de la cola de textos para la NMI
 
 ; Las nametables guardan 30 filas cada una; usamos 2 apiladas = 60 filas
 VROWS           = 60
@@ -45,6 +53,22 @@ FILL_FIRST_VROW = HIT_ROW - FILL_FIRST_ROW
 PPUCTRL_BASE    = %10000000            ; NMI encendida, tiles de fondo y sprites en $0000
 PPUMASK_ON      = %00011110            ; mostrar fondo y sprites (incluida la columna izquierda)
 
+; Estados del juego (índices de state_handlers)
+STATE_TITLE     = 0
+STATE_MENU      = 1
+STATE_PLAY      = 2
+STATE_RESULTS   = 3
+
+; Ficha de una canción (la genera `nesband import-song` en src/songs/*/song.s)
+SONG_MUSIC       = 0    ; .addr  datos para el motor de FamiStudio
+SONG_END         = 2    ; .word  cuadro en que se detiene la música
+SONG_BEAT_ROWS   = 4    ; .byte  filas entre líneas de beat
+SONG_FIRST_BEAT  = 5    ; .byte  primera fila con línea de beat
+SONG_TITLE       = 6    ; .addr  texto
+SONG_GAME        = 8    ; .addr  texto
+SONG_INSTRUMENTS = 10   ; .byte  bit i = el instrumento i tiene chart
+SONG_CHARTS      = 11   ; .addr  [instrumento][dificultad], 0 si no hay
+
 ; -----------------------------------------------------------------------------
 ; Variables en zero page (las primeras 256 bytes de RAM: acceso más rápido y
 ; las únicas que sirven como punteros para el modo (ptr),y)
@@ -53,17 +77,33 @@ PPUMASK_ON      = %00011110            ; mostrar fondo y sprites (incluida la co
 frame_counter:  .res 1   ; lo incrementa la NMI; main_loop lo usa para esperar al siguiente cuadro
 nmi_ready:      .res 1   ; 1 = main_loop ya dejó listo todo para que la NMI lo copie
 tmp:            .res 2   ; temporal de uso general
-addr:           .res 2   ; resultado de vrow_to_addr (dirección de VRAM)
-ptr:            .res 2   ; puntero de uso general al chart
+addr:           .res 2   ; dirección de VRAM (resultado de vrow_to_addr, SET_ADDR, etc.)
+ptr:            .res 2   ; puntero de uso general (chart, textos)
 render_ptr:     .res 2   ; puntero al chart para dibujar filas nuevas
 lane:           .res 1   ; carril que se está procesando (0-4)
 fill_count:     .res 1
+vbuf_len:       .res 1   ; bytes ocupados en vbuf (la cola de textos para la NMI)
 
 buttons:        .res 1   ; botones presionados en este cuadro
 prev_buttons:   .res 1   ; los del cuadro anterior
 pressed:        .res 1   ; los que se acaban de presionar (no estaban en el anterior)
 
+game_state:     .res 1   ; STATE_...
+cur_song:       .res 1   ; lo que se eligió en el menú
+cur_instrument: .res 1
+cur_difficulty: .res 1
+menu_cursor:    .res 1   ; 0 = canción, 1 = instrumento, 2 = dificultad
+menu_dir:       .res 1   ; +1 o -1 al cambiar un valor del menú
+song_ptr:       .res 2   ; ficha de la canción elegida
+
 song_frame:     .res 2   ; cuadros transcurridos desde que empezó la canción
+song_end:       .res 2   ; cuadro en que se detiene la música
+results_frame:  .res 2   ; cuadro en que se pasa a los resultados
+beat_rows:      .res 1   ; filas entre líneas de beat
+first_beat_row: .res 1
+player_channel: .res 1   ; canal del APU que se silencia al fallar (0-3)
+paused:         .res 1
+
 cur_row:        .res 2   ; fila del chart que está ahora sobre el aro
 frame_in_row:   .res 1   ; cuadro dentro de la fila actual (0 .. FRAMES_PER_ROW-1)
 rowpix:         .res 1   ; cuántos pixeles ha bajado la fila actual (0..7)
@@ -82,9 +122,13 @@ erase_count:    .res 1   ; cuántas gemas hay que borrar en la próxima NMI
 diff:           .res 2   ; song_frame - cuadro de la nota (con signo)
 multiplier:     .res 1   ; x1..x4
 player_muted:   .res 1   ; 1 = el jugador falló: su instrumento no suena hasta el siguiente acierto
-difficulty:     .res 1   ; 0..3
-chart_start:    .res 2   ; chart de la dificultad elegida
+chart_start:    .res 2   ; chart elegido (instrumento + dificultad)
 beat_count:     .res 1   ; filas que faltan para la siguiente línea de beat (al dibujar)
+
+notes_total:    .res 2   ; gemas en el chart
+notes_hit:      .res 2   ; gemas acertadas
+combo_bin:      .res 2   ; el combo en binario (combo_digits es para dibujarlo)
+max_combo:      .res 2
 
 ; -----------------------------------------------------------------------------
 ; Resto de la RAM
@@ -101,16 +145,11 @@ erase_lo:       .res MAX_ERASE
 erase_tile:     .res MAX_ERASE
 score_digits:   .res 6   ; puntaje en decimal, un dígito por byte (más fácil de dibujar)
 combo_digits:   .res 3
-
-; -----------------------------------------------------------------------------
-; La canción: música, charts y sus constantes (SONG_...). La genera
-; `uv run nesband import-song`; va antes del código porque el código usa
-; esas constantes en directivas .if
-; -----------------------------------------------------------------------------
-.include "songs/current.s"
-
-; beat_count para la primera fila que se dibuja (FILL_FIRST_ROW)
-BEAT_COUNT_INIT = (SONG_FIRST_BEAT_ROW - FILL_FIRST_ROW) .mod SONG_BEAT_ROWS
+vbuf:           .res VBUF_SIZE   ; cola de textos para la NMI (ver text.s)
+numstr:         .res 12  ; texto de un número (num_to_text) u otro texto armado al vuelo
+hits100:        .res 3   ; notes_hit * 100, para calcular el porcentaje
+percent:        .res 1
+stars:          .res 1
 
 ; -----------------------------------------------------------------------------
 ; Encabezado iNES: le dice al emulador qué tipo de cartucho es
@@ -128,10 +167,15 @@ BEAT_COUNT_INIT = (SONG_FIRST_BEAT_ROW - FILL_FIRST_ROW) .mod SONG_BEAT_ROWS
 ; -----------------------------------------------------------------------------
 .segment "CODE"
 
+.include "text.s"
 .include "highway.s"
 .include "gameplay.s"
 .include "hud.s"
 .include "audio.s"
+.include "title.s"
+.include "menu.s"
+.include "play.s"
+.include "results.s"
 
 ; =============================================================================
 ; reset: lo primero que se ejecuta al encender o al presionar Reset
@@ -168,64 +212,45 @@ reset:
     bne @clear_ram
 
     ; Sprites con Y=$FF quedan fuera de la pantalla (ocultos)
-    lda #$FF
-@clear_oam:
-    sta oam,x
-    inx
-    bne @clear_oam
+    jsr hide_sprites
 
 @wait_vblank2:
     bit PPUSTATUS
     bpl @wait_vblank2
 
-    jsr load_palettes
+    ; Lo que aparece elegido en el menú la primera vez
+    lda #1                  ; dificultad: medio
+    sta cur_difficulty
+    jsr select_song         ; canción 0 y su primer instrumento disponible
 
-    ; Motor de sonido: A = 1 (NTSC), X/Y = dirección de la música
-    lda #1
-    ldx #<song_music_data
-    ldy #>song_music_data
-    jsr famistudio_init
-
-    lda #NUM_DIFFICULTIES - 1   ; arrancamos en experto
-    sta difficulty
-    jsr game_init
+    jsr enter_title
 
 ; =============================================================================
 ; main_loop: una vuelta por cuadro
 ; =============================================================================
 main_loop:
     jsr wait_nmi            ; esperar a que la NMI copie lo del cuadro anterior
-
     jsr read_pad
-    lda pressed
-    and #BTN_SELECT
-    beq @no_select
-    ldx difficulty          ; Select = siguiente dificultad (y reinicia)
-    inx
-    cpx #NUM_DIFFICULTIES
-    bcc @set_difficulty
-    ldx #0
-@set_difficulty:
-    stx difficulty
-    jmp @restart
-@no_select:
-    lda pressed
-    and #BTN_START
-    beq @no_restart
-@restart:
-    jsr game_init           ; Start = reiniciar la canción
-    jmp main_loop
-@no_restart:
 
-    jsr advance_time        ; mover las notas y, si toca, preparar una fila nueva
-    jsr judge_lanes         ; aciertos y fallos
-    jsr update_music        ; motor de sonido (y silenciar si fallaste)
-    jsr update_sprites      ; aros y marcador
-    jsr compute_scroll
+    ; Saltar a la rutina del estado actual: ptr = state_handlers[game_state]
+    lda game_state
+    asl a                   ; 2 bytes por dirección
+    tax
+    lda state_handlers,x
+    sta ptr
+    lda state_handlers+1,x
+    sta ptr+1
+    jsr jump_to_ptr         ; "jsr (ptr)" no existe en el 6502: jsr a un jmp (ptr)
 
     lda #1
     sta nmi_ready           ; listo: la próxima NMI copia todo a la PPU
     jmp main_loop
+
+jump_to_ptr:
+    jmp (ptr)
+
+state_handlers:
+    .addr title_update, menu_update, play_update, results_update
 
 ; Espera hasta que ocurra la siguiente NMI
 wait_nmi:
@@ -235,138 +260,59 @@ wait_nmi:
     beq @wait
     rts
 
-; =============================================================================
-; game_init: deja todo listo para empezar la canción desde el principio
-; =============================================================================
-game_init:
-    ; Apagamos NMI y dibujo para poder escribir libremente en la VRAM
+; -----------------------------------------------------------------------------
+; ppu_off / ppu_on: apagar el dibujo para armar una pantalla completa, y
+; volver a prenderlo (con el scroll de scroll_y / scroll_nt)
+; -----------------------------------------------------------------------------
+ppu_off:
     lda #0
-    sta PPUCTRL
+    sta PPUCTRL             ; sin NMI: nadie toca la PPU mientras dibujamos
     sta PPUMASK
+    sta row_pending         ; descartar lo que el juego dejó pendiente para la NMI,
+    sta erase_count         ; o se escribiría encima de la pantalla nueva
+    rts
 
-    jsr famistudio_music_stop
-
-    ; Chart de la dificultad elegida: song_charts es una tabla de direcciones
-    lda difficulty
-    asl a                   ; 2 bytes por dirección
-    tax
-    lda song_charts,x
-    sta chart_start
-    lda song_charts+1,x
-    sta chart_start+1
-
-    ; Variables de tiempo y scroll
-    lda #0
-    sta player_muted
-    sta song_frame
-    sta song_frame+1
-    sta cur_row
-    sta cur_row+1
-    sta frame_in_row
-    sta rowpix
-    sta row_scroll
-    sta row_scroll+1
-    sta row_pending
-    sta erase_count
-    sta nmi_ready
-    lda #HIT_ROW
-    sta cur_vrow
-
-    ; Marcador en ceros
-    ldx #5
-    lda #0
-@clear_score:
-    sta score_digits,x
-    dex
-    bpl @clear_score
-    sta combo_digits
-    sta combo_digits+1
-    sta combo_digits+2
-    lda #1
-    sta multiplier
-
-    ; Cada carril busca su primera nota
-    ldx #0
-@lanes:
-    lda chart_start
-    sta ptr
-    lda chart_start+1
-    sta ptr+1
-    jsr lane_seek
-    inx
-    cpx #NUM_LANES
-    bne @lanes
-
-    ; Dibujar las 60 filas iniciales de la autopista
-    lda chart_start
-    sta render_ptr
-    lda chart_start+1
-    sta render_ptr+1
-    lda #BEAT_COUNT_INIT
-    sta beat_count
-    lda #<FILL_FIRST_ROW
-    sta next_k
-    lda #>FILL_FIRST_ROW
-    sta next_k+1
-    lda #FILL_FIRST_VROW
-    sta next_vrow
-    lda #VROWS
-    sta fill_count
-@fill:
-    jsr build_row           ; arma row_buf y row_addr
-    bit PPUSTATUS
-    lda row_addr+1
-    sta PPUADDR
-    lda row_addr
-    sta PPUADDR
-    ldx #0
-@copy:
-    lda row_buf,x
-    sta PPUDATA
-    inx
-    cpx #32
-    bne @copy
-    jsr step_next_row
-    dec fill_count
-    bne @fill
-
-    jsr write_attributes
-
-    ; Sprites: ocultar todos y dibujar los aros/marcador
-    lda #$FF
-    ldx #0
-@hide:
-    sta oam,x
-    inx
-    bne @hide
-    jsr update_sprites
-    jsr compute_scroll
-
-    ; Reencender: scroll en 0, NMI encendida, y el dibujo hasta el siguiente vblank
+ppu_on:
     bit PPUSTATUS
     lda #0
     sta PPUSCROLL
+    lda scroll_y
     sta PPUSCROLL
     lda #PPUCTRL_BASE
+    ora scroll_nt
     sta PPUCTRL
-    jsr wait_nmi
+    jsr wait_nmi            ; esperar el vblank para prender sin basura a medio cuadro
+    lda #0
+    sta OAMADDR
+    lda #>oam
+    sta OAMDMA              ; los sprites nuevos desde el primer cuadro
     lda #PPUMASK_ON
     sta PPUMASK
     rts
 
-; Copia las 32 entradas de paleta a la PPU ($3F00)
+; Oculta los 64 sprites (Y = $FF queda fuera de la pantalla)
+hide_sprites:
+    lda #$FF
+    ldx #0
+@loop:
+    sta oam,x
+    inx
+    bne @loop
+    rts
+
+; Copia 32 colores a la PPU ($3F00). X = PALETTES_PLAY o PALETTES_MENU
 load_palettes:
     bit PPUSTATUS
     lda #$3F
     sta PPUADDR
     lda #$00
     sta PPUADDR
-    ldx #0
+    ldy #32
 @loop:
     lda palettes,x
     sta PPUDATA
     inx
-    cpx #32
+    dey
     bne @loop
     rts
 
@@ -428,7 +374,13 @@ nmi:
     sta erase_count
 @no_erase:
 
-    ; 4) Scroll. Va al final porque escribir en $2006 descompone el scroll.
+    ; 4) Textos en cola (menús)
+    lda vbuf_len
+    beq @no_text
+    jsr flush_vbuf
+@no_text:
+
+    ; 5) Scroll. Va al final porque escribir en $2006 descompone el scroll.
     lda #PPUCTRL_BASE
     ora scroll_nt
     sta PPUCTRL
@@ -456,9 +408,11 @@ irq:
 .segment "RODATA"
 
 ; Colores (índices de la paleta del NES). $0F = negro.
-; Fondo: 4 paletas de 3 colores + el negro común. Color 1 = gris de las
-; líneas; color 2 = gema del carril; color 3 = gema del carril naranja
-; (que comparte paleta con el verde porque solo hay 4 paletas).
+; Juego: 4 paletas de fondo de 3 colores + el negro común. Color 1 = gris
+; de las líneas; color 2 = gema del carril; color 3 = gema del carril
+; naranja (que comparte paleta con el verde porque solo hay 4 paletas).
+PALETTES_PLAY = 0
+PALETTES_MENU = 32
 palettes:
     .byte $0F, $00, $2A, $27   ; fondo 0: verde + naranja
     .byte $0F, $00, $16, $30   ; fondo 1: rojo
@@ -468,12 +422,24 @@ palettes:
     .byte $0F, $30, $16, $30   ; sprites 1: rojo
     .byte $0F, $30, $28, $30   ; sprites 2: amarillo
     .byte $0F, $30, $12, $30   ; sprites 3: azul
+; Menús: texto blanco (color 1), gris (2) y el logo naranja (3)
+    .byte $0F, $30, $10, $27
+    .byte $0F, $30, $10, $27
+    .byte $0F, $30, $10, $27
+    .byte $0F, $30, $10, $27
+    .byte $0F, $30, $27, $16
+    .byte $0F, $30, $27, $16
+    .byte $0F, $30, $27, $16
+    .byte $0F, $30, $27, $16
 
 ; Cuántos pixeles ha bajado una fila según el cuadro dentro de ella
 rowpix_table:
 .repeat FRAMES_PER_ROW, i
     .byte (i * 8) / FRAMES_PER_ROW
 .endrepeat
+
+; Las canciones (las genera `uv run nesband import-song`)
+.include "songs/list.s"
 
 ; -----------------------------------------------------------------------------
 ; Vectores: las 3 direcciones a las que salta el 6502 (NMI, reset, IRQ)

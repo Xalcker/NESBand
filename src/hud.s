@@ -13,8 +13,6 @@ COMBO_X = 224
 COMBO_Y = 32
 MULT_X  = 224
 MULT_Y  = 48
-DIFF_X  = 0
-DIFF_Y  = 32
 
 update_sprites:
     ldy #0                  ; Y = índice dentro de la OAM
@@ -118,18 +116,6 @@ update_sprites:
     sta oam+3,y
     lda #MULT_X + 8
     sta oam+7,y
-
-    ; --- Dificultad: un dígito del 1 (fácil) al 4 (experto) ---
-    lda #DIFF_Y - 1
-    sta oam+8,y
-    lda difficulty
-    clc
-    adc #TILE_DIGIT0 + 1
-    sta oam+9,y
-    lda #0
-    sta oam+10,y
-    lda #DIFF_X
-    sta oam+11,y
     rts
 
 ;                        verde        rojo         amarillo     azul         naranja
