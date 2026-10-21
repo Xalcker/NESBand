@@ -47,29 +47,20 @@ enter_play:
     lda (song_ptr),y
     sta first_beat_row
 
-    lda cur_instrument      ; guitarra, teclado, bajo, batería = canales 0, 1, 2, 3
-    sta player_channel
+    ; --- Cada jugador: su chart, marcador y carriles ---
+    ldx #0
+@player:
+    jsr load_player
+    jsr init_player
+    jsr store_player
+    ldx player
+    inx
+    cpx num_players
+    bne @player
 
-    ; chart_start = charts[instrumento * 4 + dificultad]
-    lda cur_instrument
-    asl a
-    asl a
-    clc
-    adc cur_difficulty
-    asl a                   ; 2 bytes por dirección
-    clc
-    adc #SONG_CHARTS
-    tay
-    lda (song_ptr),y
-    sta chart_start
-    iny
-    lda (song_ptr),y
-    sta chart_start+1
-
-    ; --- Variables de tiempo y scroll ---
+    ; --- Variables de tiempo y scroll (las comparten todos) ---
     lda #0
     sta paused
-    sta player_muted
     sta song_frame
     sta song_frame+1
     sta cur_row
@@ -83,45 +74,7 @@ enter_play:
     lda #HIT_ROW
     sta cur_vrow
 
-    ; --- Marcador y estadísticas en ceros ---
-    ldx #5
-    lda #0
-@clear_score:
-    sta score_digits,x
-    dex
-    bpl @clear_score
-    sta combo_digits
-    sta combo_digits+1
-    sta combo_digits+2
-    sta notes_hit
-    sta notes_hit+1
-    sta combo_bin
-    sta combo_bin+1
-    sta max_combo
-    sta max_combo+1
-    lda #1
-    sta multiplier
-    jsr count_notes
-
-    ; --- Cada carril busca su primera nota ---
-    ldx #0
-@lanes:
-    jsr chart_first
-    jsr lane_seek
-    inx
-    cpx #NUM_LANES
-    bne @lanes
-
-    ; --- Dibujar las 60 filas iniciales de la autopista ---
-    jsr chart_first         ; el dibujo lleva su propio puntero y cuadro
-    lda ptr
-    sta render_ptr
-    lda ptr+1
-    sta render_ptr+1
-    lda seek_frame
-    sta render_frame
-    lda seek_frame+1
-    sta render_frame+1
+    ; --- Dibujar las 30 filas iniciales de la autopista ---
     lda #<FILL_FIRST_ROW
     sta next_k
     lda #>FILL_FIRST_ROW
@@ -173,6 +126,71 @@ enter_play:
     jmp ppu_on
 
 ; -----------------------------------------------------------------------------
+; init_player: prepara al jugador cargado en pstate para empezar la canción
+; -----------------------------------------------------------------------------
+init_player:
+    lda cur_instrument      ; guitarra, teclado, bajo, batería = canales 0, 1, 2, 3
+    sta player_channel
+
+    ; chart_start = charts[instrumento * 4 + dificultad]
+    lda cur_instrument
+    asl a
+    asl a
+    clc
+    adc cur_difficulty
+    asl a                   ; 2 bytes por dirección
+    clc
+    adc #SONG_CHARTS
+    tay
+    lda (song_ptr),y
+    sta chart_start
+    iny
+    lda (song_ptr),y
+    sta chart_start+1
+
+    ; Marcador y estadísticas en ceros
+    ldx #5
+    lda #0
+@clear_score:
+    sta score_digits,x
+    dex
+    bpl @clear_score
+    sta combo_digits
+    sta combo_digits+1
+    sta combo_digits+2
+    sta notes_hit
+    sta notes_hit+1
+    sta combo_bin
+    sta combo_bin+1
+    sta max_combo
+    sta max_combo+1
+    sta player_muted
+    lda #1
+    sta multiplier
+    jsr count_notes
+
+    ; Cada carril busca su primera nota
+    ldx #0
+@lanes:
+    jsr chart_first
+    jsr lane_seek
+    inx
+    cpx #NUM_LANES
+    bne @lanes
+
+    ; El dibujo lleva su propio puntero y cuadro
+    jsr chart_first
+    lda ptr
+    sta render_ptr
+    lda ptr+1
+    sta render_ptr+1
+    lda seek_frame
+    sta render_frame
+    lda seek_frame+1
+    sta render_frame+1
+    rts
+
+; -----------------------------------------------------------------------------
 ; count_notes: notes_total = cuántas gemas tiene el chart (un acorde de 2 son 2)
 ; -----------------------------------------------------------------------------
 count_notes:
@@ -212,10 +230,14 @@ count_notes:
 ; play_update: un cuadro de juego
 ; =============================================================================
 play_update:
+    ; Start/Select de cualquiera de los dos controles
+    lda pad_pressed
+    ora pad_pressed+1
+    sta tmp+1
     lda paused
     bne @paused
 
-    lda pressed
+    lda tmp+1
     and #BTN_START
     beq @run
     lda #1                  ; Start: pausar
@@ -226,9 +248,19 @@ play_update:
 
 @run:
     jsr advance_time        ; mover las notas y, si toca, preparar una fila nueva
+
+    ldx #0                  ; cada jugador:
+@player:
+    jsr load_player
     jsr judge_lanes         ; aciertos y fallos
-    jsr update_music        ; motor de sonido (y silenciar si fallaste)
     jsr update_hud          ; aros y marcador
+    jsr store_player
+    ldx player
+    inx
+    cpx num_players
+    bne @player
+
+    jsr update_music        ; motor de sonido (y silenciar a quien haya fallado)
     jsr compute_scroll
 
     ; ¿Ya terminó? (un segundo después de que se detiene la música)
@@ -243,7 +275,7 @@ play_update:
     rts
 
 @paused:
-    lda pressed
+    lda tmp+1
     and #BTN_START
     beq @no_resume
     lda #0                  ; Start: continuar
@@ -251,7 +283,7 @@ play_update:
     jsr famistudio_music_pause
     jmp hide_pause
 @no_resume:
-    lda pressed
+    lda tmp+1
     and #BTN_SELECT
     beq @still_paused
     jmp enter_menu          ; Select: salir al menú

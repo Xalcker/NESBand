@@ -30,6 +30,10 @@ enter_menu:
     PRINT MENU_LABEL_COL, MENU_DIFF_ROW - 2, txt_difficulty
     PRINT_CENTER 26, txt_menu_help
 
+    ; Las opciones de instrumento y dificultad son del jugador 1
+    ldx #0
+    jsr load_player
+
     ; Los valores se escriben con las mismas rutinas que al cambiarlos
     jsr select_song
     jsr menu_draw_song
@@ -52,6 +56,7 @@ menu_update:
     lda pressed
     and #BTN_START
     beq @no_start
+    jsr store_player        ; guardar lo elegido antes de jugar
     jmp enter_play
 @no_start:
     lda pressed
@@ -90,6 +95,7 @@ menu_update:
     sta menu_dir
     jsr menu_change
 @no_right:
+    jsr store_player
     jsr menu_place_cursor
     jmp famistudio_update   ; la canción de muestra
 

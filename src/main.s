@@ -30,6 +30,7 @@
 ; Parámetros del juego
 ; -----------------------------------------------------------------------------
 NUM_LANES       = 5
+MAX_PLAYERS     = 2
 NUM_INSTRUMENTS = 4                    ; guitarra, teclado, bajo, batería
 NUM_DIFFICULTIES = 4                   ; fácil, medio, difícil, experto
 FRAMES_PER_ROW  = 4                    ; una fila (8 px) dura 4 cuadros -> las notas bajan 2 px por cuadro
@@ -42,7 +43,7 @@ SPLIT_ROW       = 25                   ; fila de pantalla donde empieza la franj
 SPLIT_Y         = SPLIT_ROW * 8        ; = pixel 200
 HIT_ROW         = SPLIT_ROW - 1        ; fila donde está la gema cuando toca el aro (justo encima)
 WINDOW          = 6                    ; tolerancia: +-6 cuadros (~100 ms) para acertar
-MAX_ERASE       = NUM_LANES            ; gemas que se pueden borrar en un mismo cuadro
+MAX_ERASE       = NUM_LANES * MAX_PLAYERS ; gemas que se pueden borrar en un mismo cuadro
 SONG_LEAD_IN    = 128                  ; cuadros de autopista antes de que arranque la música
 RESULTS_DELAY   = 60                   ; cuadros entre el fin de la música y los resultados
 VBUF_SIZE       = 128                  ; bytes de la cola de textos para la NMI
@@ -102,21 +103,18 @@ nmi_ready:      .res 1   ; 1 = main_loop ya dejó listo todo para que la NMI lo 
 tmp:            .res 2   ; temporal de uso general
 addr:           .res 2   ; dirección de VRAM (resultado de vrow_to_addr, SET_ADDR, etc.)
 ptr:            .res 2   ; puntero de uso general (chart, textos)
-render_ptr:     .res 2   ; puntero al chart para dibujar filas nuevas
-render_frame:   .res 2   ; cuadro de la entrada a la que apunta render_ptr
 seek_frame:     .res 2   ; cuadro de la entrada a la que apunta ptr (ver chart_step)
 lane:           .res 1   ; carril que se está procesando (0-4)
 fill_count:     .res 1
 vbuf_len:       .res 1   ; bytes ocupados en vbuf (la cola de textos para la NMI)
 
-buttons:        .res 1   ; botones presionados en este cuadro
-prev_buttons:   .res 1   ; los del cuadro anterior
-pressed:        .res 1   ; los que se acaban de presionar (no estaban en el anterior)
+buttons:        .res 1   ; botones del control del jugador actual (en menús: el control 1)
+pressed:        .res 1   ; los que se acaban de presionar (no estaban en el cuadro anterior)
+player:         .res 1   ; jugador cargado en el bloque pstate (0 o 1)
+num_players:    .res 1   ; 1 o 2
 
 game_state:     .res 1   ; STATE_...
 cur_song:       .res 1   ; lo que se eligió en el menú
-cur_instrument: .res 1
-cur_difficulty: .res 1
 menu_cursor:    .res 1   ; 0 = canción, 1 = instrumento, 2 = dificultad
 menu_dir:       .res 1   ; +1 o -1 al cambiar un valor del menú
 song_ptr:       .res 2   ; ficha de la canción elegida
@@ -126,7 +124,6 @@ song_end:       .res 2   ; cuadro en que se detiene la música
 results_frame:  .res 2   ; cuadro en que se pasa a los resultados
 beat_rows:      .res 1   ; filas entre líneas de beat
 first_beat_row: .res 1
-player_channel: .res 1   ; canal del APU que se silencia al fallar (0-3)
 paused:         .res 1
 
 cur_row:        .res 2   ; fila del chart que está ahora sobre el aro
@@ -137,8 +134,6 @@ row_scroll:     .res 1   ; scroll vertical al inicio de la fila actual (0..232)
 scroll_y:       .res 1   ; valor final para $2005
 scroll_nt:      .res 1   ; nametable para $2000 (bits 0-1)
 split_on:       .res 1   ; 1 = dividir la pantalla en SPLIT_Y (solo en el juego)
-rings_shown:    .res 1   ; carriles con el aro relleno en pantalla (un bit por carril)
-hud_dirty:      .res 1   ; 1 = puntaje/combo cambiaron y hay que redibujarlos
 
 next_k:         .res 2   ; siguiente fila del chart que hay que dibujar
 next_vrow:      .res 1   ; fila de la nametable donde va
@@ -148,15 +143,44 @@ row_addr:       .res 2   ; dirección de VRAM donde va row_buf
 erase_count:    .res 1   ; cuántas gemas hay que borrar en la próxima NMI
 
 diff:           .res 2   ; song_frame - cuadro de la nota (con signo)
-multiplier:     .res 1   ; x1..x4
+beat_count:     .res 1   ; filas que faltan para la siguiente línea de beat (al dibujar)
+edge_tile:      .res 1   ; tiles de la fila que se está armando (con o sin línea de beat)
+inner_tile:     .res 1
+
+; -----------------------------------------------------------------------------
+; Estado del jugador actual (pstate)
+;
+; Todo lo que cada jugador tiene por separado vive en este bloque. Cada
+; jugador guarda su copia en player_save; antes de procesar a un jugador se
+; copia su bloque aquí (load_player) y al terminar se devuelve (store_player).
+; Así el código de juego trabaja con "el jugador actual" sin preocuparse de
+; cuál es.
+; -----------------------------------------------------------------------------
+pstate:
+cur_instrument: .res 1   ; elegido en el menú
+cur_difficulty: .res 1
+player_channel: .res 1   ; canal del APU que se silencia al fallar (0-3)
 player_muted:   .res 1   ; 1 = el jugador falló: su instrumento no suena hasta el siguiente acierto
 chart_start:    .res 2   ; chart elegido (instrumento + dificultad)
-beat_count:     .res 1   ; filas que faltan para la siguiente línea de beat (al dibujar)
-
+render_ptr:     .res 2   ; puntero al chart para dibujar filas nuevas
+render_frame:   .res 2   ; cuadro de la entrada a la que apunta render_ptr
+lane_ptr_lo:    .res NUM_LANES   ; siguiente nota pendiente de cada carril
+lane_ptr_hi:    .res NUM_LANES
+lane_frame_lo:  .res NUM_LANES   ; y el cuadro en que suena
+lane_frame_hi:  .res NUM_LANES
+multiplier:     .res 1   ; x1..x4
+score_digits:   .res 6   ; puntaje en decimal, un dígito por byte (más fácil de dibujar)
+combo_digits:   .res 3
 notes_total:    .res 2   ; gemas en el chart
 notes_hit:      .res 2   ; gemas acertadas
 combo_bin:      .res 2   ; el combo en binario (combo_digits es para dibujarlo)
 max_combo:      .res 2
+percent:        .res 1
+stars:          .res 1
+rings_shown:    .res 1   ; carriles con el aro relleno en pantalla (un bit por carril)
+hud_dirty:      .res 1   ; 1 = puntaje/combo cambiaron y hay que redibujarlos
+pstate_end:
+PSTATE_SIZE = pstate_end - pstate
 
 ; -----------------------------------------------------------------------------
 ; Resto de la RAM
@@ -165,22 +189,18 @@ max_combo:      .res 2
 oam:            .res 256 ; 64 sprites x 4 bytes (Y, tile, atributos, X)
 
 .segment "BSS"
+player_save:    .res PSTATE_SIZE * MAX_PLAYERS   ; el bloque pstate de cada jugador
+pad_buttons:    .res MAX_PLAYERS ; botones de cada control (control 1, control 2)
+pad_prev:       .res MAX_PLAYERS ; los del cuadro anterior
+pad_pressed:    .res MAX_PLAYERS ; los recién presionados
 row_buf:        .res 32  ; una fila completa de la nametable (32 tiles)
-lane_ptr_lo:    .res NUM_LANES   ; siguiente nota pendiente de cada carril
-lane_ptr_hi:    .res NUM_LANES
-lane_frame_lo:  .res NUM_LANES   ; y el cuadro en que suena
-lane_frame_hi:  .res NUM_LANES
 erase_hi:       .res MAX_ERASE   ; cola de gemas a borrar: dirección y tile
 erase_lo:       .res MAX_ERASE
 erase_tile:     .res MAX_ERASE
-score_digits:   .res 6   ; puntaje en decimal, un dígito por byte (más fácil de dibujar)
-combo_digits:   .res 3
 vbuf:           .res VBUF_SIZE   ; cola de textos para la NMI (ver text.s)
 numstr:         .res 12  ; texto de un número (num_to_text) u otro texto armado al vuelo
 strip_buf:      .res 32  ; un renglón de la franja fija, antes de mandarlo a la cola
 hits100:        .res 3   ; notes_hit * 100, para calcular el porcentaje
-percent:        .res 1
-stars:          .res 1
 
 ; -----------------------------------------------------------------------------
 ; Encabezado iNES: le dice al emulador qué tipo de cartucho es
@@ -304,6 +324,15 @@ reset_continue:
     lda #1                  ; dificultad: medio
     sta cur_difficulty
     jsr select_song         ; canción 0 y su primer instrumento disponible
+    lda #0
+    sta player
+    jsr store_player        ; jugador 1
+    lda #2                  ; jugador 2: bajo, para no chocar con la guitarra
+    sta cur_instrument
+    inc player
+    jsr store_player
+    lda #1
+    sta num_players
 
     cli                     ; aceptar IRQ: solo la del MMC3 está encendida, y solo en el juego
     jsr enter_title
@@ -374,6 +403,46 @@ ppu_on:
     lda #PPUMASK_ON
     sta PPUMASK
     rts
+
+; -----------------------------------------------------------------------------
+; load_player: X = jugador. Copia su bloque guardado a pstate y deja en
+; buttons/pressed los botones de su control.
+; store_player: devuelve pstate a la copia guardada del jugador actual.
+; -----------------------------------------------------------------------------
+load_player:
+    stx player
+    lda player_offset,x
+    tay
+    ldx #0
+@copy:
+    lda player_save,y
+    sta pstate,x
+    iny
+    inx
+    cpx #PSTATE_SIZE
+    bne @copy
+    ldx player
+    lda pad_buttons,x
+    sta buttons
+    lda pad_pressed,x
+    sta pressed
+    rts
+
+store_player:
+    ldx player
+    lda player_offset,x
+    tay
+    ldx #0
+@copy:
+    lda pstate,x
+    sta player_save,y
+    iny
+    inx
+    cpx #PSTATE_SIZE
+    bne @copy
+    rts
+
+player_offset: .byte 0, PSTATE_SIZE    ; dónde empieza la copia de cada jugador
 
 ; Oculta los 64 sprites (Y = $FF queda fuera de la pantalla)
 hide_sprites:

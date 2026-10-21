@@ -14,6 +14,8 @@ enter_results:
     jsr load_palettes
     jsr clear_nametable
     jsr hide_sprites
+    ldx #0
+    jsr load_player
     jsr compute_stats
 
     PRINT_CENTER 3, txt_results

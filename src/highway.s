@@ -112,11 +112,54 @@ frame_to_row:
     rts
 
 ; -----------------------------------------------------------------------------
-; build_row: arma en row_buf los 32 tiles de la fila next_k del chart,
-; y en row_addr la dirección de VRAM de next_vrow.
+; build_row: arma en row_buf los 32 tiles de la fila next_k del chart (con
+; la autopista de cada jugador), y en row_addr la dirección de next_vrow.
 ; -----------------------------------------------------------------------------
 build_row:
-    ; 1) ¿Qué carriles tienen nota en esta fila?
+    ; 1) ¿Esta fila lleva la línea horizontal del beat?
+    ldx #TILE_EDGE
+    ldy #TILE_BLANK
+    lda beat_count
+    bne @no_beat
+    ldx #TILE_EDGE_BEAT
+    ldy #TILE_BEAT
+@no_beat:
+    stx edge_tile
+    sty inner_tile
+
+    ; 2) Fila vacía
+    ldx #31
+    lda #TILE_BLANK
+@clear:
+    sta row_buf,x
+    dex
+    bpl @clear
+
+    ; 3) La autopista de cada jugador
+    ldx #0
+@player:
+    jsr load_player
+    jsr player_row_mask
+    jsr draw_player_lanes
+    jsr store_player
+    ldx player
+    inx
+    cpx num_players
+    bne @player
+
+    ; 4) Dirección de VRAM
+    lda next_vrow
+    jsr vrow_to_addr
+    lda addr
+    sta row_addr
+    lda addr+1
+    sta row_addr+1
+    rts
+
+; -----------------------------------------------------------------------------
+; player_row_mask: row_mask = carriles del jugador actual con nota en next_k
+; -----------------------------------------------------------------------------
+player_row_mask:
     lda #0
     sta row_mask
     lda next_k+1
@@ -164,35 +207,25 @@ build_row:
     jmp @seek
 
 @have_mask:
-    ; 2) ¿Esta fila lleva la línea horizontal del beat?
-    ldx #TILE_EDGE
-    ldy #TILE_BLANK
-    lda beat_count
-    bne @no_beat
-    ldx #TILE_EDGE_BEAT
-    ldy #TILE_BEAT
-@no_beat:
-    stx tmp                 ; tmp   = tile del borde
-    sty tmp+1               ; tmp+1 = tile del interior
+    rts
 
-    ; 3) Fila vacía
-    ldx #31
-    lda #TILE_BLANK
-@clear:
-    sta row_buf,x
-    dex
-    bpl @clear
-
-    ; 4) Cada carril: borde + interior, y la gema si hay nota
-    ldy #0
+; -----------------------------------------------------------------------------
+; draw_player_lanes: dibuja en row_buf los carriles del jugador actual:
+; borde + interior, y la gema donde row_mask lo diga
+; -----------------------------------------------------------------------------
+draw_player_lanes:
+    lda #0
+    sta lane
 @lane:
-    ldx lane_col,y          ; X = columna donde empieza el carril
-    lda tmp
+    jsr lane_column
+    tax                     ; X = columna donde empieza el carril
+    lda edge_tile
     sta row_buf,x
-    lda tmp+1
+    lda inner_tile
     sta row_buf+1,x
     sta row_buf+2,x
     sta row_buf+3,x
+    ldy lane
     lda row_mask
     and lane_bit,y
     beq @next_lane
@@ -202,20 +235,25 @@ build_row:
     adc #1                  ; la mitad derecha es el tile siguiente
     sta row_buf+2,x
 @next_lane:
-    iny
-    cpy #NUM_LANES
+    inc lane
+    lda lane
+    cmp #NUM_LANES
     bne @lane
 
-    lda tmp
-    sta row_buf+HIGHWAY_RIGHT_COL
+    ldx player              ; borde derecho del último carril
+    ldy highway_right_col,x
+    lda edge_tile
+    sta row_buf,y
+    rts
 
-    ; 5) Dirección de VRAM
-    lda next_vrow
-    jsr vrow_to_addr
-    lda addr
-    sta row_addr
-    lda addr+1
-    sta row_addr+1
+; lane_column: A = columna donde empieza el carril `lane` del jugador actual
+lane_column:
+    ldx player
+    lda player_lane_base,x
+    clc
+    adc lane
+    tax
+    lda lane_col,x
     rts
 
 ; -----------------------------------------------------------------------------
@@ -285,7 +323,10 @@ write_attributes:
 ; -----------------------------------------------------------------------------
 ; Tablas por carril:     verde  rojo  amarillo  azul  naranja
 ; -----------------------------------------------------------------------------
-lane_col:       .byte    6,    10,    14,      18,    22
+lane_col:       .byte    6,    10,    14,      18,    22     ; jugador 1
+                .byte    6,    10,    14,      18,    22     ; jugador 2
+player_lane_base:  .byte 0, NUM_LANES                       ; dónde empiezan en lane_col
+highway_right_col: .byte HIGHWAY_RIGHT_COL, HIGHWAY_RIGHT_COL
 lane_bit:       .byte    %00001, %00010, %00100, %01000, %10000
 lane_gem:       .byte    TILE_GEM_A, TILE_GEM_A, TILE_GEM_A, TILE_GEM_A, TILE_GEM_B
 

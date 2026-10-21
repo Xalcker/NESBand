@@ -20,45 +20,60 @@
 ; =============================================================================
 
 ; -----------------------------------------------------------------------------
-; read_pad: lee el control 1
+; read_pad: lee los dos controles (pad_buttons / pad_pressed). En los menús,
+; buttons/pressed quedan con los del control 1; en el juego, load_player
+; pone los del control de cada jugador.
+;
 ; El control es un registro de desplazamiento: se "congela" escribiendo 1 y
-; luego 0 en $4016, y después cada lectura entrega un botón en el bit 0, en
-; orden: A, B, Select, Start, Arriba, Abajo, Izquierda, Derecha.
+; luego 0 en $4016, y después cada lectura de $4016 (control 1) o $4017
+; (control 2) entrega un botón en el bit 0, en orden: A, B, Select, Start,
+; Arriba, Abajo, Izquierda, Derecha.
 ;
 ; Glitch del DPCM: si el chip de sonido está leyendo un sample justo cuando
-; leemos $4016, se puede perder un bit y aparecen botones que nadie presionó.
-; Por eso leemos hasta que dos lecturas seguidas coincidan.
+; leemos el control, se puede perder un bit y aparecen botones que nadie
+; presionó. Por eso leemos hasta que dos lecturas seguidas coincidan.
 ; -----------------------------------------------------------------------------
 read_pad:
-    lda buttons
-    sta prev_buttons
+    ldx #0
+@pad:
+    lda pad_buttons,x
+    sta pad_prev,x
     jsr read_pad_once
 @retry:
-    lda buttons
     sta tmp                 ; lectura anterior
     jsr read_pad_once
-    lda buttons
     cmp tmp
     bne @retry
+    sta pad_buttons,x
 
-    ; pressed = botones que están ahora y no estaban antes
-    lda prev_buttons
+    ; recién presionados = están ahora y no estaban antes
+    lda pad_prev,x
     eor #$FF
-    and buttons
+    and pad_buttons,x
+    sta pad_pressed,x
+    inx
+    cpx #MAX_PLAYERS
+    bne @pad
+
+    lda pad_buttons
+    sta buttons
+    lda pad_pressed
     sta pressed
     rts
 
+; read_pad_once: A = botones del control X (0 o 1)
 read_pad_once:
     lda #1
-    sta buttons             ; este 1 sale por el carry después de 8 rotaciones: fin del ciclo
+    sta tmp+1               ; este 1 sale por el carry después de 8 rotaciones: fin del ciclo
     sta JOY1
     lda #0
     sta JOY1
 @loop:
-    lda JOY1
+    lda JOY1,x              ; $4016 o $4017
     lsr a                   ; bit 0 -> carry
-    rol buttons             ; carry -> bit 0 de buttons, el bit 7 sale al carry
+    rol tmp+1               ; carry -> bit 0, el bit 7 sale al carry
     bcc @loop
+    lda tmp+1
     rts
 
 ; -----------------------------------------------------------------------------
@@ -277,8 +292,7 @@ erase_gem:
 @have_vrow:
     jsr vrow_to_addr
 
-    ldx lane
-    lda lane_col,x
+    jsr lane_column
     sec                     ; +1: la gema empieza una columna después del borde
     adc addr
     ldy erase_count

@@ -63,26 +63,39 @@ update_music:
     ; continúa en apply_mute
 
 ; -----------------------------------------------------------------------------
-; apply_mute: si el jugador falló, silencia su instrumento (como en Rock Band)
+; apply_mute: silencia el instrumento de cada jugador que haya fallado (como
+; en Rock Band)
 ;
 ; El motor reescribe el volumen de cada canal en cada cuadro dentro de
 ; famistudio_update. Si justo después escribimos volumen 0, ese canal queda
 ; callado este cuadro; en cuanto dejamos de hacerlo, vuelve a sonar.
+;
+; Lee directo de la copia guardada de cada jugador (player_save), sin
+; cargarla: solo necesita dos bytes.
 ; -----------------------------------------------------------------------------
+PS_MUTED   = player_muted - pstate      ; posición dentro del bloque de un jugador
+PS_CHANNEL = player_channel - pstate
+
 apply_mute:
-    lda player_muted
-    beq @done
-    lda player_channel
+    ldx #0
+@player:
+    ldy player_offset,x
+    lda player_save + PS_MUTED,y
+    beq @next
+    lda player_save + PS_CHANNEL,y
     cmp #2
     bne @pulse_or_noise
     lda #$80                    ; triángulo: contador lineal en 0 = silencio
     sta APU_TRI_CTRL
-    rts
+    jmp @next
 @pulse_or_noise:
     asl a                       ; cada canal ocupa 4 registros: $4000, $4004, $400C
     asl a
-    tax
+    tay
     lda #%00110000              ; pulso/ruido: volumen constante 0
-    sta $4000,x
-@done:
+    sta $4000,y
+@next:
+    inx
+    cpx num_players
+    bne @player
     rts

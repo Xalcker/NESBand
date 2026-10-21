@@ -81,8 +81,10 @@ update_hud:
 ; Los 5 aros (2 tiles cada uno), con espacios entre ellos
 queue_rings:
     jsr clear_strip_buf
-    ldx #0
+    lda #0
+    sta lane
 @lane:
+    ldx lane
     lda lane_ring_tile,x    ; aro vacío, mitad izquierda
     sta tmp+1
     lda rings_shown
@@ -93,7 +95,7 @@ queue_rings:
     adc #4
     sta tmp+1
 @empty:
-    lda lane_col,x          ; posición dentro de la franja: lane_col + 1 - STRIP_FIRST_COL
+    jsr lane_column         ; posición dentro de la franja: columna + 1 - STRIP_FIRST_COL
     sec
     sbc #STRIP_FIRST_COL - 1
     tay
@@ -102,8 +104,9 @@ queue_rings:
     clc
     adc #1                  ; mitad derecha
     sta strip_buf+1,y
-    inx
-    cpx #NUM_LANES
+    inc lane
+    lda lane
+    cmp #NUM_LANES
     bne @lane
     lda #<(STRIP_NT + RING_ROW * 32 + STRIP_FIRST_COL)
     sta addr
