@@ -35,23 +35,32 @@ NUM_DIFFICULTIES = 4                   ; fácil, medio, difícil, experto
 FRAMES_PER_ROW  = 4                    ; una fila (8 px) dura 4 cuadros -> las notas bajan 2 px por cuadro
 CHART_ENTRY     = 2                    ; bytes por entrada del chart: cuadros desde la anterior, carriles
 CHART_END       = $FF                  ; carriles = $FF: fin del chart
-HIT_ROW         = 25                   ; fila de pantalla del aro (25 * 8 = pixel 200)
-HIT_Y           = HIT_ROW * 8
+; La pantalla de juego se divide en dos con la interrupción de scanline del
+; MMC3 (ver irq): arriba la autopista que se desplaza; desde SPLIT_ROW, una
+; franja fija con los aros y el marcador.
+SPLIT_ROW       = 25                   ; fila de pantalla donde empieza la franja fija
+SPLIT_Y         = SPLIT_ROW * 8        ; = pixel 200
+HIT_ROW         = SPLIT_ROW - 1        ; fila donde está la gema cuando toca el aro (justo encima)
 WINDOW          = 6                    ; tolerancia: +-6 cuadros (~100 ms) para acertar
 MAX_ERASE       = NUM_LANES            ; gemas que se pueden borrar en un mismo cuadro
 SONG_LEAD_IN    = 128                  ; cuadros de autopista antes de que arranque la música
 RESULTS_DELAY   = 60                   ; cuadros entre el fin de la música y los resultados
 VBUF_SIZE       = 128                  ; bytes de la cola de textos para la NMI
 
-; Las nametables guardan 30 filas cada una; usamos 2 apiladas = 60 filas
-VROWS           = 60
+; La autopista es un rollo de 30 filas en la nametable de $2000. Con mirroring
+; vertical, al pasar de la fila 29 el PPU sigue en la 0 de la misma nametable,
+; así que el scroll da la vuelta solo. La otra nametable ($2400) queda para
+; la franja fija.
+VROWS           = 30
 
-; Al iniciar, llenamos las 60 filas: desde la fila del chart FILL_FIRST_ROW
-; hasta HIT_ROW+1 (la que queda justo arriba de la pantalla, aún sin verse)
-FILL_FIRST_ROW  = HIT_ROW + 1 - (VROWS - 1)
+; Visibles arriba de la franja: filas cur_row .. cur_row+25 (la última, a
+; medias). La fila nueva se dibuja en cur_row+26, todavía fuera de la vista.
+AHEAD_ROWS      = HIT_ROW + 2
+; Al iniciar llenamos las 30 filas, de FILL_FIRST_ROW a AHEAD_ROWS
+FILL_FIRST_ROW  = AHEAD_ROWS - (VROWS - 1)
 FILL_FIRST_VROW = HIT_ROW - FILL_FIRST_ROW
 
-PPUCTRL_BASE    = %10000000            ; NMI encendida, tiles de fondo y sprites en $0000
+PPUCTRL_BASE    = %10001000            ; NMI encendida, fondo en $0000, sprites en $1000 (ver irq)
 PPUMASK_ON      = %00011110            ; mostrar fondo y sprites (incluida la columna izquierda)
 
 ; Estados del juego (índices de state_handlers)
@@ -75,7 +84,10 @@ SONG_CHARTS      = 12   ; .addr  [instrumento][dificultad], 0 si no hay
 MMC3_BANK_SELECT = $8000   ; qué registro de banco se va a cambiar (+ modo)
 MMC3_BANK_DATA   = $8001   ; número de banco para ese registro
 MMC3_MIRRORING   = $A000   ; 0 = vertical, 1 = horizontal
-MMC3_IRQ_DISABLE = $E000
+MMC3_IRQ_LATCH   = $C000   ; cuántas scanlines contar
+MMC3_IRQ_RELOAD  = $C001   ; reiniciar la cuenta
+MMC3_IRQ_DISABLE = $E000   ; apagar (y confirmar) la interrupción
+MMC3_IRQ_ENABLE  = $E001
 MMC3_PRG_MODE_1  = %01000000   ; $8000 fijo, $C000 intercambiable (R6)
 MMC3_R6          = 6           ; banco en $C000
 MMC3_R7          = 7           ; banco en $A000
@@ -121,9 +133,12 @@ cur_row:        .res 2   ; fila del chart que está ahora sobre el aro
 frame_in_row:   .res 1   ; cuadro dentro de la fila actual (0 .. FRAMES_PER_ROW-1)
 rowpix:         .res 1   ; cuántos pixeles ha bajado la fila actual (0..7)
 cur_vrow:       .res 1   ; en qué fila de la nametable (0..59) está cur_row
-row_scroll:     .res 2   ; scroll vertical al inicio de la fila actual (0..479)
+row_scroll:     .res 1   ; scroll vertical al inicio de la fila actual (0..232)
 scroll_y:       .res 1   ; valor final para $2005
-scroll_nt:      .res 1   ; nametable de arriba (0) o de abajo (2) para $2000
+scroll_nt:      .res 1   ; nametable para $2000 (bits 0-1)
+split_on:       .res 1   ; 1 = dividir la pantalla en SPLIT_Y (solo en el juego)
+rings_shown:    .res 1   ; carriles con el aro relleno en pantalla (un bit por carril)
+hud_dirty:      .res 1   ; 1 = puntaje/combo cambiaron y hay que redibujarlos
 
 next_k:         .res 2   ; siguiente fila del chart que hay que dibujar
 next_vrow:      .res 1   ; fila de la nametable donde va
@@ -162,6 +177,7 @@ score_digits:   .res 6   ; puntaje en decimal, un dígito por byte (más fácil 
 combo_digits:   .res 3
 vbuf:           .res VBUF_SIZE   ; cola de textos para la NMI (ver text.s)
 numstr:         .res 12  ; texto de un número (num_to_text) u otro texto armado al vuelo
+strip_buf:      .res 32  ; un renglón de la franja fija, antes de mandarlo a la cola
 hits100:        .res 3   ; notes_hit * 100, para calcular el porcentaje
 percent:        .res 1
 stars:          .res 1
@@ -212,8 +228,8 @@ reset:
     stx PPUMASK             ; no dibujar nada
     stx APU_DMC_FREQ        ; sin IRQ del canal DMC
 
-    ; MMC3: gráficos en orden (los 8 KB de CHR tal cual), modo de PRG 1,
-    ; mirroring horizontal y sin interrupciones de scanline
+    ; MMC3: bancos de gráficos, modo de PRG 1, mirroring vertical (ver VROWS)
+    ; y sin interrupciones de scanline por ahora
     ldx #0
 @chr_banks:
     txa
@@ -224,15 +240,19 @@ reset:
     inx
     cpx #6
     bne @chr_banks
-    lda #1
+    lda #0
     sta MMC3_MIRRORING
     sta MMC3_IRQ_DISABLE
-    lda #0
-    jsr select_slot         ; algo válido en $A000-$DFFF
+    jsr select_slot         ; slot 0: algo válido en $A000-$DFFF
     jmp reset_continue
 
-; R0, R1 = bancos de 2 KB en $0000/$0800; R2-R5 = bancos de 1 KB en $1000-$1C00
-mmc3_chr_banks: .byte 0, 2, 4, 5, 6, 7
+; Los mismos 4 KB de tiles se ven en $0000 (fondo) y en $1000 (sprites).
+; Duplicarlos así no es capricho: el contador de scanlines del MMC3 avanza
+; cada vez que el PPU pasa de leer $0xxx a $1xxx, y eso solo ocurre (una vez
+; por línea) si fondo y sprites usan tablas distintas.
+;   R0, R1 = bancos de 2 KB en $0000/$0800 (números de 1 KB, pares)
+;   R2-R5  = bancos de 1 KB en $1000-$1C00
+mmc3_chr_banks: .byte 0, 2, 0, 1, 2, 3
 
 .segment "CODE"
 
@@ -285,6 +305,7 @@ reset_continue:
     sta cur_difficulty
     jsr select_song         ; canción 0 y su primer instrumento disponible
 
+    cli                     ; aceptar IRQ: solo la del MMC3 está encendida, y solo en el juego
     jsr enter_title
 
 ; =============================================================================
@@ -327,7 +348,9 @@ wait_nmi:
 ; volver a prenderlo (con el scroll de scroll_y / scroll_nt)
 ; -----------------------------------------------------------------------------
 ppu_off:
+    sta MMC3_IRQ_DISABLE    ; sin pantalla dividida (cualquier valor sirve)
     lda #0
+    sta split_on
     sta PPUCTRL             ; sin NMI: nadie toca la PPU mientras dibujamos
     sta PPUMASK
     sta row_pending         ; descartar lo que el juego dejó pendiente para la NMI,
@@ -390,7 +413,9 @@ nmi:
     pha
 
     lda nmi_ready
-    beq @done               ; main_loop no terminó a tiempo: no tocamos nada este cuadro
+    bne @ready
+    jmp @done               ; main_loop no terminó a tiempo: no copiamos nada este cuadro
+@ready:                     ; (beq/bne solo saltan 127 bytes; jmp llega a donde sea)
 
     ; 1) Sprites: el DMA copia la página $0200 completa (~513 ciclos)
     lda #0
@@ -398,21 +423,22 @@ nmi:
     lda #>oam
     sta OAMDMA
 
-    ; 2) Fila nueva de la autopista
+    ; 2) Fila nueva de la autopista. El ciclo va "desenrollado" (32 pares de
+    ; lda/sta escritos uno tras otro por .repeat): 8 ciclos por byte en lugar
+    ; de 15, porque el vblank no alcanza para todo lo que hay que copiar.
     lda row_pending
-    beq @no_row
+    bne @row
+    jmp @no_row
+@row:
     bit PPUSTATUS
     lda row_addr+1
     sta PPUADDR
     lda row_addr
     sta PPUADDR
-    ldx #0
-@row_loop:
-    lda row_buf,x
+.repeat 32, i
+    lda row_buf + i
     sta PPUDATA
-    inx
-    cpx #32
-    bne @row_loop
+.endrepeat
     lda #0
     sta row_pending
 @no_row:
@@ -436,13 +462,17 @@ nmi:
     sta erase_count
 @no_erase:
 
-    ; 4) Textos en cola (menús)
+    ; 4) Textos en cola (menús, aros y marcador)
     lda vbuf_len
     beq @no_text
     jsr flush_vbuf
 @no_text:
 
-    ; 5) Scroll. Va al final porque escribir en $2006 descompone el scroll.
+    lda #0
+    sta nmi_ready
+@done:
+    ; 5) Scroll, en todos los cuadros (la IRQ del cuadro anterior lo cambió).
+    ; Va al final porque escribir en $2006 descompone el scroll.
     lda #PPUCTRL_BASE
     ora scroll_nt
     sta PPUCTRL
@@ -451,9 +481,15 @@ nmi:
     lda scroll_y
     sta PPUSCROLL           ; Y
 
-    lda #0
-    sta nmi_ready
-@done:
+    ; 6) Pantalla dividida: que el MMC3 cuente SPLIT_Y scanlines y dispare la IRQ
+    lda split_on
+    beq @no_split
+    sta MMC3_IRQ_DISABLE    ; confirmar la anterior y reiniciar
+    lda #SPLIT_Y - 1
+    sta MMC3_IRQ_LATCH
+    sta MMC3_IRQ_RELOAD
+    sta MMC3_IRQ_ENABLE
+@no_split:
     inc frame_counter
 
     pla
@@ -461,7 +497,39 @@ nmi:
     pla
     tax
     pla
+    rti
+
+; =============================================================================
+; irq: la dispara el MMC3 al terminar la scanline SPLIT_Y - 1
+;
+; A partir de aquí el PPU debe dibujar la franja fija: la nametable de $2400,
+; sin scroll. A media pantalla no basta con $2005: hay que escribir la
+; dirección completa con la secuencia $2006/$2005/$2005/$2006 (la "división
+; de scroll X/Y" de la NESdev Wiki):
+;   1) $2006 = nametable << 2 | (Y >> 6)
+;   2) $2005 = Y
+;   3) $2005 = X (= 0)
+;   4) $2006 = ((Y & $38) << 2) | (X >> 3)
+;
+; Estas escrituras caen a media scanline, así que esa línea sale revuelta, y
+; al terminarla el PPU avanza una línea por su cuenta. Por eso apuntamos a la
+; última línea de la fila anterior a la franja (SPLIT_Y - 1), que está en
+; blanco: la línea revuelta no se nota y los aros empiezan limpios.
+; =============================================================================
+STRIP_SCROLL_Y = SPLIT_Y - 1
+
 irq:
+    pha
+    sta MMC3_IRQ_DISABLE    ; confirmar la interrupción (si no, se repite)
+    lda #(1 << 2) | (STRIP_SCROLL_Y >> 6)
+    sta PPUADDR
+    lda #STRIP_SCROLL_Y
+    sta PPUSCROLL
+    lda #0
+    sta PPUSCROLL
+    lda #((STRIP_SCROLL_Y & $38) << 2)
+    sta PPUADDR
+    pla
     rti
 
 ; -----------------------------------------------------------------------------
@@ -471,15 +539,15 @@ irq:
 
 ; Colores (índices de la paleta del NES). $0F = negro.
 ; Juego: 4 paletas de fondo de 3 colores + el negro común. Color 1 = gris
-; de las líneas; color 2 = gema del carril; color 3 = gema del carril
-; naranja (que comparte paleta con el verde porque solo hay 4 paletas).
+; de las líneas y del marcador; color 2 = gema del carril; color 3 = gema del
+; carril naranja (que comparte paleta con el verde porque solo hay 4 paletas).
 PALETTES_PLAY = 0
 PALETTES_MENU = 32
 palettes:
-    .byte $0F, $00, $2A, $27   ; fondo 0: verde + naranja
-    .byte $0F, $00, $16, $30   ; fondo 1: rojo
-    .byte $0F, $00, $28, $30   ; fondo 2: amarillo
-    .byte $0F, $00, $12, $30   ; fondo 3: azul
+    .byte $0F, $10, $2A, $27   ; fondo 0: verde + naranja
+    .byte $0F, $10, $16, $30   ; fondo 1: rojo
+    .byte $0F, $10, $28, $30   ; fondo 2: amarillo
+    .byte $0F, $10, $12, $30   ; fondo 3: azul
     .byte $0F, $30, $2A, $27   ; sprites 0: blanco (texto), verde, naranja
     .byte $0F, $30, $16, $30   ; sprites 1: rojo
     .byte $0F, $30, $28, $30   ; sprites 2: amarillo

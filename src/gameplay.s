@@ -220,6 +220,8 @@ lane_advance:
 ; note_hit / note_miss
 ; -----------------------------------------------------------------------------
 note_hit:
+    lda #1
+    sta hud_dirty           ; puntaje y combo cambiaron
     lda #0
     sta player_muted        ; acertaste: tu instrumento vuelve a sonar
     inc notes_hit
@@ -240,6 +242,7 @@ note_miss:
     lda #1
     sta multiplier
     sta player_muted        ; fallaste: tu instrumento se calla
+    sta hud_dirty           ; el combo volvió a 0
     rts
 
 ; -----------------------------------------------------------------------------

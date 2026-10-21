@@ -6,13 +6,13 @@
 ; las gemas se dibujan en el FONDO (la nametable) y lo que se mueve es el
 ; scroll vertical: toda la autopista "baja" junta.
 ;
-; Usamos mirroring horizontal: hay dos nametables apiladas en vertical
-; ($2000 arriba y $2800 abajo) que forman un rollo de 60 filas (480 px).
-; La pantalla muestra 30 filas; las otras 30 están fuera de la vista y ahí
-; vamos dibujando las filas que vienen antes de que aparezcan arriba.
+; La autopista es un rollo de 30 filas (240 px) en la nametable de $2000:
+; con mirroring vertical, debajo de la fila 29 el PPU vuelve a la fila 0.
+; Arriba de la franja fija se ven 26 filas; en las que sobran vamos dibujando
+; las que vienen, antes de que aparezcan arriba.
 ;
 ; Relación entre fila del chart (k) y fila de la nametable (vrow):
-;     vrow = (HIT_ROW - k) mod 60
+;     vrow = (HIT_ROW - k) mod 30
 ; Las filas más adelante en la canción quedan más arriba. Cuando cur_row
 ; avanza, el scroll baja 8 pixeles y todo se desliza hacia abajo.
 ; =============================================================================
@@ -45,29 +45,20 @@ advance_time:
     bne @row_ok
     inc cur_row+1
 @row_ok:
-    ; cur_vrow = cur_vrow - 1, dando la vuelta de 0 a 59
+    ; cur_vrow = cur_vrow - 1, dando la vuelta de 0 a 29
     dec cur_vrow
     bpl @vrow_ok
     lda #VROWS - 1
     sta cur_vrow
 @vrow_ok:
-    ; row_scroll = row_scroll - 8, dando la vuelta de 0 a 472
+    ; row_scroll = row_scroll - 8, dando la vuelta de 0 a 232
+    lda row_scroll
     sec
-    lda row_scroll
     sbc #8
-    sta row_scroll
-    lda row_scroll+1
-    sbc #0
-    sta row_scroll+1
-    bpl @scroll_ok
-    clc
-    lda row_scroll
-    adc #<480
-    sta row_scroll
-    lda row_scroll+1
-    adc #>480
-    sta row_scroll+1
+    bcs @scroll_ok
+    adc #VROWS * 8          ; quedó negativo: + 240 (el carry está en 0)
 @scroll_ok:
+    sta row_scroll
     ; Preparar la fila que está por aparecer arriba (la NMI la copiará)
     jsr build_row
     lda #1
@@ -228,17 +219,10 @@ build_row:
     rts
 
 ; -----------------------------------------------------------------------------
-; vrow_to_addr: A = fila de nametable (0..59) -> addr = dirección en VRAM
-;   filas 0..29  -> $2000 + fila*32
-;   filas 30..59 -> $2800 + (fila-30)*32
+; vrow_to_addr: A = fila de la autopista (0..29) -> addr = $2000 + fila * 32
 ; -----------------------------------------------------------------------------
 vrow_to_addr:
     ldx #$20
-    cmp #30
-    bcc @top
-    sbc #30                 ; (el cmp dejó carry=1, que la resta necesita)
-    ldx #$28
-@top:
     stx addr+1
     pha
     asl a                   ; byte bajo = (fila mod 8) * 32
@@ -257,53 +241,30 @@ vrow_to_addr:
     rts
 
 ; -----------------------------------------------------------------------------
-; compute_scroll: scroll = row_scroll - rowpix (en 0..479), separado en
-; nametable (arriba/abajo) y Y dentro de ella (0..239)
+; compute_scroll: scroll_y = row_scroll - rowpix, dando la vuelta en 240
 ; -----------------------------------------------------------------------------
 compute_scroll:
-    sec
     lda row_scroll
+    sec
     sbc rowpix
-    sta tmp
-    lda row_scroll+1
-    sbc #0
-    sta tmp+1
-    bpl @positive
-    clc
-    lda tmp
-    adc #<480
-    sta tmp
-    lda tmp+1
-    adc #>480
-    sta tmp+1
-@positive:
-    lda tmp+1
-    bne @bottom             ; >= 256: seguro está en la de abajo
-    lda tmp
-    cmp #240
-    bcs @bottom
+    bcs @ok
+    adc #VROWS * 8          ; quedó negativo: + 240 (el carry está en 0)
+@ok:
     sta scroll_y
     lda #0
-    sta scroll_nt
-    rts
-@bottom:
-    sec
-    lda tmp
-    sbc #240
-    sta scroll_y
-    lda #2                  ; bit 1 de PPUCTRL: nametable $2800
-    sta scroll_nt
+    sta scroll_nt           ; siempre la nametable de $2000
     rts
 
 ; -----------------------------------------------------------------------------
-; write_attributes: asigna la paleta de cada carril en ambas nametables.
-; Como cada carril es una columna completa, todas las filas de atributos son
-; iguales.
+; write_attributes: asigna la paleta de cada carril en la autopista ($2000)
+; y en la franja fija ($2400), para que aros y gemas tengan el color del
+; carril. Como cada carril es una columna completa, todas las filas de
+; atributos son iguales.
 ; -----------------------------------------------------------------------------
 write_attributes:
     lda #$23
     jsr @one_table
-    lda #$2B
+    lda #$27
 @one_table:
     bit PPUSTATUS
     sta PPUADDR

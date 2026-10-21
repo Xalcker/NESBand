@@ -4,7 +4,7 @@
 ; Start pausa; en pausa, Start continúa y Select regresa al menú.
 ; =============================================================================
 
-PAUSE_SPRITE = 16       ; primer sprite libre después de aros y marcador (hud.s)
+PAUSE_SPRITE = 0        ; en el juego no hay otros sprites (aros y marcador son fondo)
 PAUSE_X      = 108
 PAUSE_Y      = 104
 
@@ -77,7 +77,6 @@ enter_play:
     sta frame_in_row
     sta rowpix
     sta row_scroll
-    sta row_scroll+1
     sta row_pending
     sta erase_count
     sta nmi_ready
@@ -165,10 +164,12 @@ enter_play:
     bne @fill
 
     jsr write_attributes
+    jsr draw_strip          ; aros y marcador, en la nametable de $2400
 
     jsr hide_sprites
-    jsr update_sprites
     jsr compute_scroll
+    lda #1
+    sta split_on            ; desde el siguiente vblank, pantalla dividida
     jmp ppu_on
 
 ; -----------------------------------------------------------------------------
@@ -227,7 +228,7 @@ play_update:
     jsr advance_time        ; mover las notas y, si toca, preparar una fila nueva
     jsr judge_lanes         ; aciertos y fallos
     jsr update_music        ; motor de sonido (y silenciar si fallaste)
-    jsr update_sprites      ; aros y marcador
+    jsr update_hud          ; aros y marcador
     jsr compute_scroll
 
     ; ¿Ya terminó? (un segundo después de que se detiene la música)
