@@ -4,6 +4,10 @@ tools/
 # Salida de compilación
 build/
 
+# Canciones originales (NSF, .m3u, proyectos de FamiStudio): tienen copyright y la ROM no las necesita,
+# porque lo convertido vive en src/songs/
+songs_src/
+
 # Python (uv)
 .venv/
 __pycache__/

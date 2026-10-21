@@ -118,8 +118,17 @@ Qué hace, paso a paso:
 4. Se escribe `src/songs/<nombre>/song.s`, la ficha que lee el juego (título, fin, tempo, charts), y
    se regenera la lista de canciones.
 
-`songs_src/megaman2.nsf` es la versión de *Mega Man 2* que viene como demo de FamiStudio, exportada a NSF
-para simular un rip. Ojo: la música de juegos comerciales tiene copyright; esto es un proyecto fan.
+**Dónde van los originales:** pon tus NSF (y sus `.m3u`, que dicen el número, nombre y duración de cada
+pista) en `songs_src/`. Esa carpeta no se sube a git: la música de juegos comerciales tiene copyright,
+y la ROM no la necesita porque compila con lo ya convertido en `src/songs/`. Ojo: en un `.m3u` las pistas
+empiezan en 1 y `--song` empieza en 0.
+
+La canción de ejemplo (*Dr. Wily's Castle*) es la versión de *Mega Man 2* que viene como demo de
+FamiStudio. Para volver a generar su NSF:
+
+```bash
+.\tools\famistudio\FamiStudio.exe "tools\famistudio\Demo Songs\Mega Man 2.fms" nsf-export songs_src\megaman2.nsf
+```
 
 ## Pruebas
 
