@@ -3,10 +3,11 @@
 Un juego de ritmo estilo Guitar Hero / Rock Band para el NES, con canciones de otros juegos de NES.
 
 **Estado actual:** título, menú (canción, instrumento y dificultad), juego con pausa y pantalla de
-resultados con precisión, combo máximo y estrellas. Suena *Dr. Wily's Castle* (Mega Man 2) importada
-desde un NSF, con charts generados automáticamente para guitarra, teclado y bajo en 4 dificultades. Los
-aciertos y fallos están sincronizados al cuadro con la música. Si fallas, tu instrumento se calla hasta
-tu siguiente acierto, como en Rock Band.
+resultados con precisión, combo máximo y estrellas. Cartucho MMC3 de 256 KB con espacio para 15
+canciones; hoy trae 4, importadas desde NSF: *Blaster Master* (Area 1), *Castlevania III* (Beginning),
+*Double Dragon* (Mission 1) y *Mega Man 2* (Dr. Wily's Castle). Los charts se generan automáticamente
+para guitarra, teclado y bajo en 4 dificultades, y los aciertos y fallos están sincronizados al cuadro con
+la música. Si fallas, tu instrumento se calla hasta tu siguiente acierto, como en Rock Band.
 
 ## Sobre este proyecto
 
@@ -86,21 +87,43 @@ En Mesen configura qué teclas corresponden a cada botón en *Settings → Input
 
 ## Importar canciones
 
+Si el NSF trae su `.m3u` (misma carpeta, mismo nombre), basta con el número de pista tal como aparece
+en la lista; de ahí salen el título, el juego y la duración:
+
+```bash
+uv run nesband import-song "songs_src/Blaster Master [Chou Wakusei Senki - Metafight] (1988-06-17)(Sunsoft).nsf" --track 2 --name blaster_area1
+```
+
+Sin `.m3u`, se indica todo a mano (`--song` cuenta desde 0):
+
 ```bash
 uv run nesband import-song songs_src/megaman2.nsf --name wily --title "Dr. Wily's Castle" --game "Mega Man 2" --duration 75
 ```
 
-Acepta NSF, proyectos de FamiStudio (`.fms`) y de FamiTracker (`.ftm`). Opciones útiles:
+Acepta NSF, proyectos de FamiStudio (`.fms`) y de FamiTracker (`.ftm`). Opciones:
 
 | Opción | Para qué |
 |---|---|
+| `--track N` | Pista N del `.m3u` (empieza en 1) |
+| `--song N` | Canción N del archivo, si no hay `.m3u` (empieza en 0) |
 | `--title` / `--game` | Lo que se muestra en el menú (sin acentos; se convierte a mayúsculas) |
-| `--song N` | Canción N del archivo (un NSF trae todas las del juego; empieza en 0) |
 | `--duration S` | Solo NSF: cuántos segundos grabar. Un NSF no dice cuándo termina la canción |
 | `--beat-frames N` | Cuadros por tiempo, si el tempo detectado sale mal (las líneas de beat no cuadran) |
 
+**Espacio:** cada canción tiene un slot de 16 KB (música + 12 charts + samples). Si no cabe, el
+generador graba menos segundos y vuelve a intentar hasta que quepa, y lo avisa ("No cabe con 154 s…
+pruebo con 102 s"). En el cartucho caben 15 canciones.
+
 Cada canción importada se agrega a la lista del menú (`src/songs/list.s`, en orden alfabético). Para
 quitar una, borra su carpeta en `src/songs/` y corre `uv run nesband list-songs`.
+
+Las opciones con que se importó cada canción quedan en `src/songs/<nombre>/import.json`. Si se mejora el
+generador, `uv run nesband reimport` vuelve a importarlas todas igual (o `reimport wily` solo una).
+
+**Chips de sonido extra:** algunos cartuchos japoneses traían sonido adicional (VRC6, Sunsoft 5B…). El
+motor solo usa el sonido del NES, así que esas canciones se rechazan con un mensaje. Revisa el NSF y no
+el nombre del archivo: el *Castlevania 3 (Akumajou Densetsu)* incluido aquí es el arreglo para el NES
+normal y funciona.
 
 Se generan charts de **guitarra** (pulso 1), **teclado** (pulso 2) y **bajo** (triángulo), si el canal
 tiene notas. La **batería** (ruido) aún no: necesita su propio criterio.
@@ -112,6 +135,8 @@ Qué hace, paso a paso:
 2. **Tempo**: un NSF no trae tempo, así que se estima a partir de los ataques de todas las notas
    (el intervalo más común, duplicado hasta caer entre 100 y 200 BPM).
 3. **Charts**, uno por instrumento y dificultad, generados con las notas del canal de cada instrumento:
+   - los adornos cuadro por cuadro del driver original (golpes de ataque, barridos de tono, arpegios
+     rapidísimos) se juntan en una sola nota que empieza donde empieza el sonido;
    - se quitan notas demasiado juntas, conservando primero las que caen en el tiempo;
    - a cada nota le toca un carril según su altura respecto a sus vecinas, respetando el contorno:
      si la melodía sube, sube el carril; si repite nota, repite carril.
@@ -138,8 +163,8 @@ uv run pytest
 ```
 
 - `run_tests.ps1` corre la ROM en Mesen, sin ventana, con un bot (`tests/autoplay.lua`) que recorre
-  todo: título → menú (elige instrumento y experto) → juego → resultados. Lo hace con guitarra, teclado
-  y bajo, en dos modos:
+  todo: título → menú (elige canción, instrumento y experto) → juego → resultados. Lo hace con cada
+  canción y con guitarra, teclado y bajo, en dos modos (tarda unos 5 minutos con 4 canciones):
   - **perfect**: acierta todas las notas y pausa a media canción. El puntaje y los resultados (100%,
     5 estrellas) deben ser exactos, y **cada nota del chart debe caer en el mismo cuadro en que el motor
     dispara esa nota** en el canal del jugador (prueba de sincronía), también después de la pausa.
@@ -169,7 +194,7 @@ toca tu configuración normal.
 | `src/songs/` | Canciones convertidas (generadas por `nesband import-song`) |
 | `src/chr.s` | Los gráficos (tiles) dibujados como texto; la fuente usa el código ASCII como número de tile |
 | `src/nes.inc` | Direcciones de los registros del hardware |
-| `nes.cfg` | Mapa de memoria del cartucho (NROM-256) para el linker |
+| `nes.cfg` | Mapa de memoria del cartucho MMC3 para el linker: dos bancos fijos con el código y 15 slots de canción |
 | `pctools/` | Herramientas de PC en Python (`nesband import-song`) |
 
 ## Conceptos clave (para ir aprendiendo)
@@ -187,6 +212,12 @@ toca tu configuración normal.
   (`$2000`-`$2007`, `$4000`-`$4017`).
 - **El tiempo se mide en cuadros.** La música avanza exactamente un paso por cuadro, y el chart guarda
   el cuadro exacto de cada nota. Por eso juego y música no se desfasan nunca: comparten el mismo reloj.
+- **Bancos (mapper MMC3).** El 6502 solo ve 32 KB de cartucho a la vez (`$8000-$FFFF`). El MMC3 deja
+  fijos `$8000-$9FFF` y `$E000-$FFFF` (ahí va el código) y permite cambiar qué parte del cartucho se ve
+  en `$A000-$DFFF`: al elegir una canción se pone ahí su slot (`select_slot` en `main.s`).
+- **El glitch del DPCM.** Cuando suena un sample, el chip de sonido puede "robar" una lectura justo
+  cuando el juego lee el control, y aparecen botones fantasma. Por eso `read_pad` lee el control
+  hasta que dos lecturas seguidas coinciden.
 
 ### Para aprender 6502 y NES desde cero
 
@@ -202,7 +233,7 @@ toca tu configuración normal.
 3. ~~Generador automático de charts por canal y dificultad~~ ✅ (primera versión)
 4. ~~Charts de bajo y teclado~~ ✅ · batería pendiente (necesita su propio criterio: bombo/tarola/platillo por tipo de ruido)
 5. ~~Menús: título, selección de canción/instrumento/dificultad, pausa, resultados~~ ✅
-6. Mapper con más espacio (MMC3 o similar) para muchas canciones y una pantalla de título ilustrada
+6. ~~Mapper con más espacio (MMC3) para muchas canciones~~ ✅ · pantalla de título ilustrada pendiente
    (ver [docs/ideas.md](docs/ideas.md))
 7. Editor visual de charts para retocar lo generado
 8. Multijugador con el Four Score; batería "pro" con la Power Pad; modo con rasgueo para un adaptador de guitarra

@@ -74,6 +74,33 @@ def estimate_beat(onsets: list[int], hint: int | None = None) -> BeatGrid:
     return BeatGrid(period, best_phase)
 
 
+def merge_attacks(notes: list[Note], max_gap: int = 2) -> list[Note]:
+    """Junta en una sola nota los "gestos" hechos de notas cortísimas.
+
+    Los drivers de NES adornan las notas cuadro por cuadro, y FamiStudio importa
+    cada cuadro como una nota distinta:
+      - un golpe de 1 cuadro (otro instrumento) y luego la nota sostenida
+      - barridos de tono: una nota distinta en cada cuadro (bajando o subiendo)
+      - arpegios rapidísimos (acordes "rotos" a 30 o 60 notas por segundo)
+    Al oído cada uno es una sola nota que empieza en la primera. Regla: una nota
+    de max_gap cuadros o menos se une con la que la sigue de inmediato. El grupo
+    toma el tono de su nota más larga (la nota "de llegada").
+    """
+    groups: list[list[Note]] = []
+    for note in notes:
+        last = groups[-1][-1] if groups else None
+        if last and last.duration <= max_gap and note.frame - last.frame <= max_gap:
+            groups[-1].append(note)
+        else:
+            groups.append([note])
+    merged = []
+    for group in groups:
+        first, last = group[0], group[-1]
+        main = max(group, key=lambda n: n.duration)
+        merged.append(Note(first.frame, main.pitch, last.frame + last.duration - first.frame))
+    return merged
+
+
 def reduce_notes(notes: list[Note], difficulty: Difficulty, grid: BeatGrid) -> list[Note]:
     """Quita notas hasta que ninguna quede a menos de min_gap cuadros de otra."""
     by_priority = sorted(notes, key=lambda n: (-grid.strength(n.frame), n.frame))
@@ -121,7 +148,7 @@ def frame_to_row(frame: int) -> int:
 def build_chart(
     notes: list[Note], difficulty: Difficulty, grid: BeatGrid, lead_in: int, beat_rows: int, first_beat_row: int
 ) -> list[ChartNote]:
-    reduced = reduce_notes(notes, difficulty, grid)
+    reduced = reduce_notes(merge_attacks(notes), difficulty, grid)
     lanes = assign_lanes(reduced, difficulty.lanes)
     chart: list[ChartNote] = []
     for note, lane in zip(reduced, lanes):
@@ -134,11 +161,36 @@ def build_chart(
     return chart
 
 
+CHART_END = 0xFF  # carriles = $FF marca el fin del chart
+MAX_DELTA = 255
+
+
+def chart_entries(chart: list[ChartNote]) -> list[tuple[int, int]]:
+    """El chart como lo lee el juego: pares (cuadros desde la entrada anterior, carriles).
+
+    Si dos notas están a más de 255 cuadros, se intercalan entradas de relleno
+    sin carriles (carriles = 0) que solo hacen avanzar el tiempo.
+    """
+    entries: list[tuple[int, int]] = []
+    previous = 0
+    for note in chart:
+        delta = note.frame - previous
+        while delta > MAX_DELTA:
+            entries.append((MAX_DELTA, 0))
+            delta -= MAX_DELTA
+        entries.append((delta, note.mask))
+        previous = note.frame
+    entries.append((0, CHART_END))
+    return entries
+
+
+def chart_size(chart: list[ChartNote]) -> int:
+    return 2 * len(chart_entries(chart))
+
+
 def chart_to_asm(label: str, chart: list[ChartNote]) -> str:
     lines = [f"{label}:"]
-    for note in chart:
-        lines.append(f"    .word {note.row}, {note.frame}")
-        lines.append(f"    .byte ${note.mask:02X}")
-    lines.append("    .word $FFFF, $FFFF  ; fin")
-    lines.append("    .byte 0")
+    for delta, mask in chart_entries(chart):
+        comment = "  ; fin" if mask == CHART_END else ""
+        lines.append(f"    .byte {delta}, ${mask:02X}{comment}")
     return "\n".join(lines) + "\n"

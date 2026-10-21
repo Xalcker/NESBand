@@ -103,6 +103,24 @@ step_next_row:
     rts
 
 ; -----------------------------------------------------------------------------
+; frame_to_row: tmp = fila donde se dibuja una nota que suena en el cuadro
+; A (bajo) / X (alto). Fila = (cuadro + 2) / 4, redondeando al más cercano.
+; -----------------------------------------------------------------------------
+.assert FRAMES_PER_ROW = 4, error, "frame_to_row divide entre 4 con dos corrimientos"
+frame_to_row:
+    clc
+    adc #FRAMES_PER_ROW / 2
+    sta tmp
+    txa
+    adc #0
+    sta tmp+1
+    lsr tmp+1               ; / 2
+    ror tmp
+    lsr tmp+1               ; / 4
+    ror tmp
+    rts
+
+; -----------------------------------------------------------------------------
 ; build_row: arma en row_buf los 32 tiles de la fila next_k del chart,
 ; y en row_addr la dirección de VRAM de next_vrow.
 ; -----------------------------------------------------------------------------
@@ -113,29 +131,45 @@ build_row:
     lda next_k+1
     bmi @have_mask          ; fila negativa = antes de que empiece la canción
 
-    ; El chart está ordenado por fila. Saltamos las notas con fila < next_k.
+    ; El chart está ordenado por tiempo. Saltamos las entradas con fila < next_k
+    ; y juntamos los carriles de las que caen en esta fila (una nota puede
+    ; compartir fila con una entrada de relleno, que no tiene carriles).
 @seek:
     ldy #1
-    lda (render_ptr),y      ; byte alto de la fila de la nota
+    lda (render_ptr),y      ; carriles
+    cmp #CHART_END
+    beq @have_mask          ; fin del chart: no hay más notas
+    lda render_frame
+    ldx render_frame+1
+    jsr frame_to_row        ; tmp = fila de la entrada
+    lda tmp+1
     cmp next_k+1
-    bcc @skip               ; nota < k: ya pasó
-    bne @have_mask          ; nota > k: es más adelante, esta fila va vacía
-    dey
-    lda (render_ptr),y      ; byte bajo
+    bcc @skip               ; entrada < k: ya pasó
+    bne @have_mask          ; entrada > k: es más adelante, ya terminamos
+    lda tmp
     cmp next_k
     bcc @skip
     bne @have_mask
-    ldy #4                  ; misma fila: tomamos sus carriles
+    ldy #1                  ; misma fila: sumamos sus carriles
     lda (render_ptr),y
+    ora row_mask
     sta row_mask
-    jmp @have_mask
 @skip:
+    ; render_ptr a la siguiente entrada, y render_frame suma su distancia
     clc
     lda render_ptr
     adc #CHART_ENTRY
     sta render_ptr
-    bcc @seek
+    bcc @no_carry
     inc render_ptr+1
+@no_carry:
+    ldy #0
+    lda (render_ptr),y
+    clc
+    adc render_frame
+    sta render_frame
+    bcc @seek
+    inc render_frame+1
     jmp @seek
 
 @have_mask:

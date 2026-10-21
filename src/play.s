@@ -107,20 +107,22 @@ enter_play:
     ; --- Cada carril busca su primera nota ---
     ldx #0
 @lanes:
-    lda chart_start
-    sta ptr
-    lda chart_start+1
-    sta ptr+1
+    jsr chart_first
     jsr lane_seek
     inx
     cpx #NUM_LANES
     bne @lanes
 
     ; --- Dibujar las 60 filas iniciales de la autopista ---
-    lda chart_start
+    jsr chart_first         ; el dibujo lleva su propio puntero y cuadro
+    lda ptr
     sta render_ptr
-    lda chart_start+1
+    lda ptr+1
     sta render_ptr+1
+    lda seek_frame
+    sta render_frame
+    lda seek_frame+1
+    sta render_frame+1
     lda #<FILL_FIRST_ROW
     sta next_k
     lda #>FILL_FIRST_ROW
@@ -182,11 +184,9 @@ count_notes:
     sta notes_total+1
 @entry:
     ldy #1
-    lda (ptr),y
-    cmp #$FF
+    lda (ptr),y             ; carriles
+    cmp #CHART_END
     beq @done               ; fin del chart
-    ldy #4
-    lda (ptr),y
     and #%00011111          ; solo los bits de carriles
 @bits:
     lsr a                   ; un carril -> carry

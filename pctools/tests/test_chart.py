@@ -5,6 +5,7 @@ from nesband_tools.chart import (
     build_chart,
     estimate_beat,
     frame_to_row,
+    merge_attacks,
     reduce_notes,
 )
 from nesband_tools.famistudio import Note, note_to_midi, parse_text
@@ -56,6 +57,21 @@ def test_reduce_notes_keeps_strong_beats_and_gap():
     assert all(b.frame - a.frame >= 24 for a, b in zip(kept, kept[1:]))
 
 
+def test_merge_attacks_keeps_first_frame():
+    # Golpe de 1 cuadro + la misma nota sostenida = una nota desde el golpe
+    notes = [Note(0, 50, 1), Note(1, 50, 111), Note(120, 50, 10), Note(121, 52, 10)]
+    merged = merge_attacks(notes)
+    assert [(n.frame, n.pitch, n.duration) for n in merged] == [(0, 50, 112), (120, 50, 10), (121, 52, 10)]
+
+
+def test_merge_attacks_joins_pitch_sweeps():
+    # Barrido de un cuadro por nota (como Double Dragon) y luego una nota normal
+    sweep = [Note(10 + i, 53 - 2 * i, 1) for i in range(8)]
+    notes = sweep + [Note(20, 45, 8)]
+    merged = merge_attacks(notes)
+    assert [(n.frame, n.pitch, n.duration) for n in merged] == [(10, 53, 8), (20, 45, 8)]
+
+
 def test_assign_lanes_follows_contour():
     pitches = [60, 62, 64, 64, 62, 60]
     notes = [Note(i * 10, p, 5) for i, p in enumerate(pitches)]
@@ -64,6 +80,16 @@ def test_assign_lanes_follows_contour():
     assert lanes[2] == lanes[3]  # repite nota, repite carril
     assert lanes[3] > lanes[4] > lanes[5]  # baja
     assert all(0 <= lane < 5 for lane in lanes)
+
+
+def test_chart_entries_use_deltas_and_spacers():
+    from nesband_tools.chart import ChartNote, chart_entries, chart_size
+
+    chart = [ChartNote(32, 128, 0x81), ChartNote(35, 140, 0x02), ChartNote(200, 800, 0x04)]
+    entries = chart_entries(chart)
+    # 128; +12; +660 = 255 + 255 + 150 (dos rellenos sin carriles); fin
+    assert entries == [(128, 0x81), (12, 0x02), (255, 0), (255, 0), (150, 0x04), (0, 0xFF)]
+    assert chart_size(chart) == 12
 
 
 def test_build_chart_rows_frames_and_beat_flag():

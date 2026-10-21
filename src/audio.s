@@ -27,11 +27,11 @@ FAMISTUDIO_USE_RELEASE_NOTES     = 1
 FAMISTUDIO_USE_DUTYCYCLE_EFFECT  = 1
 FAMISTUDIO_USE_DELTA_COUNTER     = 1
 FAMISTUDIO_USE_PHASE_RESET       = 1
-FAMISTUDIO_DPCM_OFF              = $C000   ; los samples van al inicio de $C000 (ver nes.cfg)
+FAMISTUDIO_DPCM_OFF              = $C000   ; los samples de cada canción van en $C000 de su slot (ver nes.cfg)
 
 .define FAMISTUDIO_CA65_ZP_SEGMENT   ZEROPAGE
 .define FAMISTUDIO_CA65_RAM_SEGMENT  BSS
-.define FAMISTUDIO_CA65_CODE_SEGMENT CODE
+.define FAMISTUDIO_CA65_CODE_SEGMENT ENGINE   ; en el banco fijo de $E000
 
 .include "famistudio/famistudio_ca65.s"
 

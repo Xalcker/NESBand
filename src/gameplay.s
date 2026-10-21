@@ -2,16 +2,21 @@
 ; gameplay.s - Control, aciertos, fallos y puntaje
 ;
 ; Formato del chart (lo genera `nesband import-song` en src/songs/*/chart.s):
-; una lista de notas de 5 bytes, ordenada por fila:
-;     .word fila, cuadro  ; fila donde se dibuja y cuadro exacto en que suena
+; una lista de entradas de 2 bytes, ordenada por tiempo:
+;     .byte cuadros       ; cuántos cuadros después de la entrada anterior suena
 ;     .byte carriles      ; bit 0 = verde ... bit 4 = naranja (varios = acorde)
 ;                         ; bit 7 = la fila tiene línea de beat
-; y termina con una fila $FFFF. La fila sirve para dibujar (cada fila son
-; 4 cuadros) y el cuadro para juzgar con precisión de 1/60 de segundo.
+; y termina con carriles = $FF (CHART_END). Si entre dos notas hay más de 255
+; cuadros, el generador mete entradas de relleno sin carriles (carriles = 0).
+;
+; Guardar la distancia en vez del cuadro completo ahorra un byte por nota,
+; pero obliga a que cada lector lleve la cuenta del cuadro donde va
+; (chart_step). La fila donde se dibuja la gema se calcula del cuadro
+; (frame_to_row): cada fila son 4 cuadros.
 ;
 ; Cada carril lleva su propio puntero a su siguiente nota pendiente
-; (lane_ptr). Así cada gema de un acorde se juzga por separado, como en la
-; batería de Rock Band.
+; (lane_ptr) y el cuadro de esa nota (lane_frame). Así cada gema de un
+; acorde se juzga por separado, como en la batería de Rock Band.
 ; =============================================================================
 
 ; -----------------------------------------------------------------------------
@@ -19,11 +24,31 @@
 ; El control es un registro de desplazamiento: se "congela" escribiendo 1 y
 ; luego 0 en $4016, y después cada lectura entrega un botón en el bit 0, en
 ; orden: A, B, Select, Start, Arriba, Abajo, Izquierda, Derecha.
+;
+; Glitch del DPCM: si el chip de sonido está leyendo un sample justo cuando
+; leemos $4016, se puede perder un bit y aparecen botones que nadie presionó.
+; Por eso leemos hasta que dos lecturas seguidas coincidan.
 ; -----------------------------------------------------------------------------
 read_pad:
     lda buttons
     sta prev_buttons
+    jsr read_pad_once
+@retry:
+    lda buttons
+    sta tmp                 ; lectura anterior
+    jsr read_pad_once
+    lda buttons
+    cmp tmp
+    bne @retry
 
+    ; pressed = botones que están ahora y no estaban antes
+    lda prev_buttons
+    eor #$FF
+    and buttons
+    sta pressed
+    rts
+
+read_pad_once:
     lda #1
     sta buttons             ; este 1 sale por el carry después de 8 rotaciones: fin del ciclo
     sta JOY1
@@ -34,12 +59,6 @@ read_pad:
     lsr a                   ; bit 0 -> carry
     rol buttons             ; carry -> bit 0 de buttons, el bit 7 sale al carry
     bcc @loop
-
-    ; pressed = botones que están ahora y no estaban antes
-    lda prev_buttons
-    eor #$FF
-    and buttons
-    sta pressed
     rts
 
 ; -----------------------------------------------------------------------------
@@ -56,16 +75,14 @@ judge_lanes:
     sta ptr+1
 
     ldy #1
-    lda (ptr),y             ; byte alto de la fila
-    cmp #$FF
+    lda (ptr),y             ; carriles
+    cmp #CHART_END
     beq @next               ; fin del chart para este carril
 
     ; tmp = cuadro en que la nota toca el aro
-    ldy #2
-    lda (ptr),y
+    lda lane_frame_lo,x
     sta tmp
-    iny
-    lda (ptr),y
+    lda lane_frame_hi,x
     sta tmp+1
 
     ; diff = song_frame - tmp   (negativo = la nota aún no llega)
@@ -126,43 +143,77 @@ in_window:
     rts
 
 ; -----------------------------------------------------------------------------
-; lane_seek: a partir de ptr, busca la siguiente nota que use el carril X
-; (o el final del chart) y la guarda en lane_ptr. No modifica X.
+; chart_first: ptr = chart_start y seek_frame = cuadro de su primera entrada
+; chart_step:  ptr pasa a la siguiente entrada y seek_frame suma su distancia
+; (solo usan A e Y)
 ; -----------------------------------------------------------------------------
-lane_seek:
-@check:
-    ldy #1
+chart_first:
+    lda chart_start
+    sta ptr
+    lda chart_start+1
+    sta ptr+1
+    ldy #0
     lda (ptr),y
-    cmp #$FF
-    beq @found              ; fin del chart
-    ldy #4
-    lda (ptr),y
-    and lane_bit,x
-    bne @found
+    sta seek_frame
+    sty seek_frame+1
+    rts
+
+chart_step:
     clc
     lda ptr
     adc #CHART_ENTRY
     sta ptr
-    bcc @check
+    bcc @no_carry
     inc ptr+1
+@no_carry:
+    ldy #0
+    lda (ptr),y             ; cuadros desde la entrada anterior
+    clc
+    adc seek_frame
+    sta seek_frame
+    bcc @done
+    inc seek_frame+1
+@done:
+    rts
+
+; -----------------------------------------------------------------------------
+; lane_seek: a partir de ptr/seek_frame, busca la siguiente nota que use el
+; carril X (o el final del chart) y la guarda en lane_ptr/lane_frame.
+; No modifica X.
+; -----------------------------------------------------------------------------
+lane_seek:
+@check:
+    ldy #1
+    lda (ptr),y             ; carriles
+    cmp #CHART_END
+    beq @found              ; fin del chart
+    and lane_bit,x
+    bne @found
+    jsr chart_step
     jmp @check
 @found:
     lda ptr
     sta lane_ptr_lo,x
     lda ptr+1
     sta lane_ptr_hi,x
+    lda seek_frame
+    sta lane_frame_lo,x
+    lda seek_frame+1
+    sta lane_frame_hi,x
     rts
 
 ; lane_advance: pasa el carril `lane` a su siguiente nota
 lane_advance:
     ldx lane
     lda lane_ptr_lo,x
-    clc
-    adc #CHART_ENTRY
     sta ptr
     lda lane_ptr_hi,x
-    adc #0
     sta ptr+1
+    lda lane_frame_lo,x
+    sta seek_frame
+    lda lane_frame_hi,x
+    sta seek_frame+1
+    jsr chart_step
     jmp lane_seek
 
 ; -----------------------------------------------------------------------------
@@ -201,8 +252,11 @@ erase_gem:
 
     ; La nota está a pocas filas de cur_row, así que d = fila - cur_row cabe
     ; en un byte con signo, y su fila de nametable es cur_vrow - d (mod 60).
-    ldy #0
-    lda (ptr),y
+    ldy lane
+    ldx lane_frame_hi,y
+    lda lane_frame_lo,y
+    jsr frame_to_row        ; tmp = fila de la nota
+    lda tmp
     sec
     sbc cur_row
     sta tmp
@@ -231,7 +285,7 @@ erase_gem:
 
     ; Debajo de la gema puede haber línea de beat (bit 7 de los carriles)
     ldx #TILE_BLANK
-    ldy #4
+    ldy #1
     lda (ptr),y
     bpl @store_tile
     ldx #TILE_BEAT

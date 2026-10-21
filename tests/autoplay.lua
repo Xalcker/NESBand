@@ -15,6 +15,7 @@
 -- Variables de entorno:
 --   AUTOPLAY_MODE  = perfect (default) | idle (no presiona nada: todo debe fallar)
 --                    En perfect además pausa a media canción y continúa.
+--   AUTOPLAY_SONG  = número de canción en el menú (desde 0, orden alfabético)
 --   AUTOPLAY_INSTRUMENT = 0 guitarra (default), 1 teclado, 2 bajo
 --   TEST_OUT       = carpeta donde dejar resultado.txt y capturas .png
 --
@@ -23,6 +24,7 @@
 -- =============================================================================
 
 local mode = os.getenv("AUTOPLAY_MODE") or "perfect"
+local song = tonumber(os.getenv("AUTOPLAY_SONG") or "0")
 local instrument = tonumber(os.getenv("AUTOPLAY_INSTRUMENT") or "0")
 local outdir = os.getenv("TEST_OUT") or "."
 local mem = emu.memType.nesMemory
@@ -41,30 +43,38 @@ end
 local A = {}
 for _, name in ipairs({ "game_state", "song_frame", "lane_ptr_lo", "lane_ptr_hi", "score_digits",
                         "combo_digits", "chart_start", "famistudio_chn_note_counter", "notes_hit",
-                        "notes_total", "max_combo", "percent", "stars", "paused" }) do
+                        "notes_total", "max_combo", "percent", "stars", "paused",
+                        "lane_frame_lo", "lane_frame_hi" }) do
   A[name] = label(name)
 end
 
 local STATE_PLAY, STATE_RESULTS = 2, 3
-local CHART_ENTRY = 5
+local CHART_ENTRY = 2   -- cuadros desde la entrada anterior, carriles
+local CHART_END = 0xFF
 local LANE_KEYS = { "left", "down", "right", "b", "a" }
-local TIMEOUT = 7000
+local TIMEOUT = 15000
 local PAUSE_AT, PAUSE_FRAMES = 1500, 90   -- song_frame en que se pausa, y cuánto dura
 
 -- Registro de volumen del canal de cada instrumento, y lo que escribe apply_mute
 local MUTE_REG = { [0] = 0x4000, [1] = 0x4004, [2] = 0x4008 }
 local MUTE_VALUE = { [0] = 0x30, [1] = 0x30, [2] = 0x80 }
 
--- Botones para llegar a jugar: Start en el título; en el menú, bajar a
--- instrumento y avanzar `instrument` veces, bajar a dificultad, dos veces a
--- la derecha (de medio a experto) y Start
-local MENU_SCRIPT = { [30] = "start", [50] = "down" }
-for i = 1, instrument do MENU_SCRIPT[50 + i * 4] = "right" end
-MENU_SCRIPT[70] = "down"
-MENU_SCRIPT[74] = "right"
-MENU_SCRIPT[78] = "right"
-MENU_SCRIPT[90] = "start"
-local SCREENSHOTS = { [25] = "captura_titulo.png", [86] = "captura_menu.png" }
+-- Botones para llegar a jugar, uno cada 4 cuadros: Start en el título; en el
+-- menú, `song` veces a la derecha (canción), bajar a instrumento y avanzar
+-- `instrument` veces, bajar a dificultad, dos veces a la derecha (de medio a
+-- experto) y Start
+local MENU_SCRIPT = { [30] = "start" }
+local steps = {}
+for _ = 1, song do steps[#steps + 1] = "right" end
+steps[#steps + 1] = "down"
+for _ = 1, instrument do steps[#steps + 1] = "right" end
+steps[#steps + 1] = "down"
+steps[#steps + 1] = "right"
+steps[#steps + 1] = "right"
+for i, button in ipairs(steps) do MENU_SCRIPT[50 + i * 4] = button end
+local menu_done = 50 + #steps * 4
+MENU_SCRIPT[menu_done + 12] = "start"
+local SCREENSHOTS = { [25] = "captura_titulo.png", [menu_done + 8] = "captura_menu.png" }
 
 local function read8(addr) return emu.read(addr, mem, false) end
 local function read16(addr) return read8(addr) + read8(addr + 1) * 256 end
@@ -81,12 +91,15 @@ local function write_file(name, data)
   f:close()
 end
 
--- Notas del chart activo: lista de {frame, mask}
+-- Notas del chart activo: lista de {frame, mask} (sin las entradas de relleno)
 local function read_chart()
   local notes = {}
   local p = read16(A.chart_start)
-  while read16(p) ~= 0xFFFF do
-    notes[#notes + 1] = { frame = read16(p + 2), mask = read8(p + 4) & 0x1F }
+  local frame = 0
+  while read8(p + 1) ~= CHART_END do
+    frame = frame + read8(p)
+    local mask = read8(p + 1) & 0x1F
+    if mask ~= 0 then notes[#notes + 1] = { frame = frame, mask = mask } end
     p = p + CHART_ENTRY
   end
   return notes
@@ -128,7 +141,8 @@ emu.addEventCallback(function()
     local next_frame = read16(A.song_frame) + 1
     for lane = 0, 4 do
       local ptr = read8(A.lane_ptr_lo + lane) + read8(A.lane_ptr_hi + lane) * 256
-      if read16(ptr) ~= 0xFFFF and read16(ptr + 2) == next_frame then
+      local lane_frame = read8(A.lane_frame_lo + lane) + read8(A.lane_frame_hi + lane) * 256
+      if read8(ptr + 1) ~= CHART_END and lane_frame == next_frame then
         input[LANE_KEYS[lane + 1]] = true
       end
     end
@@ -158,10 +172,11 @@ local function finish()
   local max_combo, percent, stars = read16(A.max_combo), read8(A.percent), read8(A.stars)
 
   -- Sincronía: notas del chart sin un disparo del motor en su mismo cuadro
-  local off_sync, offsets = 0, {}
+  local off_sync, offsets, off_frames = 0, {}, {}
   for _, n in ipairs(chart) do
     if not triggers[n.frame] then
       off_sync = off_sync + 1
+      if #off_frames < 5 then off_frames[#off_frames + 1] = tostring(n.frame) end
       for d = -3, 3 do
         if triggers[n.frame + d] then offsets[d] = (offsets[d] or 0) + 1 break end
       end
@@ -179,10 +194,11 @@ local function finish()
          and unmuted_frames == 0
   end
   write_file("resultado.txt", string.format(
-    "modo=%s instrumento=%d notas=%d/%d puntaje=%d (esperado %s) combo_max=%d precision=%d%% estrellas=%d " ..
-    "disparos=%d desfasadas=%d [%s] sin_silenciar=%d -> %s\n",
-    mode, instrument, notes_hit, notes_total, score, mode == "perfect" and tostring(exp_score) or "0", max_combo,
-    percent, stars, trigger_count, off_sync, table.concat(offset_text, " "), unmuted_frames,
+    "modo=%s cancion=%d instrumento=%d notas=%d/%d puntaje=%d (esperado %s) combo_max=%d precision=%d%% estrellas=%d " ..
+    "disparos=%d desfasadas=%d [%s] en_cuadros=[%s] sin_silenciar=%d -> %s\n",
+    mode, song, instrument, notes_hit, notes_total, score, mode == "perfect" and tostring(exp_score) or "0", max_combo,
+    percent, stars, trigger_count, off_sync, table.concat(offset_text, " "), table.concat(off_frames, " "),
+    unmuted_frames,
     ok and "OK" or "FALLA"))
   emu.stop(ok and 0 or 1)
 end

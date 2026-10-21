@@ -178,6 +178,14 @@ def read_required_flags(asm: str) -> set[str]:
     return set(re.findall(r"^;\s*(FAMISTUDIO_\w+)\s*=\s*1", asm, re.MULTILINE))
 
 
+def read_export_size(output: str) -> int:
+    """Bytes del ensamblador exportado, según lo que reporta FamiStudio."""
+    match = re.search(r"Total assembly file size: (\d+) bytes", output)
+    if not match:
+        raise ValueError(f"FamiStudio no reportó el tamaño de la música:\n{output}")
+    return int(match.group(1))
+
+
 def read_music_label(asm: str) -> str:
     match = re.search(r"^(music_data_\w+):", asm, re.MULTILINE)
     if not match:

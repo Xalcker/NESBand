@@ -33,7 +33,8 @@ NUM_LANES       = 5
 NUM_INSTRUMENTS = 4                    ; guitarra, teclado, bajo, batería
 NUM_DIFFICULTIES = 4                   ; fácil, medio, difícil, experto
 FRAMES_PER_ROW  = 4                    ; una fila (8 px) dura 4 cuadros -> las notas bajan 2 px por cuadro
-CHART_ENTRY     = 5                    ; bytes por nota del chart: fila (2), cuadro (2), carriles (1)
+CHART_ENTRY     = 2                    ; bytes por entrada del chart: cuadros desde la anterior, carriles
+CHART_END       = $FF                  ; carriles = $FF: fin del chart
 HIT_ROW         = 25                   ; fila de pantalla del aro (25 * 8 = pixel 200)
 HIT_Y           = HIT_ROW * 8
 WINDOW          = 6                    ; tolerancia: +-6 cuadros (~100 ms) para acertar
@@ -67,7 +68,17 @@ SONG_FIRST_BEAT  = 5    ; .byte  primera fila con línea de beat
 SONG_TITLE       = 6    ; .addr  texto
 SONG_GAME        = 8    ; .addr  texto
 SONG_INSTRUMENTS = 10   ; .byte  bit i = el instrumento i tiene chart
-SONG_CHARTS      = 11   ; .addr  [instrumento][dificultad], 0 si no hay
+SONG_SLOT        = 11   ; .byte  slot de 16 KB donde están su música y sus charts
+SONG_CHARTS      = 12   ; .addr  [instrumento][dificultad], 0 si no hay
+
+; MMC3 (mapper 4): ver nes.cfg para el mapa de memoria
+MMC3_BANK_SELECT = $8000   ; qué registro de banco se va a cambiar (+ modo)
+MMC3_BANK_DATA   = $8001   ; número de banco para ese registro
+MMC3_MIRRORING   = $A000   ; 0 = vertical, 1 = horizontal
+MMC3_IRQ_DISABLE = $E000
+MMC3_PRG_MODE_1  = %01000000   ; $8000 fijo, $C000 intercambiable (R6)
+MMC3_R6          = 6           ; banco en $C000
+MMC3_R7          = 7           ; banco en $A000
 
 ; -----------------------------------------------------------------------------
 ; Variables en zero page (las primeras 256 bytes de RAM: acceso más rápido y
@@ -80,6 +91,8 @@ tmp:            .res 2   ; temporal de uso general
 addr:           .res 2   ; dirección de VRAM (resultado de vrow_to_addr, SET_ADDR, etc.)
 ptr:            .res 2   ; puntero de uso general (chart, textos)
 render_ptr:     .res 2   ; puntero al chart para dibujar filas nuevas
+render_frame:   .res 2   ; cuadro de la entrada a la que apunta render_ptr
+seek_frame:     .res 2   ; cuadro de la entrada a la que apunta ptr (ver chart_step)
 lane:           .res 1   ; carril que se está procesando (0-4)
 fill_count:     .res 1
 vbuf_len:       .res 1   ; bytes ocupados en vbuf (la cola de textos para la NMI)
@@ -140,6 +153,8 @@ oam:            .res 256 ; 64 sprites x 4 bytes (Y, tile, atributos, X)
 row_buf:        .res 32  ; una fila completa de la nametable (32 tiles)
 lane_ptr_lo:    .res NUM_LANES   ; siguiente nota pendiente de cada carril
 lane_ptr_hi:    .res NUM_LANES
+lane_frame_lo:  .res NUM_LANES   ; y el cuadro en que suena
+lane_frame_hi:  .res NUM_LANES
 erase_hi:       .res MAX_ERASE   ; cola de gemas a borrar: dirección y tile
 erase_lo:       .res MAX_ERASE
 erase_tile:     .res MAX_ERASE
@@ -156,9 +171,9 @@ stars:          .res 1
 ; -----------------------------------------------------------------------------
 .segment "HEADER"
     .byte "NES", $1A
-    .byte 2          ; 2 bancos de 16 KB de PRG-ROM
+    .byte 16         ; 16 bancos de 16 KB de PRG-ROM = 256 KB (ver nes.cfg)
     .byte 1          ; 1 banco de 8 KB de CHR-ROM
-    .byte $00        ; mapper 0 (NROM), mirroring horizontal (nametables apiladas en vertical)
+    .byte $40        ; mapper 4 (MMC3): el mirroring lo elige el programa
     .byte $00
     .res 8, $00
 
@@ -179,7 +194,12 @@ stars:          .res 1
 
 ; =============================================================================
 ; reset: lo primero que se ejecuta al encender o al presionar Reset
+;
+; Va en el segmento STARTUP, en el último banco ($E000-$FFFF): al encender,
+; el MMC3 solo garantiza qué hay en ese banco. Hasta configurar el MMC3 no
+; se puede saltar al código de $8000.
 ; =============================================================================
+.segment "STARTUP"
 reset:
     sei                     ; ignorar interrupciones IRQ
     cld                     ; el 6502 del NES no tiene modo decimal; lo apagamos por costumbre
@@ -191,6 +211,48 @@ reset:
     stx PPUCTRL             ; NMI apagada
     stx PPUMASK             ; no dibujar nada
     stx APU_DMC_FREQ        ; sin IRQ del canal DMC
+
+    ; MMC3: gráficos en orden (los 8 KB de CHR tal cual), modo de PRG 1,
+    ; mirroring horizontal y sin interrupciones de scanline
+    ldx #0
+@chr_banks:
+    txa
+    ora #MMC3_PRG_MODE_1
+    sta MMC3_BANK_SELECT    ; registros R0-R5: los bancos de gráficos
+    lda mmc3_chr_banks,x
+    sta MMC3_BANK_DATA
+    inx
+    cpx #6
+    bne @chr_banks
+    lda #1
+    sta MMC3_MIRRORING
+    sta MMC3_IRQ_DISABLE
+    lda #0
+    jsr select_slot         ; algo válido en $A000-$DFFF
+    jmp reset_continue
+
+; R0, R1 = bancos de 2 KB en $0000/$0800; R2-R5 = bancos de 1 KB en $1000-$1C00
+mmc3_chr_banks: .byte 0, 2, 4, 5, 6, 7
+
+.segment "CODE"
+
+; -----------------------------------------------------------------------------
+; select_slot: pone el slot A (música y charts de una canción) en $A000-$DFFF
+; El slot n son los bancos de 8 KB 2n ($A000, registro R7) y 2n+1 ($C000, R6).
+; -----------------------------------------------------------------------------
+select_slot:
+    asl a
+    tax
+    lda #MMC3_PRG_MODE_1 | MMC3_R7
+    sta MMC3_BANK_SELECT
+    stx MMC3_BANK_DATA
+    inx
+    lda #MMC3_PRG_MODE_1 | MMC3_R6
+    sta MMC3_BANK_SELECT
+    stx MMC3_BANK_DATA
+    rts
+
+reset_continue:
 
     ; El PPU necesita ~2 cuadros para "despertar". Esperamos dos vblanks.
     bit PPUSTATUS

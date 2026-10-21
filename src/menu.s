@@ -143,7 +143,8 @@ menu_change:
     rts
 
 ; -----------------------------------------------------------------------------
-; select_song: song_ptr = ficha de cur_song, y un instrumento que sí tenga chart
+; select_song: song_ptr = ficha de cur_song, su slot en $A000-$DFFF, y un
+; instrumento que sí tenga chart
 ; -----------------------------------------------------------------------------
 select_song:
     lda cur_song
@@ -153,6 +154,9 @@ select_song:
     sta song_ptr
     lda song_table+1,x
     sta song_ptr+1
+    ldy #SONG_SLOT
+    lda (song_ptr),y
+    jsr select_slot
     jsr instrument_available
     bne @done
     lda #0                  ; el instrumento elegido no existe en esta canción:
