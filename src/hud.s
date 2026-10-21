@@ -1,22 +1,31 @@
 ; =============================================================================
-; hud.s - La franja fija de abajo: aros y marcador
+; hud.s - La franja fija de abajo: aros y marcador de cada jugador
 ;
 ; Desde la scanline SPLIT_Y la pantalla muestra la nametable de $2400 sin
-; scroll (ver irq en main.s). Ahí van, como tiles de fondo:
+; scroll (ver irq en main.s). Debajo de la autopista de cada jugador, como
+; tiles de fondo:
 ;   fila SPLIT_ROW      los 5 aros (rellenos mientras mantienes el botón)
-;   fila SPLIT_ROW + 2  puntaje, multiplicador y combo
+;   fila SPLIT_ROW + 2  puntaje y multiplicador   "000000 X4"
+;   fila SPLIT_ROW + 3  combo                      "COMBO 123"
 ; Con sprites no se podría: dos jugadores son 10 aros en la misma línea y el
 ; PPU solo dibuja 8 sprites por línea.
 ;
 ; Los cambios se mandan por la cola de textos (vbuf) y solo cuando hay algo
-; nuevo: el vblank alcanza para poco y también hay que copiar la autopista.
+; nuevo. Además hay un presupuesto por cuadro (HUD_BUDGET): el vblank alcanza
+; para poco y también hay que copiar la autopista. Lo que no quepa espera al
+; cuadro siguiente; a 60 cuadros por segundo nadie lo nota.
 ; =============================================================================
 
-STRIP_NT        = $2400
-RING_ROW        = SPLIT_ROW
-HUD_ROW         = SPLIT_ROW + 2
-STRIP_FIRST_COL = 7     ; mitad izquierda de la gema del primer carril (lane_col + 1)
-STRIP_WIDTH     = 18    ; hasta la mitad derecha de la gema del último carril
+STRIP_NT     = $2400
+RING_ROW     = SPLIT_ROW
+SCORE_ROW    = SPLIT_ROW + 2
+COMBO_ROW    = SPLIT_ROW + 3
+STRIP_WIDTH  = HIGHWAY_TILES        ; cada bloque mide lo que la autopista
+HUD_ENTRY    = 3 + STRIP_WIDTH      ; bytes que ocupa un renglón en vbuf
+HUD_BUDGET   = 4 * HUD_ENTRY        ; a lo más 4 renglones por cuadro
+
+HUD_SCORE    = %01                  ; bits de hud_dirty
+HUD_COMBO    = %10
 
 ; -----------------------------------------------------------------------------
 ; draw_strip: la franja completa, con el dibujo apagado (al empezar a jugar)
@@ -39,15 +48,25 @@ draw_strip:
     dey
     bne @row
 
+    ldx #0
+@player:
+    jsr load_player
     lda #$FF                ; ningún estado de aros coincide con $FF: se dibujan
     sta rings_shown
-    lda #1
+    lda #HUD_SCORE | HUD_COMBO
     sta hud_dirty
     jsr update_hud
-    jmp flush_vbuf          ; el dibujo está apagado: se puede copiar ya
+    jsr flush_vbuf          ; el dibujo está apagado: se puede copiar ya
+    jsr store_player
+    ldx player
+    inx
+    cpx num_players
+    bne @player
+    rts
 
 ; -----------------------------------------------------------------------------
-; update_hud: cada cuadro de juego; manda a la cola lo que haya cambiado
+; update_hud: cada cuadro, para el jugador actual; manda a la cola lo que
+; haya cambiado, si cabe en el presupuesto de este cuadro
 ; -----------------------------------------------------------------------------
 update_hud:
     ; ¿Qué carriles tienen su botón presionado? -> tmp (un bit por carril)
@@ -67,24 +86,45 @@ update_hud:
     lda tmp
     cmp rings_shown
     beq @rings_ok
+    jsr hud_room
+    bcc @rings_ok           ; no cabe: el siguiente cuadro
+    lda tmp
     sta rings_shown
     jsr queue_rings
 @rings_ok:
     lda hud_dirty
-    beq @done
-    lda #0
+    and #HUD_SCORE
+    beq @score_ok
+    jsr hud_room
+    bcc @score_ok
+    lda hud_dirty
+    and #<~HUD_SCORE
     sta hud_dirty
-    jmp queue_score
+    jsr queue_score
+@score_ok:
+    lda hud_dirty
+    and #HUD_COMBO
+    beq @done
+    jsr hud_room
+    bcc @done
+    lda hud_dirty
+    and #<~HUD_COMBO
+    sta hud_dirty
+    jmp queue_combo
 @done:
     rts
 
-; Los 5 aros (2 tiles cada uno), con espacios entre ellos
+; carry = 1 si en vbuf cabe un renglón más este cuadro
+; (cmp deja carry = 1 cuando A >= el otro: aquí, cuando lo libre alcanza)
+hud_room:
+    lda #HUD_BUDGET - HUD_ENTRY
+    cmp vbuf_len
+    rts
+
+; Los 5 aros (2 tiles cada uno)
 queue_rings:
-    jsr clear_strip_buf
-    lda #0
-    sta lane
+    ldx #0
 @lane:
-    ldx lane
     lda lane_ring_tile,x    ; aro vacío, mitad izquierda
     sta tmp+1
     lda rings_shown
@@ -95,57 +135,72 @@ queue_rings:
     adc #4
     sta tmp+1
 @empty:
-    jsr lane_column         ; posición dentro de la franja: columna + 1 - STRIP_FIRST_COL
-    sec
-    sbc #STRIP_FIRST_COL - 1
+    txa                     ; posición: carril * 2
+    asl a
     tay
     lda tmp+1
     sta strip_buf,y
     clc
     adc #1                  ; mitad derecha
     sta strip_buf+1,y
-    inc lane
-    lda lane
-    cmp #NUM_LANES
+    inx
+    cpx #NUM_LANES
     bne @lane
-    lda #<(STRIP_NT + RING_ROW * 32 + STRIP_FIRST_COL)
-    sta addr
-    lda #>(STRIP_NT + RING_ROW * 32 + STRIP_FIRST_COL)
-    sta addr+1
+    lda #<(STRIP_NT + RING_ROW * 32)
     jmp queue_strip_buf
 
-; "000000 X4      123": puntaje, multiplicador y combo
+; "000000 X4": puntaje y multiplicador
 queue_score:
     jsr clear_strip_buf
     ldx #5
-@score:
+@digit:
     lda score_digits,x
     clc
     adc #'0'
     sta strip_buf,x
     dex
-    bpl @score
+    bpl @digit
     lda #'X'
     sta strip_buf+7
     lda multiplier
     clc
     adc #'0'
     sta strip_buf+8
+    lda #<(STRIP_NT + SCORE_ROW * 32)
+    jmp queue_strip_buf
+
+; "COMBO 123"
+queue_combo:
+    ldx #5
+@label:
+    lda txt_combo,x
+    sta strip_buf,x
+    dex
+    bpl @label
     ldx #2
-@combo:
+@digit:
     lda combo_digits,x
     clc
     adc #'0'
-    sta strip_buf + STRIP_WIDTH - 3,x
+    sta strip_buf+6,x
     dex
-    bpl @combo
-    lda #<(STRIP_NT + HUD_ROW * 32 + STRIP_FIRST_COL)
-    sta addr
-    lda #>(STRIP_NT + HUD_ROW * 32 + STRIP_FIRST_COL)
-    sta addr+1
+    bpl @digit
+    lda #' '
+    sta strip_buf+9
+    lda #<(STRIP_NT + COMBO_ROW * 32)
     ; sigue en queue_strip_buf
 
+; Manda strip_buf a la cola, en la fila cuya dirección (byte bajo, sin la
+; columna) viene en A, debajo de la autopista del jugador actual. Todas las
+; filas de la franja tienen el mismo byte alto ($27).
+.assert >(STRIP_NT + RING_ROW * 32) = >(STRIP_NT + COMBO_ROW * 32), error, "La franja cruza de página"
 queue_strip_buf:
+    ldx player
+    clc
+    adc player_base,x
+    sta addr
+    lda #>(STRIP_NT + RING_ROW * 32)
+    sta addr+1
     SET_PTR strip_buf
     lda #STRIP_WIDTH
     jmp vbuf_text
@@ -161,3 +216,5 @@ clear_strip_buf:
 
 ;                     verde        rojo         amarillo     azul         naranja
 lane_ring_tile: .byte TILE_RING_A, TILE_RING_A, TILE_RING_A, TILE_RING_A, TILE_RING_B
+
+txt_combo:      .byte "COMBO "

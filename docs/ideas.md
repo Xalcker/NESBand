@@ -15,6 +15,10 @@ También falta confirmar de oído el tempo de *Blaster Master* (Area 1). El gene
 
 ## Dos jugadores (y más)
 
+**Hecho para 2 jugadores** (pantalla dividida con la IRQ del MMC3, estado por jugador en `pstate`,
+autopistas de 16 px, menú y resultados por jugador). Queda abajo el análisis original, que sigue
+sirviendo para pensar en 4.
+
 **Sí es viable con 2.** Los dos tocan la misma canción, así que el reloj es uno solo: las dos autopistas bajan con el mismo scroll y caben en la misma nametable. Cada fila nueva sigue siendo una sola escritura de 32 tiles que junta las gemas de los dos charts.
 
 Lo que cambia:

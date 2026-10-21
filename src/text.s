@@ -109,22 +109,30 @@ print_centered:
     jsr center_addr
     jmp print_direct
 
-; center_addr: addr = inicio de la fila A + (32 - largo) / 2
-center_addr:
-    ; addr = $2000 + fila * 32  (fila * 32 = fila << 5, en 16 bits)
+; text_addr: addr = $2000 + fila A * 32 + columna X
+text_addr:
     sta addr
     lda #0
     sta addr+1
-    ldx #5
+    ldy #5                  ; fila * 32 = fila << 5, en 16 bits
 @shift:
     asl addr
     rol addr+1
-    dex
+    dey
     bne @shift
-    lda addr+1
+    txa
     clc
+    adc addr
+    sta addr
+    lda addr+1
     adc #$20
     sta addr+1
+    rts
+
+; center_addr: addr = inicio de la fila A + (32 - largo) / 2
+center_addr:
+    ldx #0
+    jsr text_addr
     ; + (32 - largo) / 2
     jsr strlen
     eor #$FF                ; -largo = (largo xor $FF) + 1

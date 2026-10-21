@@ -1,9 +1,17 @@
 ; =============================================================================
 ; results.s - Pantalla de resultados al terminar la canción
+;
+; Una columna por jugador (o una al centro si jugó uno solo) con su
+; instrumento, dificultad, puntaje, notas, precisión, combo máximo y estrellas.
 ; =============================================================================
 
-RESULTS_LABEL_COL = 5
-RESULTS_VALUE_COL = 18
+RES_INST_ROW    = 9
+RES_DIFF_ROW    = 10
+RES_SCORE_ROW   = 12     ; etiqueta; el valor va en la fila siguiente
+RES_NOTES_ROW   = 15
+RES_ACC_ROW     = 18
+RES_COMBO_ROW   = 21
+RES_STARS_ROW   = 24
 
 enter_results:
     jsr ppu_off
@@ -14,33 +22,73 @@ enter_results:
     jsr load_palettes
     jsr clear_nametable
     jsr hide_sprites
-    ldx #0
-    jsr load_player
-    jsr compute_stats
 
     PRINT_CENTER 3, txt_results
-
-    ; Canción, juego, instrumento y dificultad
     ldy #SONG_TITLE
     jsr ptr_from_song
-    lda #6
+    lda #5
     jsr print_centered
     ldy #SONG_GAME
     jsr ptr_from_song
-    lda #7
+    lda #6
     jsr print_centered
-    SET_ADDR RESULTS_LABEL_COL, 9
+    PRINT_CENTER 26, txt_continue
+
+    ; Una columna por jugador
+    ldx #0
+@player:
+    jsr load_player
+    jsr compute_stats
+    jsr store_player        ; (percent y stars quedan guardados para las pruebas)
+    jsr draw_player_results
+    ldx player
+    inx
+    cpx num_players
+    bne @player
+
+    lda #0
+    sta scroll_y
+    sta scroll_nt
+    jmp ppu_on
+
+results_update:
+    lda pad_pressed
+    ora pad_pressed+1
+    and #BTN_START
+    beq @done
+    jmp enter_menu
+@done:
+    rts
+
+; -----------------------------------------------------------------------------
+; draw_player_results: la columna del jugador cargado en pstate
+; -----------------------------------------------------------------------------
+draw_player_results:
+    ; Columna: results_col[(num_players - 1) * 2 + jugador]
+    lda num_players
+    sec
+    sbc #1
+    asl a
+    clc
+    adc player
+    tax
+    lda results_col,x
+    sta res_col
+
+    ; Instrumento y dificultad
     lda cur_instrument
     jsr ptr_instrument_name
-    jsr print_direct
-    SET_PTR txt_dash
-    jsr print_more
+    lda #RES_INST_ROW
+    jsr res_print
     lda cur_difficulty
     jsr ptr_difficulty_name
-    jsr print_more
+    lda #RES_DIFF_ROW
+    jsr res_print
 
     ; Puntaje: los 6 dígitos tal cual (score_digits son 0-9, el texto es '0'-'9')
-    PRINT RESULTS_LABEL_COL, 12, txt_score
+    SET_PTR txt_score
+    lda #RES_SCORE_ROW
+    jsr res_print
     ldx #5
 @score:
     lda score_digits,x
@@ -51,19 +99,21 @@ enter_results:
     bpl @score
     lda #0
     sta numstr+6
-    SET_ADDR RESULTS_VALUE_COL, 12
     SET_PTR numstr
-    jsr print_direct
+    lda #RES_SCORE_ROW + 1
+    jsr res_print
 
     ; Notas: acertadas/total
-    PRINT RESULTS_LABEL_COL, 14, txt_notes
-    SET_ADDR RESULTS_VALUE_COL, 14
+    SET_PTR txt_notes
+    lda #RES_NOTES_ROW
+    jsr res_print
     lda notes_hit
     sta tmp
     lda notes_hit+1
     sta tmp+1
     jsr num_to_text
-    jsr print_direct
+    lda #RES_NOTES_ROW + 1
+    jsr res_print
     SET_PTR txt_slash
     jsr print_more
     lda notes_total
@@ -74,26 +124,30 @@ enter_results:
     jsr print_more
 
     ; Precisión
-    PRINT RESULTS_LABEL_COL, 16, txt_accuracy
-    SET_ADDR RESULTS_VALUE_COL, 16
+    SET_PTR txt_accuracy
+    lda #RES_ACC_ROW
+    jsr res_print
     lda percent
     sta tmp
     lda #0
     sta tmp+1
     jsr num_to_text
-    jsr print_direct
+    lda #RES_ACC_ROW + 1
+    jsr res_print
     SET_PTR txt_percent
     jsr print_more
 
     ; Combo máximo
-    PRINT RESULTS_LABEL_COL, 18, txt_max_combo
-    SET_ADDR RESULTS_VALUE_COL, 18
+    SET_PTR txt_max_combo
+    lda #RES_COMBO_ROW
+    jsr res_print
     lda max_combo
     sta tmp
     lda max_combo+1
     sta tmp+1
     jsr num_to_text
-    jsr print_direct
+    lda #RES_COMBO_ROW + 1
+    jsr res_print
 
     ; Estrellas: "* * *" (una por cada umbral de precisión alcanzado)
     ldx #0
@@ -113,23 +167,14 @@ enter_results:
     lda #0
     sta numstr,y
     SET_PTR numstr
-    lda #21
-    jsr print_centered
+    lda #RES_STARS_ROW
+    ; sigue en res_print
 
-    PRINT_CENTER 26, txt_continue
-
-    lda #0
-    sta scroll_y
-    sta scroll_nt
-    jmp ppu_on
-
-results_update:
-    lda pressed
-    and #BTN_START
-    beq @done
-    jmp enter_menu
-@done:
-    rts
+; res_print: escribe el texto de ptr en la fila A, columna res_col (render apagado)
+res_print:
+    ldx res_col
+    jsr text_addr
+    jmp print_direct
 
 ; -----------------------------------------------------------------------------
 ; compute_stats: percent = notes_hit * 100 / notes_total, y las estrellas
@@ -199,8 +244,10 @@ compute_stats:
 ; Precisión mínima para cada estrella
 star_thresholds: .byte 20, 50, 70, 85, 95
 
+;                1 jugador   2 jugadores
+results_col:     .byte 10, 0,    2, 17
+
 txt_results:    .byte "RESULTADOS", 0
-txt_dash:       .byte " - ", 0
 txt_score:      .byte "PUNTAJE", 0
 txt_notes:      .byte "NOTAS", 0
 txt_accuracy:   .byte "PRECISION", 0

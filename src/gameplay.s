@@ -235,7 +235,7 @@ lane_advance:
 ; note_hit / note_miss
 ; -----------------------------------------------------------------------------
 note_hit:
-    lda #1
+    lda #HUD_SCORE | HUD_COMBO
     sta hud_dirty           ; puntaje y combo cambiaron
     lda #0
     sta player_muted        ; acertaste: tu instrumento vuelve a sonar
@@ -257,7 +257,8 @@ note_miss:
     lda #1
     sta multiplier
     sta player_muted        ; fallaste: tu instrumento se calla
-    sta hud_dirty           ; el combo volvió a 0
+    lda #HUD_SCORE | HUD_COMBO
+    sta hud_dirty           ; el combo volvió a 0 y el multiplicador a x1
     rts
 
 ; -----------------------------------------------------------------------------
@@ -292,20 +293,22 @@ erase_gem:
 @have_vrow:
     jsr vrow_to_addr
 
-    jsr lane_column
-    sec                     ; +1: la gema empieza una columna después del borde
+    jsr lane_column         ; la gema ocupa las 2 columnas del carril
+    clc
     adc addr
     ldy erase_count
     sta erase_lo,y
     lda addr+1
     sta erase_hi,y
 
-    ; Debajo de la gema puede haber línea de beat (bit 7 de los carriles)
-    ldx #TILE_BLANK
+    ; Debajo de la gema queda el borde del carril, con o sin línea de beat
+    ; (bit 7 de los carriles). La NMI escribe este tile y luego el anterior,
+    ; que es el interior que le corresponde.
+    ldx #TILE_EDGE
     ldy #1
     lda (ptr),y
     bpl @store_tile
-    ldx #TILE_BEAT
+    ldx #TILE_EDGE_BEAT
 @store_tile:
     txa
     ldy erase_count

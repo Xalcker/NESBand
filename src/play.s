@@ -47,6 +47,8 @@ enter_play:
     lda (song_ptr),y
     sta first_beat_row
 
+    jsr set_layout          ; dónde va la autopista de cada jugador
+
     ; --- Cada jugador: su chart, marcador y carriles ---
     ldx #0
 @player:

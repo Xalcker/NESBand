@@ -2,9 +2,9 @@
 
 Un juego de ritmo estilo Guitar Hero / Rock Band para el NES, con canciones de otros juegos de NES.
 
-**Estado actual:** título, menú (canción, instrumento y dificultad), juego con pausa y pantalla de
-resultados con precisión, combo máximo y estrellas. Cartucho MMC3 de 256 KB con espacio para 15
-canciones; hoy trae 4, importadas desde NSF: *Blaster Master* (Area 1), *Castlevania III* (Beginning),
+**Estado actual:** título, menú (canción, jugadores, instrumento y dificultad), juego para **1 o 2
+jugadores** con pausa, y pantalla de resultados con precisión, combo máximo y estrellas. Cartucho MMC3
+de 256 KB con espacio para 15 canciones; hoy trae 4, importadas desde NSF: *Blaster Master* (Area 1), *Castlevania III* (Beginning),
 *Double Dragon* (Mission 1) y *Mega Man 2* (Dr. Wily's Castle). Los charts se generan automáticamente
 para guitarra, teclado y bajo en 4 dificultades, y los aciertos y fallos están sincronizados al cuadro con
 la música. Si fallas, tu instrumento se calla hasta tu siguiente acierto, como en Rock Band.
@@ -67,10 +67,12 @@ Compilar la ROM **no** necesita FamiStudio ni Python: la canción ya convertida 
 
 ### Controles
 
-**Menú:** ↑/↓ elige la opción (canción, instrumento, dificultad), ←/→ cambia el valor, Start juega y
-B regresa al título. Mientras eliges, suena la canción.
+**Menú:** ↑/↓ elige la opción (canción, jugadores, instrumento, dificultad), ←/→ cambia el valor,
+Start juega y B regresa al título. Mientras eliges, suena la canción. Con **2 jugadores**, el jugador 2
+elige su instrumento y dificultad con el control 2 (su cursor es naranja). No pueden tocar el mismo
+instrumento: cada quien silencia su canal al fallar.
 
-**Juego** (modo "tap", un botón por carril):
+**Juego** (modo "tap", un botón por carril, cada jugador con su control):
 
 | Carril   | Botón |
 |----------|-------|
@@ -82,8 +84,11 @@ B regresa al título. Mientras eliges, suena la canción.
 | Pausa    | Start |
 | Salir al menú (en pausa) | Select |
 
-Fácil usa 3 carriles, medio 4, difícil y experto los 5.
-En Mesen configura qué teclas corresponden a cada botón en *Settings → Input*.
+Fácil usa 3 carriles, medio 4, difícil y experto los 5. Start o Select sirven desde cualquiera de los
+dos controles.
+
+En Mesen configura qué teclas corresponden a cada botón en *Settings → Input*. Para jugar de a dos, el
+**puerto 2** debe tener un control de NES conectado (por default Mesen lo deja vacío).
 
 ## Importar canciones
 
@@ -162,19 +167,25 @@ FamiStudio. Para volver a generar su NSF:
 uv run pytest
 ```
 
-- `run_tests.ps1` corre la ROM en Mesen, sin ventana, con un bot (`tests/autoplay.lua`) que recorre
-  todo: título → menú (elige canción, instrumento y experto) → juego → resultados. Lo hace con cada
-  canción y con guitarra, teclado y bajo, en dos modos (tarda unos 5 minutos con 4 canciones):
-  - **perfect**: acierta todas las notas y pausa a media canción. El puntaje y los resultados (100%,
-    5 estrellas) deben ser exactos, y **cada nota del chart debe caer en el mismo cuadro en que el motor
-    dispara esa nota** en el canal del jugador (prueba de sincronía), también después de la pausa.
-  - **idle**: no toca nada; todo debe fallar y el canal del jugador debe quedar silenciado.
-  - Las capturas de cada pantalla quedan en `build/test-<modo>-<instrumento>/`.
+- `run_tests.ps1` corre la ROM en Mesen, sin ventana, con un bot por jugador (`tests/autoplay.lua`)
+  que recorre todo: título → menú (elige canción, jugadores, instrumentos y experto) → juego →
+  resultados. Por cada canción hace 6 partidas (unos 8 minutos con 4 canciones):
+  - 1 jugador **perfecto** con guitarra, teclado y bajo: acierta todo y pausa a media canción. El
+    puntaje y los resultados (100%, 5 estrellas) deben ser exactos, y **cada nota del chart debe caer
+    en el mismo cuadro en que el motor dispara esa nota** en el canal del jugador (prueba de
+    sincronía), también después de la pausa.
+  - 1 jugador **sin tocar nada**: todo debe fallar y su canal debe quedar silenciado.
+  - 2 jugadores **perfectos** (guitarra + bajo).
+  - 2 jugadores **mixto**: uno perfecto y el otro sin tocar nada, para comprobar que cada quien lleva
+    su propio juego (puntaje, silenciado, resultados).
+  - Las capturas de cada pantalla quedan en `build/test-<canción>-<caso>/`.
 - `pytest` prueba el generador de charts (lectura de FamiStudio, tempo, reducción, carriles).
 
-Requisito de Mesen: el script de Lua necesita permiso para escribir archivos (`AllowIoOsAccess: true` en
-el `settings.json`). Si `tools/mesen/` tiene su propio `settings.json`, Mesen corre en modo portable y no
-toca tu configuración normal.
+Requisitos del `settings.json` del Mesen de pruebas: `AllowIoOsAccess: true` (el script de Lua escribe
+archivos), `Nes.Port2.Type: "NesController"` (control 2 conectado) y `Nes.AutoConfigureInput: false`.
+Si `tools/mesen/` tiene su propio `settings.json`, Mesen corre en modo portable y no toca tu
+configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el tercer argumento,
+`emu.setInput(botones, 0, control)`.
 
 ## Cómo está organizado el código
 
@@ -183,12 +194,12 @@ toca tu configuración normal.
 | `src/main.s` | Arranque (`reset`), ciclo principal con los estados del juego, interrupción de vblank (`nmi`), variables, paletas |
 | `src/title.s` | Pantalla de título y el logo |
 | `src/menu.s` | Menú de canción, instrumento y dificultad |
-| `src/play.s` | Preparar la canción elegida, cada cuadro de juego, pausa y fin |
-| `src/results.s` | Pantalla de resultados: precisión, combo máximo, estrellas |
+| `src/play.s` | Preparar la canción elegida, cada cuadro de juego (por jugador), pausa y fin |
+| `src/hud.s` | La franja fija de abajo: aros y marcador de cada jugador |
+| `src/results.s` | Pantalla de resultados por jugador: precisión, combo máximo, estrellas |
 | `src/text.s` | Escribir textos y números en pantalla |
 | `src/highway.s` | La autopista: reloj de la canción, scroll, armado de cada fila de notas |
 | `src/gameplay.s` | Control, ventana de acierto, fallos, combo, puntaje |
-| `src/hud.s` | Sprites: aros de golpe y marcador |
 | `src/audio.s` | Configuración del motor de FamiStudio, arranque/fin de la música, silenciar al fallar |
 | `src/famistudio/` | Motor de sonido de FamiStudio 4.5.3 (licencia MIT, sin modificar) |
 | `src/songs/` | Canciones convertidas (generadas por `nesband import-song`) |
@@ -218,6 +229,13 @@ toca tu configuración normal.
 - **El glitch del DPCM.** Cuando suena un sample, el chip de sonido puede "robar" una lectura justo
   cuando el juego lee el control, y aparecen botones fantasma. Por eso `read_pad` lee el control
   hasta que dos lecturas seguidas coinciden.
+- **Pantalla dividida.** El MMC3 cuenta scanlines y dispara una interrupción (IRQ) en la línea 200. Ahí
+  `irq` cambia a qué parte de la memoria de video apunta el PPU: arriba se ve la autopista
+  desplazándose y abajo una franja fija con los aros y el marcador. Para que el MMC3 pueda contar, los
+  sprites usan la tabla de patrones de `$1000` y el fondo la de `$0000`.
+- **Un jugador a la vez.** Todo lo de un jugador (sus carriles, puntaje, combo, chart) vive en un bloque
+  de variables (`pstate`). Cada jugador guarda su copia; `load_player` la trae antes de procesarlo y
+  `store_player` la devuelve. Así el mismo código sirve para 1 o 2 jugadores.
 
 ### Para aprender 6502 y NES desde cero
 
@@ -236,4 +254,5 @@ toca tu configuración normal.
 6. ~~Mapper con más espacio (MMC3) para muchas canciones~~ ✅ · pantalla de título ilustrada pendiente
    (ver [docs/ideas.md](docs/ideas.md))
 7. Editor visual de charts para retocar lo generado
-8. Multijugador con el Four Score; batería "pro" con la Power Pad; modo con rasgueo para un adaptador de guitarra
+8. ~~2 jugadores~~ ✅ · 4 jugadores con el Four Score (ver [docs/ideas.md](docs/ideas.md)); batería "pro"
+   con la Power Pad; modo con rasgueo para un adaptador de guitarra

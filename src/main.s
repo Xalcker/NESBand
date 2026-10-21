@@ -116,7 +116,10 @@ num_players:    .res 1   ; 1 o 2
 game_state:     .res 1   ; STATE_...
 cur_song:       .res 1   ; lo que se eligió en el menú
 menu_cursor:    .res 1   ; 0 = canción, 1 = instrumento, 2 = dificultad
+menu_cursor2:   .res 1   ; cursor del jugador 2: 0 = instrumento, 1 = dificultad
 menu_dir:       .res 1   ; +1 o -1 al cambiar un valor del menú
+player_drawn:   .res 1   ; jugador cuyos valores se están escribiendo en el menú
+res_col:        .res 1   ; columna de la pantalla de resultados
 song_ptr:       .res 2   ; ficha de la canción elegida
 
 song_frame:     .res 2   ; cuadros transcurridos desde que empezó la canción
@@ -190,6 +193,9 @@ oam:            .res 256 ; 64 sprites x 4 bytes (Y, tile, atributos, X)
 
 .segment "BSS"
 player_save:    .res PSTATE_SIZE * MAX_PLAYERS   ; el bloque pstate de cada jugador
+player_base:    .res MAX_PLAYERS ; columna donde empieza la autopista de cada jugador
+attr_cols:      .res 16  ; paleta de cada columna de 16 px (para write_attributes)
+attr_row:       .res 8   ; una fila de la tabla de atributos
 pad_buttons:    .res MAX_PLAYERS ; botones de cada control (control 1, control 2)
 pad_prev:       .res MAX_PLAYERS ; los del cuadro anterior
 pad_pressed:    .res MAX_PLAYERS ; los recién presionados
@@ -321,18 +327,19 @@ reset_continue:
     bpl @wait_vblank2
 
     ; Lo que aparece elegido en el menú la primera vez
-    lda #1                  ; dificultad: medio
-    sta cur_difficulty
-    jsr select_song         ; canción 0 y su primer instrumento disponible
     lda #0
     sta player
-    jsr store_player        ; jugador 1
+    sta cur_instrument      ; jugador 1: guitarra
+    lda #1                  ; dificultad: medio
+    sta cur_difficulty
+    jsr store_player
     lda #2                  ; jugador 2: bajo, para no chocar con la guitarra
     sta cur_instrument
     inc player
     jsr store_player
     lda #1
     sta num_players
+    jsr select_song         ; canción 0, y que los instrumentos existan en ella
 
     cli                     ; aceptar IRQ: solo la del MMC3 está encendida, y solo en el juego
     jsr enter_title
@@ -512,7 +519,8 @@ nmi:
     sta row_pending
 @no_row:
 
-    ; 3) Borrar las gemas acertadas (2 tiles cada una)
+    ; 3) Borrar las gemas acertadas: el borde del carril y, en el tile
+    ; siguiente, su interior (el tile anterior en la CHR, ver chr.s)
     ldx erase_count
     beq @no_erase
     ldx #0
@@ -521,9 +529,10 @@ nmi:
     sta PPUADDR
     lda erase_lo,x
     sta PPUADDR
-    lda erase_tile,x
-    sta PPUDATA
-    sta PPUDATA
+    ldy erase_tile,x
+    sty PPUDATA
+    dey
+    sty PPUDATA
     inx
     cpx erase_count
     bne @erase_loop
@@ -626,8 +635,8 @@ palettes:
     .byte $0F, $30, $10, $27
     .byte $0F, $30, $10, $27
     .byte $0F, $30, $10, $27
-    .byte $0F, $30, $27, $16
-    .byte $0F, $30, $27, $16
+    .byte $0F, $30, $27, $16   ; sprites 0: cursor del jugador 1 (blanco)
+    .byte $0F, $27, $30, $16   ; sprites 1: cursor del jugador 2 (naranja)
     .byte $0F, $30, $27, $16
     .byte $0F, $30, $27, $16
 
