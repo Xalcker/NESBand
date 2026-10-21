@@ -72,9 +72,13 @@ enter_menu:
     sta scroll_y
     sta scroll_nt
     jsr ppu_on
-    jmp start_preview
+    jsr start_preview
+    lda #SFX_ACEPTAR        ; venimos de un Start (título, resultados o pausa)
+    jmp play_sfx
 
 menu_update:
+    lda #0
+    sta menu_moved
     lda pad_pressed
     ora pad_pressed+1
     and #BTN_START
@@ -84,7 +88,9 @@ menu_update:
     lda pad_pressed
     and #BTN_B
     beq @no_back
-    jmp enter_title
+    jsr enter_title
+    lda #SFX_VOLVER         ; (después de enter_title, que reinicia el motor)
+    jmp play_sfx
 @no_back:
 
     ; --- Jugador 1 ---
@@ -121,12 +127,28 @@ menu_update:
 
 @done:
     jsr menu_place_cursors
+    lda menu_moved          ; ¿alguien movió el cursor o cambió algo? "blip"
+    beq @no_sfx
+    lda #SFX_MOVER
+    jsr play_sfx
+@no_sfx:
     jmp famistudio_update   ; la canción de muestra
 
 ; move_cursor: A = cursor, X = último valor, tmp+1 = botones presionados.
-; Devuelve el cursor movido con arriba/abajo.
+; Devuelve el cursor movido con arriba/abajo (y si cambió, marca menu_moved).
 move_cursor:
     stx tmp
+    pha
+    jsr @move
+    sta tmp                 ; ¿quedó distinto?
+    pla
+    cmp tmp
+    beq @same
+    inc menu_moved
+@same:
+    lda tmp
+    rts
+@move:
     tay
     lda tmp+1
     and #BTN_UP
@@ -146,6 +168,7 @@ move_cursor:
     rts
 
 ; direction: menu_dir = -1 (izquierda), +1 (derecha) o 0; Z = 1 si es 0
+; (si no es 0, marca menu_moved)
 direction:
     lda #0
     sta menu_dir
@@ -160,6 +183,9 @@ direction:
     inc menu_dir
 @no_right:
     lda menu_dir
+    beq @done
+    inc menu_moved          ; (inc deja Z = 0)
+@done:
     rts
 
 ; -----------------------------------------------------------------------------
@@ -331,8 +357,7 @@ start_preview:
     iny
     lda (song_ptr),y
     tay
-    lda #1                  ; NTSC
-    jsr famistudio_init
+    jsr music_init
     lda #0
     jmp famistudio_music_play
 

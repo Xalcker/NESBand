@@ -184,52 +184,33 @@ res_print:
 ;   - dividir = contar cuántas veces se puede restar el total (a lo más 100)
 ; -----------------------------------------------------------------------------
 compute_stats:
-    lda #0
-    sta hits100
-    sta hits100+1
-    sta hits100+2
-    sta percent
-    ldx #100
-@multiply:
-    clc
-    lda hits100
-    adc notes_hit
-    sta hits100
-    lda hits100+1
-    adc notes_hit+1
-    sta hits100+1
-    lda hits100+2
-    adc #0
-    sta hits100+2
-    dex
-    bne @multiply
-
+    ; Precisión = notas acertadas / total
+    lda notes_hit
+    sta ratio_num
+    lda notes_hit+1
+    sta ratio_num+1
     lda notes_total
-    ora notes_total+1
-    beq @stars              ; chart vacío: 0%
-@divide:
-    sec
-    lda hits100
-    sbc notes_total
-    sta tmp
-    lda hits100+1
-    sbc notes_total+1
-    sta tmp+1
-    lda hits100+2
-    sbc #0
-    bcc @stars              ; ya no cabe otra vez
-    sta hits100+2
-    lda tmp+1
-    sta hits100+1
-    lda tmp
-    sta hits100
-    inc percent
-    jmp @divide
+    sta ratio_den
+    lda notes_total+1
+    sta ratio_den+1
+    jsr ratio100
+    sta percent
 
-@stars:
+    ; Las estrellas salen del PUNTAJE, como en Rock Band, y no de la
+    ; precisión: machacando botones se aciertan notas de suerte, pero los
+    ; golpes al aire rompen el combo y el puntaje se queda muy abajo.
+    ; score_pct = puntaje logrado / puntaje máximo posible
+    lda score_units
+    sta ratio_num
+    lda score_units+1
+    sta ratio_num+1
+    jsr perfect_units       ; ratio_den = puntaje máximo (en unidades de 50)
+    jsr ratio100
+    sta score_pct
+
     ldx #0
 @threshold:
-    lda percent
+    lda score_pct
     cmp star_thresholds,x
     bcc @done
     inx
@@ -239,10 +220,117 @@ compute_stats:
     stx stars
     rts
 
+; -----------------------------------------------------------------------------
+; perfect_units: ratio_den = puntaje de acertar las notes_total notas sin
+; fallar, en unidades de 50. La nota número i vale su multiplicador:
+;   notas 1-9 x1, 10-19 x2, 20-29 x3, de la 30 en adelante x4
+; Sumando por tramos queda (n = notas):
+;   n < 10: n      n < 20: 2n - 9      n < 30: 3n - 28      si no: 4n - 57
+; -----------------------------------------------------------------------------
+perfect_units:
+    lda notes_total+1
+    bne @x4                 ; 256 notas o más
+    lda notes_total
+    ldx #1                  ; X = multiplicador del tramo
+    ldy #0                  ; Y = lo que se resta
+    cmp #10
+    bcc @calc
+    inx
+    ldy #9
+    cmp #20
+    bcc @calc
+    inx
+    ldy #28
+    cmp #30
+    bcc @calc
+@x4:
+    ldx #4
+    ldy #57
+@calc:
+    ; ratio_den = notes_total * X - Y
+    sty tmp
+    lda #0
+    sta ratio_den
+    sta ratio_den+1
+@times:
+    clc
+    lda ratio_den
+    adc notes_total
+    sta ratio_den
+    lda ratio_den+1
+    adc notes_total+1
+    sta ratio_den+1
+    dex
+    bne @times
+    sec
+    lda ratio_den
+    sbc tmp
+    sta ratio_den
+    lda ratio_den+1
+    sbc #0
+    sta ratio_den+1
+    rts
+
+; -----------------------------------------------------------------------------
+; ratio100: A = ratio_num * 100 / ratio_den, de 0 a 100 (0 si ratio_den = 0)
+;
+; El 6502 no sabe multiplicar ni dividir, así que:
+;   - multiplicar por 100 = sumar 100 veces (en 24 bits, porque puede pasar de 65535)
+;   - dividir = contar cuántas veces se puede restar ratio_den (a lo más 100)
+; -----------------------------------------------------------------------------
+ratio100:
+    lda #0
+    sta hits100
+    sta hits100+1
+    sta hits100+2
+    sta ratio_res
+    ldx #100
+@multiply:
+    clc
+    lda hits100
+    adc ratio_num
+    sta hits100
+    lda hits100+1
+    adc ratio_num+1
+    sta hits100+1
+    lda hits100+2
+    adc #0
+    sta hits100+2
+    dex
+    bne @multiply
+
+    lda ratio_den
+    ora ratio_den+1
+    beq @done               ; división entre 0: 0%
+@divide:
+    lda ratio_res
+    cmp #100
+    beq @done               ; tope: 100%
+    sec
+    lda hits100
+    sbc ratio_den
+    sta tmp
+    lda hits100+1
+    sbc ratio_den+1
+    sta tmp+1
+    lda hits100+2
+    sbc #0
+    bcc @done               ; ya no cabe otra vez
+    sta hits100+2
+    lda tmp+1
+    sta hits100+1
+    lda tmp
+    sta hits100
+    inc ratio_res
+    jmp @divide
+@done:
+    lda ratio_res
+    rts
+
 .segment "RODATA"
 
-; Precisión mínima para cada estrella
-star_thresholds: .byte 20, 50, 70, 85, 95
+; Puntaje mínimo (en % del máximo posible) para cada estrella
+star_thresholds: .byte 20, 40, 60, 80, 95
 
 ;                1 jugador   2 jugadores
 results_col:     .byte 10, 0,    2, 17

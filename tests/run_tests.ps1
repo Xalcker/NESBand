@@ -1,7 +1,8 @@
 # Compila y corre las pruebas automáticas en Mesen 2 (modo --testrunner, sin ventana)
 # Uso:  .\tests\run_tests.ps1
 # Por cada canción:
-#   1 jugador: juego perfecto con guitarra, teclado y bajo, y una partida sin tocar nada
+#   1 jugador: juego perfecto con guitarra, teclado y bajo, una partida sin tocar nada y
+#              una machacando botones (el combo y las estrellas no deben subir)
 #   2 jugadores: los dos perfectos (guitarra + bajo), y uno perfecto con el otro sin tocar
 #                (teclado + guitarra), para comprobar que cada quien lleva su propio juego
 # Deja resultado y capturas en build\test-<cancion>-<caso>
@@ -23,6 +24,7 @@ $kinds = @(
     @('1p-teclado',  1, 'perfect', 1, 'perfect', 2),
     @('1p-bajo',     1, 'perfect', 2, 'perfect', 0),
     @('1p-idle',     1, 'idle',    0, 'perfect', 2),
+    @('1p-smash',    1, 'smash',   0, 'perfect', 2),
     @('2p-perfect',  2, 'perfect', 0, 'perfect', 2),
     @('2p-mixto',    2, 'perfect', 1, 'idle',    0)
 )

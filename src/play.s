@@ -25,8 +25,9 @@ enter_play:
     iny
     lda (song_ptr),y
     tay
-    lda #1                  ; NTSC
-    jsr famistudio_init
+    jsr music_init
+    lda #SFX_ACEPTAR        ; suena mientras bajan las primeras filas
+    jsr play_sfx
 
     ldy #SONG_END
     lda (song_ptr),y
@@ -166,6 +167,8 @@ init_player:
     sta combo_bin+1
     sta max_combo
     sta max_combo+1
+    sta score_units
+    sta score_units+1
     sta player_muted
     lda #1
     sta multiplier

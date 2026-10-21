@@ -4,6 +4,7 @@
     uv run nesband import-song cancion.nsf --name wily --title "Dr. Wily's Castle" --game "Mega Man 2" --duration 75
     uv run nesband list-songs
     uv run nesband reimport              (todas, con las mismas opciones, tras mejorar el generador)
+    uv run nesband build-audio           (música del título y efectos, de audio/*.txt)
 
 import-song genera en src/songs/<nombre>/:
     music.s   datos para el motor de sonido de FamiStudio
@@ -369,6 +370,36 @@ song_table:
     return names
 
 
+AUDIO_DIR = ROOT / "audio"
+AUDIO_OUT = ROOT / "src" / "audio"
+
+
+def build_audio(args: argparse.Namespace) -> None:
+    """Exporta la música del título y los efectos de sonido (proyectos de FamiStudio en audio/)."""
+    fs = famistudio.find_famistudio(ROOT)
+    AUDIO_OUT.mkdir(parents=True, exist_ok=True)
+
+    # Música del título: un proyecto con una canción
+    title_path = AUDIO_OUT / "title_music.s"
+    famistudio.run(fs, [str(AUDIO_DIR / "titulo.txt"), "famistudio-asm-export", str(title_path),
+                        "-famistudio-asm-format:ca65"])
+    title_asm = title_path.read_text(encoding="utf-8")
+    missing = famistudio.read_required_flags(title_asm) - SUPPORTED_FLAGS
+    if missing:
+        sys.exit(f"La música del título necesita banderas que src/audio.s no activa: {', '.join(sorted(missing))}")
+    write_lf(title_path, title_asm.replace(famistudio.read_music_label(title_asm), "title_music_data"))
+
+    # Efectos: cada "canción" del proyecto es un efecto, en ese orden
+    sfx_path = AUDIO_OUT / "sfx.s"
+    famistudio.run(fs, [str(AUDIO_DIR / "efectos.txt"), "famistudio-asm-sfx-export", str(sfx_path),
+                        "-famistudio-asm-format:ca65", "-famistudio-asm-sfx-mode:ntsc"])
+    sfx_asm = sfx_path.read_text(encoding="utf-8")
+    names = re.findall(r"^\s*\.word @sfx_ntsc_(\w+)", sfx_asm, re.MULTILINE)
+    ids = "".join(f"SFX_{n.upper()} = {i}\n" for i, n in enumerate(names))
+    write_lf(sfx_path, f"; Constantes de cada efecto (índice para famistudio_sfx_play)\n{ids}\n{sfx_asm}")
+    print(f"Música del título y {len(names)} efectos ({', '.join(names)}) -> src/audio/")
+
+
 def list_songs(args: argparse.Namespace) -> None:
     names = write_song_list()
     print(f"{len(names)} canciones en src/songs/list.s: {', '.join(names)}")
@@ -408,6 +439,9 @@ def main() -> None:
 
     p = sub.add_parser("list-songs", help="Regenera src/songs/list.s (por ejemplo, después de borrar una canción)")
     p.set_defaults(func=list_songs)
+
+    p = sub.add_parser("build-audio", help="Exporta la música del título y los efectos (audio/*.txt) a src/audio/")
+    p.set_defaults(func=build_audio)
 
     p = sub.add_parser("reimport", help="Vuelve a importar canciones con las opciones que se usaron la primera vez")
     p.add_argument("names", nargs="*", help="canciones (default: todas)")

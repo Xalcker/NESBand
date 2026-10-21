@@ -87,6 +87,11 @@ instrumento: cada quien silencia su canal al fallar.
 Fácil usa 3 carriles, medio 4, difícil y experto los 5. Start o Select sirven desde cualquiera de los
 dos controles.
 
+**Reglas:** presionar un carril sin nota cerca (golpe al aire) rompe el combo y calla tu instrumento,
+como el *overstrum* de Guitar Hero. Las **estrellas salen del puntaje** (qué porcentaje del puntaje
+máximo posible lograste), no de las notas acertadas: machacando botones se aciertan notas de suerte,
+pero el combo nunca sube y el puntaje se queda abajo.
+
 En Mesen configura qué teclas corresponden a cada botón en *Settings → Input*. Para jugar de a dos, el
 **puerto 2** debe tener un control de NES conectado (por default Mesen lo deja vacío).
 
@@ -160,6 +165,25 @@ FamiStudio. Para volver a generar su NSF:
 .\tools\famistudio\FamiStudio.exe "tools\famistudio\Demo Songs\Mega Man 2.fms" nsf-export songs_src\megaman2.nsf
 ```
 
+## Música del título y efectos de sonido
+
+Son originales de NESBand y viven como proyectos de FamiStudio en formato texto:
+
+- `audio/titulo.txt`: la pista del título (La menor, 150 BPM, 8 compases que se repiten: melodía en
+  el pulso 1, arpegios en el pulso 2, bajo en el triángulo y batería en el ruido).
+- `audio/efectos.txt`: los efectos. Cada "canción" del proyecto es un efecto: *Mover* (cursor del
+  menú), *Aceptar* (Start) y *Volver* (B).
+
+Para editarlos, ábrelos en FamiStudio (con *Open* o *Import*, según tu versión, eligiendo el `.txt`), y
+guárdalos de nuevo como texto (*Export → FamiStudio Text*) sobre el mismo archivo. Luego:
+
+```bash
+uv run nesband build-audio
+```
+
+Exporta los dos a `src/audio/` y genera las constantes `SFX_...` de cada efecto. Si agregas un
+efecto, queda disponible en el código como `SFX_<NOMBRE>` (con `lda #SFX_... / jsr play_sfx`).
+
 ## Pruebas
 
 ```bash
@@ -175,9 +199,12 @@ uv run pytest
     en el mismo cuadro en que el motor dispara esa nota** en el canal del jugador (prueba de
     sincronía), también después de la pausa.
   - 1 jugador **sin tocar nada**: todo debe fallar y su canal debe quedar silenciado.
+  - 1 jugador **machacando botones**: acierta notas de suerte, pero el combo máximo no pasa de 5 y
+    no saca más de 2 estrellas.
   - 2 jugadores **perfectos** (guitarra + bajo).
   - 2 jugadores **mixto**: uno perfecto y el otro sin tocar nada, para comprobar que cada quien lleva
     su propio juego (puntaje, silenciado, resultados).
+  - En todas, además: que suene la música del título y que suenen los efectos en el menú y al empezar.
   - Las capturas de cada pantalla quedan en `build/test-<canción>-<caso>/`.
 - `pytest` prueba el generador de charts (lectura de FamiStudio, tempo, reducción, carriles).
 
@@ -200,7 +227,9 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 | `src/text.s` | Escribir textos y números en pantalla |
 | `src/highway.s` | La autopista: reloj de la canción, scroll, armado de cada fila de notas |
 | `src/gameplay.s` | Control, ventana de acierto, fallos, combo, puntaje |
-| `src/audio.s` | Configuración del motor de FamiStudio, arranque/fin de la música, silenciar al fallar |
+| `src/audio.s` | Configuración del motor de FamiStudio, arranque/fin de la música, efectos, silenciar al fallar |
+| `src/audio/` | Música del título y efectos ya exportados (generados por `nesband build-audio`) |
+| `audio/` | Proyectos de FamiStudio (texto) de la música del título y los efectos |
 | `src/famistudio/` | Motor de sonido de FamiStudio 4.5.3 (licencia MIT, sin modificar) |
 | `src/songs/` | Canciones convertidas (generadas por `nesband import-song`) |
 | `src/chr.s` | Los gráficos (tiles) dibujados como texto; la fuente usa el código ASCII como número de tile |

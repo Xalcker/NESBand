@@ -15,8 +15,12 @@
 --
 -- Variables de entorno:
 --   AUTOPLAY_SONG        canción en el menú (desde 0, orden alfabético)
---   AUTOPLAY_MODE        perfect (default) | idle: cómo juega el jugador 1.
---                        En perfect, además pausa a media canción y continúa.
+--   AUTOPLAY_MODE        cómo juega el jugador 1:
+--                        perfect (default): acierta todo; además pausa a media canción
+--                        idle: no toca nada
+--                        smash: machaca los 5 botones un cuadro sí y uno no; acierta
+--                        muchas notas de pura suerte, pero los golpes al aire deben
+--                        romperle el combo todo el tiempo
 --   AUTOPLAY_INSTRUMENT  instrumento del jugador 1: 0 guitarra (default), 1 teclado, 2 bajo
 --   AUTOPLAY_PLAYERS     1 (default) o 2
 --   AUTOPLAY_MODE2       cómo juega el jugador 2 (default: perfect)
@@ -51,12 +55,16 @@ local function field(p, name) return SAVE + (p - 1) * PSTATE_SIZE + (label(name)
 
 local A_STATE, A_SONG_FRAME, A_PAUSED = label("game_state"), label("song_frame"), label("paused")
 local A_COUNTER = label("famistudio_chn_note_counter")
+local A_SFX_PTR_HI = label("famistudio_sfx_base_addr") + 2   -- no 0 mientras suena un efecto
 
 local STATE_PLAY, STATE_RESULTS = 2, 3
 local CHART_ENTRY, CHART_END = 2, 0xFF
 local LANE_KEYS = { "left", "down", "right", "b", "a" }
 local TIMEOUT = 15000
 local PAUSE_AT, PAUSE_FRAMES = 1500, 90   -- song_frame en que se pausa, y cuánto dura
+-- Machacando, el combo más largo posible es el de un solo golpe (las notas que
+-- caigan juntas antes del primer carril vacío): nunca más de 5
+local NUM_LANES_SMASH_MAX = 5
 
 -- Registro de volumen del canal de cada instrumento, y lo que escribe apply_mute
 local MUTE_REG = { [0] = 0x4000, [1] = 0x4004, [2] = 0x4008 }
@@ -151,6 +159,8 @@ local function bot_input(p)
   elseif p == 1 and pause_frame and frame == pause_frame + PAUSE_FRAMES then
     input.start = true                    -- continuar
     resume_frame = frame
+  elseif p <= num_players and modes[p] == "smash" and playing and frame % 2 == 0 then
+    for _, key in ipairs(LANE_KEYS) do input[key] = true end
   elseif p <= num_players and modes[p] == "perfect" and playing and read8(A_PAUSED) == 0 then
     -- Tras leer el control, el juego hará song_frame + 1 y luego juzgará
     local next_frame = read16(A_SONG_FRAME) + 1
@@ -210,6 +220,10 @@ local function check_player(p)
     ok = ok and score == exp_score and combo == math.min(hits, 999) and notes_hit == hits
          and max_combo == hits and percent == 100 and stars == 5
     if p == 1 then ok = ok and resume_frame ~= nil end
+  elseif modes[p] == "smash" then
+    -- Acierta notas de suerte, pero cada golpe al aire rompe el combo, y
+    -- las estrellas (que salen del puntaje) se quedan abajo
+    ok = ok and notes_hit > 0 and max_combo <= NUM_LANES_SMASH_MAX and stars <= 2
   else
     ok = ok and score == 0 and combo == 0 and notes_hit == 0 and percent == 0 and stars == 0
          and unmuted[p] == 0
@@ -223,8 +237,16 @@ local function check_player(p)
   return ok, text
 end
 
+-- Sonido fuera del juego: música en el título y efectos en el menú y al empezar
+local title_notes, prev_title_counters = 0, { 0, 0, 0, 0 }
+local sfx_menu, sfx_play = false, false
+
 local function finish()
   local all_ok, lines = true, {}
+  local sound_ok = title_notes > 0 and sfx_menu and sfx_play
+  all_ok = sound_ok
+  lines[#lines + 1] = string.format("titulo: %d notas, efecto en menu=%s al empezar=%s",
+                                    title_notes, tostring(sfx_menu), tostring(sfx_play))
   for p = 1, num_players do
     local ok, text = check_player(p)
     all_ok = all_ok and ok
@@ -240,6 +262,17 @@ emu.addEventCallback(function()
   if SCREENSHOTS[frame] then write_file(SCREENSHOTS[frame], emu.takeScreenshot()) end
 
   local state = read8(A_STATE)
+  if state == 0 then          -- título: ¿suena la música?
+    for ch = 0, 3 do
+      local c = read8(A_COUNTER + ch)
+      if c > prev_title_counters[ch + 1] then title_notes = title_notes + 1 end
+      prev_title_counters[ch + 1] = c
+    end
+  elseif state == 1 and frame > 50 and read8(A_SFX_PTR_HI) ~= 0 then
+    sfx_menu = true           -- menú, después de que el guion empezó a mover cosas
+  elseif state == STATE_PLAY and read16(A_SONG_FRAME) < 30 and read8(A_SFX_PTR_HI) ~= 0 then
+    sfx_play = true
+  end
   -- enter_play tarda varios cuadros (con la pantalla apagada) en preparar a
   -- los jugadores: los charts se leen cuando la canción ya está corriendo
   if state == STATE_PLAY and read16(A_SONG_FRAME) > 0 then

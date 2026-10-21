@@ -6,7 +6,6 @@ TITLE_LOGO_ROW = 7
 
 enter_title:
     jsr ppu_off
-    jsr famistudio_music_stop
     lda #STATE_TITLE
     sta game_state
 
@@ -23,13 +22,21 @@ enter_title:
     lda #0
     sta scroll_y
     sta scroll_nt
-    jmp ppu_on
+    jsr ppu_on
+
+    ; La música del título (original; ver audio/titulo.txt)
+    ldx #<title_music_data
+    ldy #>title_music_data
+    jsr music_init
+    lda #0
+    jmp famistudio_music_play
 
 title_update:
+    jsr famistudio_update
     lda pressed
     and #BTN_START
     beq @blink
-    jmp enter_menu
+    jmp enter_menu          ; (enter_menu toca el efecto de "aceptar")
 
     ; "PRESIONA START" parpadea: cada 32 cuadros se escribe o se borra
 @blink:

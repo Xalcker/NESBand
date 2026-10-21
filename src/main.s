@@ -118,6 +118,7 @@ cur_song:       .res 1   ; lo que se eligió en el menú
 menu_cursor:    .res 1   ; 0 = canción, 1 = instrumento, 2 = dificultad
 menu_cursor2:   .res 1   ; cursor del jugador 2: 0 = instrumento, 1 = dificultad
 menu_dir:       .res 1   ; +1 o -1 al cambiar un valor del menú
+menu_moved:     .res 1   ; no 0 = en este cuadro se movió algo en el menú (suena el "blip")
 player_drawn:   .res 1   ; jugador cuyos valores se están escribiendo en el menú
 res_col:        .res 1   ; columna de la pantalla de resultados
 song_ptr:       .res 2   ; ficha de la canción elegida
@@ -178,7 +179,9 @@ notes_total:    .res 2   ; gemas en el chart
 notes_hit:      .res 2   ; gemas acertadas
 combo_bin:      .res 2   ; el combo en binario (combo_digits es para dibujarlo)
 max_combo:      .res 2
-percent:        .res 1
+score_units:    .res 2   ; el puntaje / 50 en binario (para las estrellas)
+percent:        .res 1   ; notas acertadas, en %
+score_pct:      .res 1   ; puntaje logrado / puntaje máximo posible, en %
 stars:          .res 1
 rings_shown:    .res 1   ; carriles con el aro relleno en pantalla (un bit por carril)
 hud_dirty:      .res 1   ; 1 = puntaje/combo cambiaron y hay que redibujarlos
@@ -206,7 +209,10 @@ erase_tile:     .res MAX_ERASE
 vbuf:           .res VBUF_SIZE   ; cola de textos para la NMI (ver text.s)
 numstr:         .res 12  ; texto de un número (num_to_text) u otro texto armado al vuelo
 strip_buf:      .res 32  ; un renglón de la franja fija, antes de mandarlo a la cola
-hits100:        .res 3   ; notes_hit * 100, para calcular el porcentaje
+hits100:        .res 3   ; ratio_num * 100, para calcular porcentajes (ratio100)
+ratio_num:      .res 2
+ratio_den:      .res 2
+ratio_res:      .res 1
 
 ; -----------------------------------------------------------------------------
 ; Encabezado iNES: le dice al emulador qué tipo de cartucho es

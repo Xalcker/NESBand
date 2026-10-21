@@ -15,6 +15,8 @@
 FAMISTUDIO_CFG_EXTERNAL          = 1
 FAMISTUDIO_CFG_NTSC_SUPPORT      = 1
 FAMISTUDIO_CFG_DPCM_SUPPORT      = 1
+FAMISTUDIO_CFG_SFX_SUPPORT       = 1   ; efectos de sonido (menú), encima de la música
+FAMISTUDIO_CFG_SFX_STREAMS       = 1   ; uno a la vez basta
 FAMISTUDIO_CFG_EQUALIZER         = 1   ; cuenta regresiva por canal al tocar una nota (la usan las pruebas)
 FAMISTUDIO_USE_VOLUME_TRACK      = 1
 FAMISTUDIO_USE_VOLUME_SLIDES     = 1
@@ -35,7 +37,30 @@ FAMISTUDIO_DPCM_OFF              = $C000   ; los samples de cada canción van en
 
 .include "famistudio/famistudio_ca65.s"
 
+; Música del título y efectos de sonido: originales de NESBand. Se editan en
+; FamiStudio (audio/titulo.txt, audio/efectos.txt) y se exportan con
+; `uv run nesband build-audio`. Van en el banco fijo: son chiquitos.
+.segment "RODATA"
+.include "audio/title_music.s"
+.include "audio/sfx.s"
+
 .segment "CODE"
+
+; -----------------------------------------------------------------------------
+; music_init: prepara el motor con la música X/Y (y los efectos, que se
+; pierden cada vez que se reinicia el motor)
+; play_sfx: toca el efecto A (SFX_... de src/audio/sfx.s)
+; -----------------------------------------------------------------------------
+music_init:
+    lda #1                      ; NTSC
+    jsr famistudio_init
+    ldx #<sounds
+    ldy #>sounds
+    jmp famistudio_sfx_init
+
+play_sfx:
+    ldx #FAMISTUDIO_SFX_CH0
+    jmp famistudio_sfx_play
 
 ; -----------------------------------------------------------------------------
 ; update_music: arranca/detiene la canción según el reloj y avanza el motor.

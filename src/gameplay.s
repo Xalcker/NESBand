@@ -92,7 +92,7 @@ judge_lanes:
     ldy #1
     lda (ptr),y             ; carriles
     cmp #CHART_END
-    beq @next               ; fin del chart para este carril
+    beq @no_more_notes      ; fin del chart para este carril
 
     ; tmp = cuadro en que la nota toca el aro
     lda lane_frame_lo,x
@@ -115,9 +115,22 @@ judge_lanes:
 
     ; Se presionó el botón: ¿la nota está dentro de la ventana?
     jsr in_window
-    bcc @next               ; golpe al aire: por ahora no se castiga
+    bcc @overhit
     jsr note_hit
     jmp @advance
+
+@no_more_notes:
+    ; Ya no hay notas en este carril: presionarlo también es golpe al aire
+    lda pressed
+    and lane_button,x
+    beq @next
+@overhit:
+    ; Golpe al aire (botón sin nota cerca): rompe el combo y calla el
+    ; instrumento, como el "overstrum" de Guitar Hero. Si no, machacar
+    ; botones sin parar acertaría todo sin perder nunca el combo.
+    ; La nota pendiente sigue esperando: no se cuenta como fallada.
+    jsr note_miss
+    jmp @next
 
 @not_pressed:
     ; ¿Ya se pasó la nota? (diff > WINDOW)
@@ -232,7 +245,7 @@ lane_advance:
     jmp lane_seek
 
 ; -----------------------------------------------------------------------------
-; note_hit / note_miss
+; note_hit / note_miss (note_miss también sirve para los golpes al aire)
 ; -----------------------------------------------------------------------------
 note_hit:
     lda #HUD_SCORE | HUD_COMBO
@@ -368,9 +381,18 @@ combo_inc:
 
 ; -----------------------------------------------------------------------------
 ; score_add: puntaje += 50 * multiplicador
-; Se suma 5 a las decenas, tantas veces como el multiplicador.
+; Se suma 5 a las decenas, tantas veces como el multiplicador. Además
+; score_units lleva la cuenta en binario (en unidades de 50) para calcular
+; las estrellas al final.
 ; -----------------------------------------------------------------------------
 score_add:
+    lda score_units
+    clc
+    adc multiplier
+    sta score_units
+    bcc @units_ok
+    inc score_units+1
+@units_ok:
     ldy multiplier
 @times:
     ldx #4                  ; dígito de las decenas
