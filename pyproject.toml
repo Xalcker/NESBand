@@ -3,7 +3,7 @@ name = "nesband-tools"
 version = "0.1.0"
 description = "Herramientas de PC para NESBand: importar canciones (NSF/FamiStudio) y generar charts"
 requires-python = ">=3.11"
-license = "GPL-2.0-only"
+license = "GPL-2.0-or-later"
 license-files = ["LICENSE"]
 dependencies = []
 

@@ -314,9 +314,10 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 
 ## Licencia
 
-NESBand se distribuye bajo la **GNU General Public License v2.0** (ver [LICENSE](LICENSE)): puedes usarlo,
-estudiarlo, modificarlo y compartirlo, siempre que lo que distribuyas basado en él también vaya con el
-código fuente y bajo la misma licencia.
+NESBand se distribuye bajo la **GNU General Public License, versión 2 o (a tu elección) cualquier
+versión posterior** (GPL-2.0-or-later; ver [LICENSE](LICENSE)): puedes usarlo, estudiarlo, modificarlo y
+compartirlo, siempre que lo que distribuyas basado en él también vaya con el código fuente y bajo la
+misma licencia.
 
 Eso cubre el código del juego (`src/`, salvo lo que se indica abajo), las herramientas (`pctools/`), las
 pruebas y la música y efectos originales de `audio/`. **No** cubre:
