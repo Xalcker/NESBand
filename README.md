@@ -4,8 +4,9 @@ Un juego de ritmo estilo Guitar Hero / Rock Band para el NES, con canciones de o
 
 **Estado actual:** título, menú (canción, jugadores, instrumento y dificultad), juego para **1 o 2
 jugadores** con pausa, y pantalla de resultados con precisión, combo máximo y estrellas. Cartucho MMC3
-de 256 KB con espacio para 15 canciones; hoy trae 4, importadas desde NSF: *Blaster Master* (Area 1), *Castlevania III* (Beginning),
-*Double Dragon* (Mission 1) y *Mega Man 2* (Dr. Wily's Castle). Los charts se generan automáticamente
+de 256 KB con espacio para 15 canciones; hoy trae 10, importadas desde NSF: *Blaster Master* (Area 1 y
+2), *Castlevania III* (Beginning, Clockwork, Mad Forest, Aquarius y Vampire Killer), *Double Dragon*
+(Mission 1 y 2) y *Mega Man 2* (Dr. Wily's Castle). Los charts se generan automáticamente
 para guitarra, teclado y bajo en 4 dificultades, y los aciertos y fallos están sincronizados al cuadro con
 la música. Si fallas, tu instrumento se calla hasta tu siguiente acierto, como en Rock Band.
 
@@ -116,7 +117,15 @@ en la lista; de ahí salen el título, el juego y la duración:
 uv run nesband import-song "songs_src/Blaster Master [Chou Wakusei Senki - Metafight] (1988-06-17)(Sunsoft).nsf" --track 2 --name blaster_area1
 ```
 
-Sin `.m3u`, se indica todo a mano (`--song` cuenta desde 0):
+Si el NSF **no** trae `.m3u`, primero escucha sus pistas para saber cuál es cuál:
+
+```bash
+uv run nesband preview "songs_src/Battletoads (1991-06)(Rare)(Tradewest).nsf"
+```
+
+Deja en `build/previews/<juego>/` un WAV de 15 segundos por pista (`pista_01.wav`, `pista_02.wav`…;
+`--seconds` cambia la duración). Con el número de la que te guste (`pista_05` → `--song 4`), se
+indica todo a mano (`--song` cuenta desde 0):
 
 ```bash
 uv run nesband import-song songs_src/megaman2.nsf --name wily --title "Dr. Wily's Castle" --game "Mega Man 2" --duration 75
@@ -202,6 +211,9 @@ efecto, queda disponible en el código como `SFX_<NOMBRE>` (con `lda #SFX_... / 
 .\tests\run_tests.ps1
 uv run pytest
 ```
+
+Con muchas canciones la batería completa tarda (unos 3 minutos por canción); para probar solo
+algunas: `.\tests\run_tests.ps1 -Only wily,cv3_*` (acepta comodines).
 
 - `run_tests.ps1` corre la ROM en Mesen, sin ventana, con un bot por jugador (`tests/autoplay.lua`)
   que recorre todo: título → menú (elige canción, jugadores, instrumentos y experto) → juego →

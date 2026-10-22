@@ -1,5 +1,6 @@
 # Compila y corre las pruebas automáticas en Mesen 2 (modo --testrunner, sin ventana)
-# Uso:  .\tests\run_tests.ps1
+# Uso:  .\tests\run_tests.ps1                       (todas las canciones)
+#       .\tests\run_tests.ps1 -Only wily,cv3_*      (solo esas canciones; acepta comodines)
 # Por cada canción:
 #   1 jugador: juego perfecto con guitarra, teclado y bajo (en experto), uno en fácil (la
 #              autopista más lenta), una partida sin tocar nada y una machacando botones
@@ -8,6 +9,7 @@
 #                (teclado + guitarra), para comprobar que cada quien lleva su propio juego;
 #                y fácil + experto (la autopista va a la velocidad de experto)
 # Deja resultado y capturas en build\test-<cancion>-<caso>
+param([string[]]$Only = @('*'))   # (no puede llamarse $Songs: PowerShell no distingue mayúsculas y chocaría con $songs)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 
@@ -36,6 +38,8 @@ $kinds = @(
 
 $failed = $false
 for ($s = 0; $s -lt $songs.Count; $s++) {
+    $songName = $songs[$s].Name
+    if (-not ($Only | Where-Object { $songName -like $_ })) { continue }
     foreach ($kind in $kinds) {
         $name, $players, $mode1, $inst1, $diff1, $mode2, $inst2, $diff2 = $kind
         $out = Join-Path $root "build\test-$($songs[$s].Name)-$name"

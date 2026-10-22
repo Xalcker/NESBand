@@ -261,7 +261,10 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
     )
     music_size = famistudio.read_export_size(output)
     music_asm = music_path.read_text(encoding="utf-8")
-    write_lf(music_path, music_asm)  # FamiStudio lo escribe con CRLF
+    # FamiStudio nombra la música con el nombre del juego: dos canciones del mismo
+    # NSF chocarían. Le ponemos el de la canción.
+    music_asm = music_asm.replace(famistudio.read_music_label(music_asm), f"music_data_{name}")
+    write_lf(music_path, music_asm)  # (y en LF: FamiStudio lo escribe con CRLF)
     missing = famistudio.read_required_flags(music_asm) - SUPPORTED_FLAGS
     expansions = [desc for key, desc in EXPANSIONS.items() if f"FAMISTUDIO_EXP_{key}" in missing]
     if expansions:
@@ -389,6 +392,26 @@ def build_audio(args: argparse.Namespace) -> None:
     print(f"Música del título y {len(names)} efectos ({', '.join(names)}) -> src/audio/")
 
 
+def preview(args: argparse.Namespace) -> None:
+    """Exporta los primeros segundos de cada pista de un NSF a WAV, para elegir cuál importar
+    cuando el NSF no trae .m3u (que diría el nombre de cada pista)."""
+    source: Path = args.source.resolve()
+    header = source.read_bytes()[:0x80]
+    if header[:5] != b"NESM\x1a":
+        sys.exit(f"{source.name} no es un NSF")
+    total = header[6]
+    game = header[0x0E:0x2E].split(b"\0")[0].decode("ascii", "replace")
+    slug = re.sub(r"[^a-z0-9]+", "_", game.lower()).strip("_") or "nsf"
+    out_dir = ROOT / "build" / "previews" / slug
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fs = famistudio.find_famistudio(ROOT)
+    print(f"{game}: {total} pistas -> {out_dir.relative_to(ROOT)}")
+    for index in range(total):
+        wav = out_dir / f"pista_{index + 1:02d}.wav"   # numeradas desde 1, como --track
+        famistudio.run(fs, [str(source), "wav-export", str(wav), *famistudio.import_options(source, index, args.seconds)])
+        print(f"  pista {index + 1:2d} (--song {index})")
+
+
 def list_songs(args: argparse.Namespace) -> None:
     names = write_song_list()
     print(f"{len(names)} canciones en src/songs/list.s: {', '.join(names)}")
@@ -428,6 +451,11 @@ def main() -> None:
 
     p = sub.add_parser("list-songs", help="Regenera src/songs/list.s (por ejemplo, después de borrar una canción)")
     p.set_defaults(func=list_songs)
+
+    p = sub.add_parser("preview", help="Exporta unos segundos de cada pista de un NSF a WAV (build/previews/)")
+    p.add_argument("source", type=Path, help="archivo .nsf")
+    p.add_argument("--seconds", type=int, default=15, help="segundos por pista")
+    p.set_defaults(func=preview)
 
     p = sub.add_parser("build-audio", help="Exporta la música del título y los efectos (audio/*.txt) a src/audio/")
     p.set_defaults(func=build_audio)
