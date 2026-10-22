@@ -4,11 +4,14 @@ Un juego de ritmo estilo Guitar Hero / Rock Band para el NES, con canciones de o
 
 **Estado actual:** título, menú (canción, jugadores, instrumento y dificultad), juego para **1 o 2
 jugadores** con pausa, y pantalla de resultados con precisión, combo máximo y estrellas. Cartucho MMC3
-de 256 KB con espacio para 15 canciones; hoy trae 10, importadas desde NSF: *Blaster Master* (Area 1 y
-2), *Castlevania III* (Beginning, Clockwork, Mad Forest, Aquarius y Vampire Killer), *Double Dragon*
-(Mission 1 y 2) y *Mega Man 2* (Dr. Wily's Castle). Los charts se generan automáticamente
-para guitarra, teclado y bajo en 4 dificultades, y los aciertos y fallos están sincronizados al cuadro con
-la música. Si fallas, tu instrumento se calla hasta tu siguiente acierto, como en Rock Band.
+de 256 KB con espacio para 15 canciones. Los charts se generan automáticamente para guitarra, teclado y
+bajo en 4 dificultades, y los aciertos y fallos están sincronizados al cuadro con la música. Si fallas,
+tu instrumento se calla hasta tu siguiente acierto, como en Rock Band.
+
+**Canciones:** el repositorio trae una sola, *Primer Ensayo*, original de NESBand (`audio/demo.txt`).
+La música de juegos comerciales tiene copyright y no se incluye: cada quien importa las suyas desde sus
+propios NSF con `nesband import-song` (ver [Importar canciones](#importar-canciones)). Al compilar, el
+menú incluye todas las canciones que haya en `src/songs/`.
 
 ## Sobre este proyecto
 
@@ -175,16 +178,13 @@ Qué hace, paso a paso:
    se regenera la lista de canciones.
 
 **Dónde van los originales:** pon tus NSF (y sus `.m3u`, que dicen el número, nombre y duración de cada
-pista) en `songs_src/`. Esa carpeta no se sube a git: la música de juegos comerciales tiene copyright,
-y la ROM no la necesita porque compila con lo ya convertido en `src/songs/`. Ojo: en un `.m3u` las pistas
-empiezan en 1 y `--song` empieza en 0.
+pista) en `songs_src/`. Ni esa carpeta ni lo que importes en `src/songs/` se suben a git (están en
+`.gitignore`): la música de juegos comerciales tiene copyright. En git solo va la canción original
+`src/songs/nesband_demo/`. Ojo: en un `.m3u` las pistas empiezan en 1 y `--song` empieza en 0.
 
-La canción de ejemplo (*Dr. Wily's Castle*) es la versión de *Mega Man 2* que viene como demo de
-FamiStudio. Para volver a generar su NSF:
-
-```bash
-.\tools\famistudio\FamiStudio.exe "tools\famistudio\Demo Songs\Mega Man 2.fms" nsf-export songs_src\megaman2.nsf
-```
+Para probar sin conseguir NSF: FamiStudio trae proyectos de demostración en `tools/famistudio/Demo Songs/`
+que se pueden importar directo (por ejemplo `uv run nesband import-song "tools/famistudio/Demo Songs/Mega
+Man 2.fms" --name wily --song 0 --title "Dr. Wily's Castle"`).
 
 ## Música del título y efectos de sonido
 
