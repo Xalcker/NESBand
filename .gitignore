@@ -4,9 +4,15 @@ tools/
 # Salida de compilación
 build/
 
-# Canciones originales (NSF, .m3u, proyectos de FamiStudio): tienen copyright y la ROM no las necesita,
-# porque lo convertido vive en src/songs/
+# Canciones de juegos comerciales: tienen copyright, así que no van en el repositorio.
+# Los NSF originales van en songs_src/ y lo que se importa de ellos queda en src/songs/<nombre>/.
+# En git solo va la canción original de ejemplo (src/songs/nesband_demo/).
 songs_src/
+src/songs/*
+!src/songs/nesband_demo/
+
+# Referencias visuales con marcas de terceros (logos de Nintendo, etc.)
+docs/referencias/
 
 # Python (uv)
 .venv/
