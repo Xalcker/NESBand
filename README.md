@@ -311,3 +311,19 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 7. Editor visual de charts para retocar lo generado
 8. ~~2 jugadores~~ ✅ · 4 jugadores con el Four Score (ver [docs/ideas.md](docs/ideas.md)); batería "pro"
    con la Power Pad; modo con rasgueo para un adaptador de guitarra
+
+## Licencia
+
+NESBand se distribuye bajo la **GNU General Public License v2.0** (ver [LICENSE](LICENSE)): puedes usarlo,
+estudiarlo, modificarlo y compartirlo, siempre que lo que distribuyas basado en él también vaya con el
+código fuente y bajo la misma licencia.
+
+Eso cubre el código del juego (`src/`, salvo lo que se indica abajo), las herramientas (`pctools/`), las
+pruebas y la música y efectos originales de `audio/`. **No** cubre:
+
+- **El motor de sonido de FamiStudio** (`src/famistudio/`): es de BleuBleu, con licencia MIT (ver
+  [src/famistudio/LICENSE.txt](src/famistudio/LICENSE.txt)). La MIT es compatible con la GPL, así que
+  pueden ir juntos.
+- **Las canciones convertidas de juegos comerciales** (`src/songs/`): la música es de sus compañías
+  (Capcom, Konami, Sunsoft, Technos Japan…). Están aquí para un proyecto fan; la licencia de NESBand no
+  te da ningún derecho sobre ellas.
