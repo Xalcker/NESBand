@@ -41,12 +41,50 @@ enter_play:
     adc #>RESULTS_DELAY
     sta results_frame+1
 
-    ldy #SONG_BEAT_ROWS
+    ; Líneas de beat: cuadros por tiempo y el primer tiempo, retrocedido de
+    ; tiempo en tiempo hasta el primero que cae en el cuadro 0 o después (así
+    ; también hay líneas antes de que empiece la música)
+    ldy #SONG_BEAT_FRAMES
     lda (song_ptr),y
-    sta beat_rows
-    ldy #SONG_FIRST_BEAT
+    sta beat_frames
+    iny
+    lda (song_ptr),y        ; SONG_FIRST_BEAT
+    sta next_beat
+    iny
     lda (song_ptr),y
-    sta first_beat_row
+    sta next_beat+1
+@beat_back:
+    lda next_beat           ; mientras next_beat >= beat_frames: next_beat -= beat_frames
+    cmp beat_frames
+    lda next_beat+1
+    sbc #0
+    bcc @beat_ready
+    sec
+    lda next_beat
+    sbc beat_frames
+    sta next_beat
+    lda next_beat+1
+    sbc #0
+    sta next_beat+1
+    jmp @beat_back
+@beat_ready:
+
+    ; Velocidad: la de la dificultad más alta entre los jugadores
+    lda #0
+    sta tmp
+    ldx #0
+@max_difficulty:
+    ldy player_offset,x
+    lda player_save + (cur_difficulty - pstate),y
+    cmp tmp
+    bcc @not_higher
+    sta tmp
+@not_higher:
+    inx
+    cpx num_players
+    bne @max_difficulty
+    lda tmp
+    jsr set_speed
 
     jsr set_layout          ; dónde va la autopista de cada jugador
 
@@ -85,19 +123,22 @@ enter_play:
     lda #FILL_FIRST_VROW
     sta next_vrow
 
-    ; beat_count = (first_beat_row - FILL_FIRST_ROW) mod beat_rows
-    ; (FILL_FIRST_ROW es negativo, así que restarlo es sumar; el módulo se
-    ; saca restando beat_rows mientras se pueda)
-    lda first_beat_row
+    ; next_k_frame = FILL_FIRST_ROW * fpr (es negativo: filas de antes del
+    ; cuadro 0, que van vacías). Multiplicar = restar fpr unas cuantas veces.
+    lda #0
+    sta next_k_frame
+    sta next_k_frame+1
+    ldx #-FILL_FIRST_ROW
+@first_frame:
     sec
-    sbc #<FILL_FIRST_ROW
-@mod:
-    cmp beat_rows
-    bcc @mod_done
-    sbc beat_rows           ; (carry = 1 por el cmp)
-    jmp @mod
-@mod_done:
-    sta beat_count
+    lda next_k_frame
+    sbc fpr
+    sta next_k_frame
+    lda next_k_frame+1
+    sbc #0
+    sta next_k_frame+1
+    dex
+    bne @first_frame
 
     lda #VROWS
     sta fill_count

@@ -30,12 +30,10 @@ from . import famistudio
 from .chart import (
     DIFFICULTIES,
     BeatGrid,
-    FRAMES_PER_ROW,
     build_chart,
     chart_size,
     chart_to_asm,
     estimate_beat,
-    frame_to_row,
     merge_attacks,
 )
 from .m3u import find_playlist
@@ -145,7 +143,6 @@ def import_song(args: argparse.Namespace) -> None:
 
     music_label, music_size, dmc_files, dmc_size = result.music_label, result.music_size, result.dmc_files, result.dmc_size
     project, song, grid = result.project, result.song, result.grid
-    beat_rows, first_beat_row = result.beat_rows, result.first_beat_row
     charts, chart_labels, instrument_mask = result.charts, result.chart_labels, result.instrument_mask
     summary = result.summary
 
@@ -186,15 +183,14 @@ song_{name}_data_end:
 ; SONG_SLOT_NUMBER lo define src/songs/list.s antes de incluir este archivo
 
 .assert SONG_LEAD_IN = {LEAD_IN}, error, "El chart se generó con otro SONG_LEAD_IN"
-.assert FRAMES_PER_ROW = {FRAMES_PER_ROW}, error, "El chart se generó con otro FRAMES_PER_ROW"
 .assert CHART_ENTRY = 2, error, "El chart se generó con otro CHART_ENTRY"
 
 .segment "RODATA"
 song_{name}:
     .addr {music_label}
     .word {end_frame}            ; cuadro en que se detiene la música
-    .byte {beat_rows}               ; filas entre líneas de beat ({grid.frames_per_beat} cuadros = {3600 / grid.frames_per_beat:.0f} BPM)
-    .byte {first_beat_row}              ; primera fila con línea de beat
+    .byte {grid.frames_per_beat}              ; cuadros por tiempo ({3600 / grid.frames_per_beat:.0f} BPM)
+    .word {LEAD_IN + grid.first_beat}             ; cuadro del primer tiempo
     .addr song_{name}_title, song_{name}_game
     .byte %{instrument_mask:08b}        ; instrumentos con chart (bit 0 = guitarra)
     .byte SONG_SLOT_NUMBER
@@ -242,8 +238,6 @@ class Converted:
     project: famistudio.Project | None = None
     song: famistudio.Song | None = None
     grid: BeatGrid | None = None
-    beat_rows: int = 0
-    first_beat_row: int = 0
     charts: list[tuple[str, str, int]] = field(default_factory=list)  # (etiqueta, ensamblador, bytes)
     chart_labels: list[str] = field(default_factory=list)
     instrument_mask: int = 0
@@ -294,11 +288,6 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
         grid = estimate_beat(all_onsets, beat_frames)
     else:
         grid = estimate_beat([0], song.frames_per_beat)
-    beat_rows = max(1, round(grid.frames_per_beat / FRAMES_PER_ROW))
-    first_beat_row = frame_to_row(LEAD_IN + grid.first_beat)
-    if grid.frames_per_beat % FRAMES_PER_ROW:
-        print(f"Aviso: el tiempo dura {grid.frames_per_beat} cuadros, no es múltiplo de {FRAMES_PER_ROW}: "
-              "las líneas de beat se irán desfasando un poco.")
 
     # 4) Charts por instrumento y dificultad
     charts: list[tuple[str, str, int]] = []  # (etiqueta, ensamblador, bytes)
@@ -315,7 +304,7 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
         counts = []
         for difficulty in DIFFICULTIES:
             label = f"chart_{name}_{instrument}_{difficulty.name}"
-            chart = build_chart(notes, difficulty, grid, LEAD_IN, beat_rows, first_beat_row)
+            chart = build_chart(notes, difficulty, grid, LEAD_IN)
             charts.append((label, chart_to_asm(label, chart), chart_size(chart)))
             chart_labels.append(label)
             counts.append(f"{difficulty.name} {len(chart)}")
@@ -330,7 +319,7 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
     data_size = music_size + sum(c[2] for c in charts)
     total = data_size + dpcm_room(dmc_size)
     return Converted(total <= SLOT_SIZE, total, music_label, music_size, dmc_files, dmc_size, project, song, grid,
-                     beat_rows, first_beat_row, charts, chart_labels, instrument_mask, summary)
+                     charts, chart_labels, instrument_mask, summary)
 
 
 def dpcm_room(dmc_size: int) -> int:

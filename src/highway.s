@@ -37,7 +37,7 @@ advance_time:
 @frame_ok:
     inc frame_in_row
     lda frame_in_row
-    cmp #FRAMES_PER_ROW
+    cmp fpr                 ; cuadros por fila: depende de la dificultad (set_speed)
     bcc @same_row
 
     ; --- Empieza una fila nueva ---
@@ -69,14 +69,54 @@ advance_time:
     jsr step_next_row
 
 @same_row:
-    ldx frame_in_row
+    lda frame_in_row        ; cuántos pixeles ha bajado la fila (tabla de esta velocidad)
+    clc
+    adc rowpix_base
+    tax
     lda rowpix_table,x
     sta rowpix
     rts
 
 ; -----------------------------------------------------------------------------
-; step_next_row: pasa a la siguiente fila por dibujar (next_k+1, next_vrow-1)
-; y lleva la cuenta de cuándo toca línea de beat
+; set_speed: A = dificultad (0-3) -> velocidad de la autopista.
+; Más difícil = menos cuadros por fila = las notas bajan más rápido y se ven
+; venir con menos anticipación (como en Rock Band).
+; -----------------------------------------------------------------------------
+set_speed:
+    tax
+    lda speed_frames_per_row,x
+    sta fpr
+    lsr a
+    sta half_row            ; fpr / 2: para redondear a la fila más cercana
+    lda fpr
+    asl a
+    asl a
+    asl a
+    sta fpr8                ; fpr * 8 (ver erase_gem)
+    lda speed_rowpix_base,x
+    sta rowpix_base
+    rts
+
+;                       fácil  medio  difícil  experto
+speed_frames_per_row: .byte 6, 5,     4,       3
+speed_rowpix_base:    .byte 12, 7,    3,       0       ; dónde empieza su tabla en rowpix_table
+
+; Cuántos pixeles ha bajado una fila según el cuadro dentro de ella:
+; round(cuadro * 8 / cuadros_por_fila), una tabla por velocidad
+.macro ROWPIX_FOR frames
+    .repeat frames, i
+        .byte (i * 16 + frames) / (2 * frames)
+    .endrepeat
+.endmacro
+rowpix_table:
+    ROWPIX_FOR 3            ; base 0
+    ROWPIX_FOR 4            ; base 3
+    ROWPIX_FOR 5            ; base 7
+    ROWPIX_FOR 6            ; base 12
+
+; -----------------------------------------------------------------------------
+; step_next_row: pasa a la siguiente fila por dibujar: next_k + 1,
+; next_vrow - 1 y su cuadro next_k_frame + fpr
 ; -----------------------------------------------------------------------------
 step_next_row:
     inc next_k
@@ -88,42 +128,64 @@ step_next_row:
     lda #VROWS - 1
     sta next_vrow
 @vrow_ok:
-    dec beat_count
-    bpl @done
-    ldx beat_rows
-    dex
-    stx beat_count
-@done:
-    rts
-
-; -----------------------------------------------------------------------------
-; frame_to_row: tmp = fila donde se dibuja una nota que suena en el cuadro
-; A (bajo) / X (alto). Fila = (cuadro + 2) / 4, redondeando al más cercano.
-; -----------------------------------------------------------------------------
-.assert FRAMES_PER_ROW = 4, error, "frame_to_row divide entre 4 con dos corrimientos"
-frame_to_row:
     clc
-    adc #FRAMES_PER_ROW / 2
-    sta tmp
-    txa
-    adc #0
-    sta tmp+1
-    lsr tmp+1               ; / 2
-    ror tmp
-    lsr tmp+1               ; / 4
-    ror tmp
+    lda next_k_frame
+    adc fpr
+    sta next_k_frame
+    bcc @done
+    inc next_k_frame+1
+@done:
     rts
 
 ; -----------------------------------------------------------------------------
 ; build_row: arma en row_buf los 32 tiles de la fila next_k del chart (con
 ; la autopista de cada jugador), y en row_addr la dirección de next_vrow.
+;
+; Una fila abarca fpr cuadros: los de [row_lo, row_hi), centrados en
+; next_k_frame. Una nota se dibuja en la fila cuya ventana contiene su cuadro.
 ; -----------------------------------------------------------------------------
 build_row:
-    ; 1) ¿Esta fila lleva la línea horizontal del beat?
+    ; 0) La ventana de cuadros de esta fila
+    sec
+    lda next_k_frame
+    sbc half_row
+    sta row_lo
+    lda next_k_frame+1
+    sbc #0
+    sta row_lo+1
+    clc
+    lda row_lo
+    adc fpr
+    sta row_hi
+    lda row_lo+1
+    adc #0
+    sta row_hi+1
+
+    ; 1) ¿Esta fila lleva la línea horizontal del beat? Sí, si el siguiente
+    ;    tiempo de la canción (next_beat) cae dentro de su ventana.
     ldx #TILE_EDGE
     ldy #TILE_BLANK
-    lda beat_count
-    bne @no_beat
+    lda row_lo+1
+    bmi @no_beat            ; antes del cuadro 0: sin líneas
+@beat_seek:
+    lda next_beat           ; mientras next_beat < row_lo, el siguiente tiempo
+    cmp row_lo
+    lda next_beat+1
+    sbc row_lo+1
+    bcs @beat_check
+    clc
+    lda next_beat
+    adc beat_frames
+    sta next_beat
+    bcc @beat_seek
+    inc next_beat+1
+    jmp @beat_seek
+@beat_check:
+    lda next_beat           ; ¿next_beat < row_hi?
+    cmp row_hi
+    lda next_beat+1
+    sbc row_hi+1
+    bcs @no_beat
     ldx #TILE_EDGE_BEAT
     ldy #TILE_BEAT
 @no_beat:
@@ -160,34 +222,34 @@ build_row:
     rts
 
 ; -----------------------------------------------------------------------------
-; player_row_mask: row_mask = carriles del jugador actual con nota en next_k
+; player_row_mask: row_mask = carriles del jugador actual con nota en la
+; ventana [row_lo, row_hi) de la fila que se está armando
 ; -----------------------------------------------------------------------------
 player_row_mask:
     lda #0
     sta row_mask
-    lda next_k+1
-    bmi @have_mask          ; fila negativa = antes de que empiece la canción
+    lda row_lo+1
+    bmi @have_mask          ; ventana antes del cuadro 0: no hay notas
 
-    ; El chart está ordenado por tiempo. Saltamos las entradas con fila < next_k
-    ; y juntamos los carriles de las que caen en esta fila (una nota puede
-    ; compartir fila con una entrada de relleno, que no tiene carriles).
+    ; El chart está ordenado por tiempo. Saltamos las entradas de antes de la
+    ; ventana [row_lo, row_hi) y juntamos los carriles de las que caen en ella
+    ; (una nota puede compartir fila con una entrada de relleno, sin carriles).
 @seek:
     ldy #1
     lda (render_ptr),y      ; carriles
     cmp #CHART_END
     beq @have_mask          ; fin del chart: no hay más notas
-    lda render_frame
-    ldx render_frame+1
-    jsr frame_to_row        ; tmp = fila de la entrada
-    lda tmp+1
-    cmp next_k+1
-    bcc @skip               ; entrada < k: ya pasó
-    bne @have_mask          ; entrada > k: es más adelante, ya terminamos
-    lda tmp
-    cmp next_k
+    lda render_frame        ; ¿render_frame < row_lo? ya pasó
+    cmp row_lo
+    lda render_frame+1
+    sbc row_lo+1
     bcc @skip
-    bne @have_mask
-    ldy #1                  ; misma fila: sumamos sus carriles
+    lda render_frame        ; ¿render_frame >= row_hi? es más adelante: terminamos
+    cmp row_hi
+    lda render_frame+1
+    sbc row_hi+1
+    bcs @have_mask
+    ldy #1                  ; dentro de la ventana: sumamos sus carriles
     lda (render_ptr),y
     ora row_mask
     sta row_mask

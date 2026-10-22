@@ -14,7 +14,6 @@ from dataclasses import dataclass
 
 from .famistudio import Note
 
-FRAMES_PER_ROW = 4  # debe coincidir con FRAMES_PER_ROW en src/main.s
 
 
 @dataclass(frozen=True)
@@ -136,29 +135,16 @@ def assign_lanes(notes: list[Note], lanes: int, window: int = 4) -> list[int]:
 
 @dataclass(frozen=True)
 class ChartNote:
-    row: int
-    frame: int
-    mask: int  # bits 0-4 = carriles, bit 7 = la fila tiene línea de beat
+    frame: int  # cuadro en que suena (contando la entrada de la autopista)
+    mask: int  # bits 0-4 = carriles
 
 
-def frame_to_row(frame: int) -> int:
-    return (frame + FRAMES_PER_ROW // 2) // FRAMES_PER_ROW
-
-
-def build_chart(
-    notes: list[Note], difficulty: Difficulty, grid: BeatGrid, lead_in: int, beat_rows: int, first_beat_row: int
-) -> list[ChartNote]:
+def build_chart(notes: list[Note], difficulty: Difficulty, grid: BeatGrid, lead_in: int) -> list[ChartNote]:
+    """El chart guarda cuadros, no filas: así sirve para cualquier velocidad de
+    la autopista (el juego calcula en qué fila se dibuja cada nota)."""
     reduced = reduce_notes(merge_attacks(notes), difficulty, grid)
     lanes = assign_lanes(reduced, difficulty.lanes)
-    chart: list[ChartNote] = []
-    for note, lane in zip(reduced, lanes):
-        frame = lead_in + note.frame
-        row = frame_to_row(frame)
-        beat = 0x80 if (row - first_beat_row) % beat_rows == 0 else 0
-        chart.append(ChartNote(row, frame, (1 << lane) | beat))
-    rows = [n.row for n in chart]
-    assert len(rows) == len(set(rows)), "Dos notas quedaron en la misma fila: sube min_gap"
-    return chart
+    return [ChartNote(lead_in + note.frame, 1 << lane) for note, lane in zip(reduced, lanes)]
 
 
 CHART_END = 0xFF  # carriles = $FF marca el fin del chart

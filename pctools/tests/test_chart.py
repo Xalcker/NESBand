@@ -4,7 +4,6 @@ from nesband_tools.chart import (
     assign_lanes,
     build_chart,
     estimate_beat,
-    frame_to_row,
     merge_attacks,
     reduce_notes,
 )
@@ -85,19 +84,16 @@ def test_assign_lanes_follows_contour():
 def test_chart_entries_use_deltas_and_spacers():
     from nesband_tools.chart import ChartNote, chart_entries, chart_size
 
-    chart = [ChartNote(32, 128, 0x81), ChartNote(35, 140, 0x02), ChartNote(200, 800, 0x04)]
+    chart = [ChartNote(128, 0x01), ChartNote(140, 0x02), ChartNote(800, 0x04)]
     entries = chart_entries(chart)
     # 128; +12; +660 = 255 + 255 + 150 (dos rellenos sin carriles); fin
-    assert entries == [(128, 0x81), (12, 0x02), (255, 0), (255, 0), (150, 0x04), (0, 0xFF)]
+    assert entries == [(128, 0x01), (12, 0x02), (255, 0), (255, 0), (150, 0x04), (0, 0xFF)]
     assert chart_size(chart) == 12
 
 
-def test_build_chart_rows_frames_and_beat_flag():
+def test_build_chart_frames_and_lanes():
     grid = BeatGrid(20, 0)
     notes = [Note(0, 60, 5), Note(10, 64, 5), Note(20, 67, 5)]
-    chart = build_chart(notes, DIFFICULTIES[-1], grid, lead_in=128, beat_rows=5, first_beat_row=32)
+    chart = build_chart(notes, DIFFICULTIES[-1], grid, lead_in=128)
     assert [n.frame for n in chart] == [128, 138, 148]
-    assert [n.row for n in chart] == [frame_to_row(f) for f in (128, 138, 148)]
-    assert chart[0].mask & 0x80  # fila 32: tiene línea de beat
-    assert not chart[1].mask & 0x80
-    assert chart[2].mask & 0x80  # fila 37
+    assert all(bin(n.mask).count("1") == 1 and n.mask < 0x20 for n in chart)  # un carril por nota

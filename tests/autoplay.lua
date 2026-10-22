@@ -23,6 +23,9 @@
 --                        romperle el combo todo el tiempo
 --   AUTOPLAY_INSTRUMENT  instrumento del jugador 1: 0 guitarra (default), 1 teclado, 2 bajo
 --   AUTOPLAY_PLAYERS     1 (default) o 2
+--   AUTOPLAY_DIFFICULTY  dificultad del jugador 1: 0 fácil .. 3 experto (default)
+--   AUTOPLAY_DIFFICULTY2 dificultad del jugador 2 (default: la misma). La autopista
+--                        va a la velocidad de la más alta de los dos.
 --   AUTOPLAY_MODE2       cómo juega el jugador 2 (default: perfect)
 --   AUTOPLAY_INSTRUMENT2 instrumento del jugador 2 (default: 2, bajo; debe ser distinto)
 --   TEST_OUT             carpeta donde dejar resultado.txt y capturas .png
@@ -36,6 +39,8 @@ local num_players = tonumber(os.getenv("AUTOPLAY_PLAYERS") or "1")
 local modes = { os.getenv("AUTOPLAY_MODE") or "perfect", os.getenv("AUTOPLAY_MODE2") or "perfect" }
 local instruments = { tonumber(os.getenv("AUTOPLAY_INSTRUMENT") or "0"),
                       tonumber(os.getenv("AUTOPLAY_INSTRUMENT2") or "2") }
+local difficulty = tonumber(os.getenv("AUTOPLAY_DIFFICULTY") or "3")   -- 0 fácil .. 3 experto
+local difficulty2 = tonumber(os.getenv("AUTOPLAY_DIFFICULTY2") or tostring(difficulty))
 local outdir = os.getenv("TEST_OUT") or "."
 local mem = emu.memType.nesMemory
 
@@ -94,7 +99,8 @@ add(0, "right", num_players - 1)
 add(0, "down", 1)
 add(0, "right", instruments[1])
 add(0, "down", 1)
-add(0, "right", 2)
+local difficulty_presses = (difficulty - 1) % 4      -- desde medio (1), dando la vuelta
+add(0, "right", difficulty_presses)
 if num_players == 2 then
   -- Del bajo (2) al instrumento pedido: cada pulsación avanza al siguiente
   -- instrumento válido, saltando batería (3, sin chart) y el del jugador 1
@@ -105,7 +111,7 @@ if num_players == 2 then
   end
   add(1, "right", presses)
   add(1, "down", 1)
-  add(1, "right", 2)
+  add(1, "right", (difficulty2 - 1) % 4)
 end
 for i, step in ipairs(steps) do MENU_SCRIPT[50 + i * 4] = step end
 local menu_done = 50 + #steps * 4

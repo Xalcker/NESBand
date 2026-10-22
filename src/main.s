@@ -33,7 +33,6 @@ NUM_LANES       = 5
 MAX_PLAYERS     = 2
 NUM_INSTRUMENTS = 4                    ; guitarra, teclado, bajo, batería
 NUM_DIFFICULTIES = 4                   ; fácil, medio, difícil, experto
-FRAMES_PER_ROW  = 4                    ; una fila (8 px) dura 4 cuadros -> las notas bajan 2 px por cuadro
 CHART_ENTRY     = 2                    ; bytes por entrada del chart: cuadros desde la anterior, carriles
 CHART_END       = $FF                  ; carriles = $FF: fin del chart
 ; La pantalla de juego se divide en dos con la interrupción de scanline del
@@ -73,13 +72,13 @@ STATE_RESULTS   = 3
 ; Ficha de una canción (la genera `nesband import-song` en src/songs/*/song.s)
 SONG_MUSIC       = 0    ; .addr  datos para el motor de FamiStudio
 SONG_END         = 2    ; .word  cuadro en que se detiene la música
-SONG_BEAT_ROWS   = 4    ; .byte  filas entre líneas de beat
-SONG_FIRST_BEAT  = 5    ; .byte  primera fila con línea de beat
-SONG_TITLE       = 6    ; .addr  texto
-SONG_GAME        = 8    ; .addr  texto
-SONG_INSTRUMENTS = 10   ; .byte  bit i = el instrumento i tiene chart
-SONG_SLOT        = 11   ; .byte  slot de 16 KB donde están su música y sus charts
-SONG_CHARTS      = 12   ; .addr  [instrumento][dificultad], 0 si no hay
+SONG_BEAT_FRAMES = 4    ; .byte  cuadros por tiempo (para las líneas de beat)
+SONG_FIRST_BEAT  = 5    ; .word  cuadro del primer tiempo
+SONG_TITLE       = 7    ; .addr  texto
+SONG_GAME        = 9    ; .addr  texto
+SONG_INSTRUMENTS = 11   ; .byte  bit i = el instrumento i tiene chart
+SONG_SLOT        = 12   ; .byte  slot de 16 KB donde están su música y sus charts
+SONG_CHARTS      = 13   ; .addr  [instrumento][dificultad], 0 si no hay
 
 ; MMC3 (mapper 4): ver nes.cfg para el mapa de memoria
 MMC3_BANK_SELECT = $8000   ; qué registro de banco se va a cambiar (+ modo)
@@ -126,12 +125,18 @@ song_ptr:       .res 2   ; ficha de la canción elegida
 song_frame:     .res 2   ; cuadros transcurridos desde que empezó la canción
 song_end:       .res 2   ; cuadro en que se detiene la música
 results_frame:  .res 2   ; cuadro en que se pasa a los resultados
-beat_rows:      .res 1   ; filas entre líneas de beat
-first_beat_row: .res 1
+beat_frames:    .res 1   ; cuadros por tiempo de la canción
+next_beat:      .res 2   ; cuadro del siguiente tiempo (al dibujar filas)
 paused:         .res 1
 
+; Velocidad de la autopista (set_speed): cada fila de 8 px dura fpr cuadros
+fpr:            .res 1   ; cuadros por fila: 6 (fácil) a 3 (experto)
+half_row:       .res 1   ; fpr / 2
+fpr8:           .res 1   ; fpr * 8
+rowpix_base:    .res 1   ; tabla de rowpix_table para esta velocidad
+
 cur_row:        .res 2   ; fila del chart que está ahora sobre el aro
-frame_in_row:   .res 1   ; cuadro dentro de la fila actual (0 .. FRAMES_PER_ROW-1)
+frame_in_row:   .res 1   ; cuadro dentro de la fila actual (0 .. fpr-1)
 rowpix:         .res 1   ; cuántos pixeles ha bajado la fila actual (0..7)
 cur_vrow:       .res 1   ; en qué fila de la nametable (0..59) está cur_row
 row_scroll:     .res 1   ; scroll vertical al inicio de la fila actual (0..232)
@@ -140,6 +145,9 @@ scroll_nt:      .res 1   ; nametable para $2000 (bits 0-1)
 split_on:       .res 1   ; 1 = dividir la pantalla en SPLIT_Y (solo en el juego)
 
 next_k:         .res 2   ; siguiente fila del chart que hay que dibujar
+next_k_frame:   .res 2   ; su cuadro (next_k * fpr, con signo)
+row_lo:         .res 2   ; ventana de cuadros de esa fila: [row_lo, row_hi)
+row_hi:         .res 2
 next_vrow:      .res 1   ; fila de la nametable donde va
 row_mask:       .res 1   ; carriles con nota en la fila que se está dibujando
 row_pending:    .res 1   ; 1 = hay una fila en row_buf esperando a la NMI
@@ -147,7 +155,6 @@ row_addr:       .res 2   ; dirección de VRAM donde va row_buf
 erase_count:    .res 1   ; cuántas gemas hay que borrar en la próxima NMI
 
 diff:           .res 2   ; song_frame - cuadro de la nota (con signo)
-beat_count:     .res 1   ; filas que faltan para la siguiente línea de beat (al dibujar)
 edge_tile:      .res 1   ; tiles de la fila que se está armando (con o sin línea de beat)
 inner_tile:     .res 1
 
@@ -645,12 +652,6 @@ palettes:
     .byte $0F, $27, $30, $16   ; sprites 1: cursor del jugador 2 (naranja)
     .byte $0F, $30, $27, $16
     .byte $0F, $30, $27, $16
-
-; Cuántos pixeles ha bajado una fila según el cuadro dentro de ella
-rowpix_table:
-.repeat FRAMES_PER_ROW, i
-    .byte (i * 8) / FRAMES_PER_ROW
-.endrepeat
 
 ; Las canciones (las genera `uv run nesband import-song`)
 .include "songs/list.s"

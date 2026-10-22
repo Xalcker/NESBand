@@ -5,14 +5,13 @@
 ; una lista de entradas de 2 bytes, ordenada por tiempo:
 ;     .byte cuadros       ; cuántos cuadros después de la entrada anterior suena
 ;     .byte carriles      ; bit 0 = verde ... bit 4 = naranja (varios = acorde)
-;                         ; bit 7 = la fila tiene línea de beat
 ; y termina con carriles = $FF (CHART_END). Si entre dos notas hay más de 255
 ; cuadros, el generador mete entradas de relleno sin carriles (carriles = 0).
 ;
 ; Guardar la distancia en vez del cuadro completo ahorra un byte por nota,
 ; pero obliga a que cada lector lleve la cuenta del cuadro donde va
-; (chart_step). La fila donde se dibuja la gema se calcula del cuadro
-; (frame_to_row): cada fila son 4 cuadros.
+; (chart_step). El chart no dice en qué fila se dibuja cada gema: eso depende
+; de la velocidad de la autopista (ver build_row en highway.s).
 ;
 ; Cada carril lleva su propio puntero a su siguiente nota pendiente
 ; (lane_ptr) y el cuadro de esa nota (lane_frame). Así cada gema de un
@@ -282,16 +281,34 @@ erase_gem:
     cpy #MAX_ERASE
     bcs @done
 
-    ; La nota está a pocas filas de cur_row, así que d = fila - cur_row cabe
-    ; en un byte con signo, y su fila de nametable es cur_vrow - d (mod 60).
+    ; La nota está a pocas filas de cur_row: d = su fila - cur_row cabe en un
+    ; byte con signo, y su fila de nametable es cur_vrow - d (mod 30).
+    ;   delta = cuadro de la nota - cuadro de cur_row (= song_frame - frame_in_row)
+    ;   d     = redondear(delta / fpr) = (delta + half_row) / fpr, hacia abajo
+    ; delta es pequeño (de -6 a +11 aprox.): sumándole 8 * fpr queda positivo,
+    ; dividimos restando y al final le quitamos 8.
     ldy lane
-    ldx lane_frame_hi,y
     lda lane_frame_lo,y
-    jsr frame_to_row        ; tmp = fila de la nota
-    lda tmp
     sec
-    sbc cur_row
-    sta tmp
+    sbc song_frame          ; (solo el byte bajo: la diferencia es pequeña)
+    clc
+    adc frame_in_row
+    clc
+    adc half_row
+    clc
+    adc fpr8
+    ldx #0                  ; X = cociente
+@divide:
+    cmp fpr
+    bcc @divided
+    sbc fpr                 ; (carry = 1 por el cmp)
+    inx
+    jmp @divide
+@divided:
+    txa
+    sec
+    sbc #8
+    sta tmp                 ; d
     lda cur_vrow
     sec
     sbc tmp
@@ -314,16 +331,10 @@ erase_gem:
     lda addr+1
     sta erase_hi,y
 
-    ; Debajo de la gema queda el borde del carril, con o sin línea de beat
-    ; (bit 7 de los carriles). La NMI escribe este tile y luego el anterior,
-    ; que es el interior que le corresponde.
-    ldx #TILE_EDGE
-    ldy #1
-    lda (ptr),y
-    bpl @store_tile
-    ldx #TILE_EDGE_BEAT
-@store_tile:
-    txa
+    ; Debajo de la gema queda el borde del carril. La NMI escribe este tile y
+    ; luego el anterior, que es el interior que le corresponde. (Si en esa
+    ; fila había línea de beat, en este carril ya no se vuelve a dibujar.)
+    lda #TILE_EDGE
     ldy erase_count
     sta erase_tile,y
     inc erase_count

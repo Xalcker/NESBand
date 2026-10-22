@@ -87,6 +87,18 @@ instrumento: cada quien silencia su canal al fallar.
 Fácil usa 3 carriles, medio 4, difícil y experto los 5. Start o Select sirven desde cualquiera de los
 dos controles.
 
+**Velocidad:** a más dificultad, las notas bajan más rápido y se ven venir con menos anticipación:
+
+| Dificultad | Cuadros por fila | Anticipación |
+|---|---|---|
+| Fácil | 6 | ~2.6 s |
+| Medio | 5 | ~2.2 s |
+| Difícil | 4 | ~1.7 s |
+| Experto | 3 | ~1.3 s |
+
+Con 2 jugadores las dos autopistas comparten el mismo scroll, así que van a la velocidad de la
+dificultad más alta de los dos.
+
 **Reglas:** presionar un carril sin nota cerca (golpe al aire) rompe el combo y calla tu instrumento,
 como el *overstrum* de Guitar Hero. Las **estrellas salen del puntaje** (qué porcentaje del puntaje
 máximo posible lograste), no de las notas acertadas: machacando botones se aciertan notas de suerte,
@@ -193,7 +205,7 @@ uv run pytest
 
 - `run_tests.ps1` corre la ROM en Mesen, sin ventana, con un bot por jugador (`tests/autoplay.lua`)
   que recorre todo: título → menú (elige canción, jugadores, instrumentos y experto) → juego →
-  resultados. Por cada canción hace 6 partidas (unos 8 minutos con 4 canciones):
+  resultados. Por cada canción hace 9 partidas (unos 12 minutos con 4 canciones):
   - 1 jugador **perfecto** con guitarra, teclado y bajo: acierta todo y pausa a media canción. El
     puntaje y los resultados (100%, 5 estrellas) deben ser exactos, y **cada nota del chart debe caer
     en el mismo cuadro en que el motor dispara esa nota** en el canal del jugador (prueba de
@@ -201,9 +213,11 @@ uv run pytest
   - 1 jugador **sin tocar nada**: todo debe fallar y su canal debe quedar silenciado.
   - 1 jugador **machacando botones**: acierta notas de suerte, pero el combo máximo no pasa de 5 y
     no saca más de 2 estrellas.
+  - 1 jugador **en fácil**: la autopista más lenta.
   - 2 jugadores **perfectos** (guitarra + bajo).
   - 2 jugadores **mixto**: uno perfecto y el otro sin tocar nada, para comprobar que cada quien lleva
     su propio juego (puntaje, silenciado, resultados).
+  - 2 jugadores en **fácil y experto**: la autopista va a la velocidad de experto para los dos.
   - En todas, además: que suene la música del título y que suenen los efectos en el menú y al empezar.
   - Las capturas de cada pantalla quedan en `build/test-<canción>-<caso>/`.
 - `pytest` prueba el generador de charts (lectura de FamiStudio, tempo, reducción, carriles).
