@@ -54,11 +54,18 @@ WINDOW          = 6                    ; tolerancia: +-6 cuadros (~100 ms) para 
 MAX_ERASE       = NUM_LANES * MAX_PLAYERS ; gemas que se pueden borrar en un mismo cuadro
 FX_SLOTS        = NUM_LANES * MAX_PLAYERS ; una llamarada por carril de cada jugador
 FX_FRAMES       = 8                    ; duración de la llamarada (2 cuadros por dibujo)
-FX_SPRITE       = 8                    ; primer sprite de las llamaradas (0-4: letrero de pausa)
+FX_SPRITE       = 5                    ; primer sprite de las llamaradas (0-4: letrero de pausa)
 FX_Y            = HIT_ROW * 8 - 8      ; arriba de la llamarada: 2 tiles encima del aro
 BOLT_FRAMES     = 10                   ; el rayo de una frase estelar completa dura 10 cuadros
-BOLT_LEN        = 16                   ; y mide 16 sprites de 8 px (uno sobre otro): 128 px de alto
+BOLT_LEN        = 12                   ; y mide 12 sprites de 8 px (uno sobre otro): 96 px de alto
 BOLT_SPRITE     = FX_SPRITE + FX_SLOTS * 2 ; primer sprite de los rayos (después de las llamaradas)
+METER_SEGMENTS  = 6                    ; el medidor de vida son 6 sprites de 8 px, uno sobre otro
+METER_SPRITE    = BOLT_SPRITE + MAX_PLAYERS * BOLT_LEN ; primer sprite de los medidores (el último es el 60 de 64)
+LIFE_MAX        = METER_SEGMENTS * 8   ; vida: 1 punto = 1 pixel del medidor
+LIFE_START      = LIFE_MAX / 2         ; se empieza en la mitad
+LIFE_HIT        = 1                    ; acertar una nota
+LIFE_HOLD       = 1                    ; sostener una nota (cada 16 cuadros)
+LIFE_STAR       = 6                    ; completar una frase de poder estelar
 SONG_LEAD_IN    = 128                  ; cuadros de autopista antes de que arranque la música
 RESULTS_DELAY   = 60                   ; cuadros entre el fin de la música y los resultados
 VBUF_SIZE       = 128                  ; bytes de la cola de textos para la NMI
@@ -214,6 +221,9 @@ score_pct:      .res 1   ; puntaje logrado / puntaje máximo posible, en %
 stars:          .res 1
 rings_shown:    .res 1   ; carriles con el aro relleno en pantalla (un bit por carril)
 hud_dirty:      .res 1   ; 1 = puntaje/combo cambiaron y hay que redibujarlos
+no_fail:        .res 1   ; 1 = "sin fallo": no pierde y no puede grabar récord (lo elige el menú: no se reinicia al jugar)
+life:           .res 1   ; vida (el medidor de rendimiento), 0..LIFE_MAX; al llegar a 0 pierdes
+failed:         .res 1   ; 1 = ya perdiste: tu instrumento calla y dejas de jugar
 star_energy:    .res 1   ; barra de poder estelar, 0..STAR_MAX
 star_active:    .res 1   ; 1 = poder estelar activado (puntaje x2, la barra se vacía)
 star_timer:     .res 1   ; cuadros que faltan para gastar el siguiente punto de energía
@@ -675,8 +685,8 @@ palettes:
     .byte $0F, $10, $12, $30   ; fondo 3: azul
     .byte $0F, $30, $28, $27   ; sprites 0: blanco (texto y centro de la llama), amarillo, naranja
     .byte $0F, $30, $2C, $21   ; sprites 1: llama del poder estelar (blanco, cian, azul)
-    .byte $0F, $30, $28, $30   ; sprites 2: amarillo
-    .byte $0F, $30, $12, $30   ; sprites 3: azul
+    .byte $0F, $30, $16, $30   ; sprites 2: medidor de vida, bajo (rojo)
+    .byte $0F, $30, $2A, $30   ; sprites 3: medidor de vida, bien (verde); el amarillo es la paleta 0
 ; Menús: texto blanco (color 1), gris (2) y el logo naranja (3)
     .byte $0F, $30, $10, $27
     .byte $0F, $30, $10, $27

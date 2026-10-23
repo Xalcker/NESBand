@@ -219,8 +219,19 @@ queue_star:
     lda #<(STRIP_NT + STAR_ROW * 32)
     jmp queue_strip_buf
 
-; "COMBO 123"
+; "COMBO 123", o "FALLASTE" si el jugador ya perdió
 queue_combo:
+    lda failed
+    beq @combo
+    ldx #STRIP_WIDTH - 1
+@failed:
+    lda txt_failed,x
+    sta strip_buf,x
+    dex
+    bpl @failed
+    lda #<(STRIP_NT + COMBO_ROW * 32)
+    jmp queue_strip_buf
+@combo:
     ldx #5
 @label:
     lda txt_combo,x
@@ -268,3 +279,5 @@ clear_strip_buf:
 lane_ring_tile: .byte TILE_RING_A, TILE_RING_A, TILE_RING_A, TILE_RING_A, TILE_RING_B
 
 txt_combo:      .byte "COMBO "
+txt_failed:     .byte "FALLASTE  "        ; STRIP_WIDTH (10) caracteres
+.assert .strlen("FALLASTE  ") = STRIP_WIDTH, error, "txt_failed debe medir lo que la franja"

@@ -72,6 +72,7 @@ TILE_STAR_B     = $9B   ; (color 3) + $9C
 TILE_BAR        = $90   ; barra de poder estelar: + 0..8 píxeles llenos (blanco)
 TILE_BAR_ON     = $A0   ; lo mismo con el poder activo (azul)
 TILE_BOLT       = $A9   ; rayo de las frases estelares: dos dibujos, $A9 y $AA
+TILE_METER      = $B0   ; medidor de vida: + 0..8 filas llenas
 TILE_TAIL_A     = $19  ; cola de nota sostenida (color 2): mitad izquierda; la derecha es $18 (el tile anterior)
 TILE_TAIL_B     = $1B   ; (color 3); la derecha es $1A. Con la línea del beat: +4 (ver TAIL_BEAT)
 TAIL_BEAT       = 4
@@ -272,3 +273,23 @@ TILE_AT TILE_BAR_ON
 ; sube de vuelta, así que uno sobre otro forman un zigzag continuo
 TILE "....2112", "....2112", "...2112.", "...2112.", "..2112..", "..2112..", ".2112...", ".2112..."
 TILE ".2112...", ".2112...", "..2112..", "..2112..", "...2112.", "...2112.", "....2112", "....2112"
+
+; Medidor de vida (sprites): un segmento de 8 px con borde blanco (color 1) y n
+; filas llenas de abajo hacia arriba (color 2: verde, amarillo o rojo según la paleta)
+.macro METER_TILE n
+    .repeat 8
+        .byte $81               ; plano 0: el borde de los lados
+    .endrepeat
+    .repeat 8, r
+        .if r >= 8 - n
+            .byte $7E           ; plano 1: el interior, en las filas llenas
+        .else
+            .byte 0
+        .endif
+    .endrepeat
+.endmacro
+
+TILE_AT TILE_METER
+.repeat 9, n
+    METER_TILE n
+.endrepeat

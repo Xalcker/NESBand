@@ -34,6 +34,8 @@ $kinds = @(
     @('2p-perfect',    2, 'perfect', 0, 3, 'perfect', 2, 3),
     @('2p-mixto',      2, 'perfect', 1, 3, 'idle',    0, 3),
     @('2p-velocidades', 2, 'perfect', 0, 0, 'perfect', 2, 3),
+    @('1p-fallo',      1, 'fail',    0, 3, 'perfect', 2, 3),
+    @('2p-fallo',      2, 'perfect', 0, 3, 'fail',    2, 3),
     @('1p-estrella',   1, 'perfect', 0, 3, 'perfect', 2, 3, 1),
     @('2p-estrella',   2, 'perfect', 0, 3, 'perfect', 2, 3, 1)
 )

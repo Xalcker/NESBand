@@ -113,6 +113,14 @@ notas largas del original llevan una **cola** (una barra detrás de la gema): ac
 botón presionado mientras pasa la cola para sumar 10 puntos cada 8 cuadros. Si sueltas antes, solo dejas
 de sumar: no rompe el combo ni calla tu instrumento. Esos puntos no cuentan para las estrellas.
 
+**Fallo y Sin fallo:** cada jugador tiene un **medidor de vida** (la columna junto a su autopista: verde,
+amarillo, y rojo parpadeando cuando falta poco). Empieza a la mitad; cada acierto la sube un poco, y
+cada fallo o golpe al aire la baja más (hay que acertar 3 de cada 4 notas en fácil y medio, 4 de cada 5
+en difícil y experto). Si llega a 0 pierdes: tu instrumento calla y la franja dice "FALLASTE". Con 2
+jugadores el otro sigue; si pierden los dos, termina la canción. En el menú, el renglón **FALLO** cambia
+a **SIN FALLO**: no se puede perder (y no se ve el medidor), pero esa partida no podrá guardar récord
+cuando exista (issue #1).
+
 **Poder estelar:** algunas gemas tienen forma de **diamante**. Son frases de 4 notas: si aciertas las 4
 sin fallar ninguna, un rayo cae sobre el carril de la última y la barra blanca de la franja de abajo sube 25%. Con la barra a la mitad o más, presiona
 **Select** para activar el poder: todo lo que sumes vale el doble (el multiplicador pasa a x2, x4, x6 y

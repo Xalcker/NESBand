@@ -221,6 +221,7 @@ init_player:
     sta score_units+1
     sta player_muted
     sta tail_mask           ; sin colas dibujadas ni notas sostenidas
+    sta failed              ; (no_fail no se toca: lo eligió el menú)
     sta star_energy         ; ni poder estelar
     sta star_active
     sta star_timer
@@ -230,6 +231,8 @@ init_player:
     sta hold_on,x
     dex
     bpl @no_hold
+    lda #LIFE_START
+    sta life
     lda #1
     sta multiplier
     jsr count_notes
@@ -320,9 +323,12 @@ play_update:
     ldx #0                  ; cada jugador:
 @player:
     jsr load_player
+    lda failed
+    bne @no_judge           ; quien ya perdió no juega más
     jsr judge_lanes         ; aciertos y fallos
     jsr update_holds        ; puntos de las notas sostenidas
     jsr update_star         ; Select activa el poder estelar; la barra se vacía
+@no_judge:
     jsr update_hud          ; aros y marcador
     jsr store_player
     ldx player
@@ -330,6 +336,18 @@ play_update:
     cpx num_players
     bne @player
 
+    ; ¿Perdieron todos? (con 2 jugadores, si solo uno pierde el otro sigue)
+    lda player_save + PS_FAILED
+    beq @alive
+    ldx num_players
+    cpx #2
+    bne @all_failed
+    lda player_save + PSTATE_SIZE + PS_FAILED
+    beq @alive
+@all_failed:
+    jmp enter_results
+@alive:
+    jsr update_meters       ; medidores de vida
     jsr update_fx           ; llamaradas de los aciertos
     jsr update_bolts        ; y los rayos de las notas estelares
     jsr update_music        ; motor de sonido (y silenciar a quien haya fallado)
@@ -443,16 +461,8 @@ update_bolts:
     ldx #0
 @player:
     stx tmp                 ; jugador (X pasa a contar sprites más abajo)
-    txa
-    asl a
-    asl a
-    asl a
-    asl a
-    asl a
-    asl a                   ; 16 sprites x 4 bytes de OAM por jugador
-    clc
-    adc #BOLT_SPRITE * 4
-    tay                     ; Y = OAM del primer sprite de este rayo
+    lda bolt_oam,x          ; Y = OAM del primer sprite de este rayo
+    tay
     lda bolt_timer,x
     beq @hide
     dec bolt_timer,x
@@ -502,6 +512,123 @@ update_bolts:
     cpx #MAX_PLAYERS
     bne @player
     rts
+
+; -----------------------------------------------------------------------------
+; update_meters: el medidor de vida de cada jugador: una columna de
+; METER_SEGMENTS sprites de 8 px junto a su autopista, que se llena de abajo
+; hacia arriba (el tile de cada sprite trae de 0 a 8 filas llenas). Verde con
+; vida de sobra, amarillo a medias y rojo parpadeando cuando falta poco. No se
+; dibuja en "sin fallo", ni de quien ya perdió.
+; Lee de la copia guardada de cada jugador (player_save), sin cargarla.
+; -----------------------------------------------------------------------------
+METER_LOW    = LIFE_MAX / 4         ; por debajo de esto: rojo y parpadeando
+METER_MID    = LIFE_MAX * 5 / 8     ; por debajo: amarillo; arriba: verde
+
+update_meters:
+    ldx #0
+@player:
+    stx lane                ; jugador (X pasa a contar segmentos más abajo)
+    lda meter_oam,x
+    tay                     ; Y = OAM del primer sprite de su medidor
+    cpx num_players
+    bcs @hide               ; este jugador no juega
+    lda player_offset,x     ; X = dónde empieza su copia en player_save
+    tax
+    lda player_save + PS_NO_FAIL,x
+    ora player_save + PS_FAILED,x
+    bne @hide
+    lda player_save + PS_LIFE,x
+    sta tmp+1               ; vida que queda por dibujar
+    cmp #METER_LOW + 1
+    bcs @steady
+    lda frame_counter       ; poca vida: parpadea (8 cuadros sí, 8 no)
+    and #%00001000
+    bne @hide
+@steady:
+    ; paleta según el nivel: 2 = rojo, 0 = amarillo (fuego), 3 = verde
+    lda tmp+1
+    cmp #METER_LOW + 1
+    bcs @not_low
+    lda #2
+    bne @palette
+@not_low:
+    cmp #METER_MID
+    bcs @high
+    lda #0
+    beq @palette
+@high:
+    lda #3
+@palette:
+    sta addr                ; atributo de los sprites
+    lda num_players         ; posición X: meter_x[(num_players - 1) * 2 + jugador]
+    sec
+    sbc #1
+    asl a
+    clc
+    adc lane
+    tax
+    lda meter_x,x
+    sta addr+1
+    lda #FX_Y - 1           ; coordenada Y del segmento de abajo (su borde de arriba es FX_Y)
+    sta tmp
+    ldx #0                  ; X = número de segmento (0 = el de abajo)
+@segment:
+    lda tmp+1               ; filas llenas de este segmento = min(vida que queda, 8)
+    cmp #8
+    bcc @fill
+    lda #8
+@fill:
+    sta ptr
+    clc
+    adc #TILE_METER
+    sta oam+1,y
+    lda tmp+1               ; la vida que queda para los segmentos de arriba
+    sec
+    sbc ptr
+    sta tmp+1
+    lda tmp
+    sta oam,y
+    sec
+    sbc #8
+    sta tmp
+    lda addr
+    sta oam+2,y
+    lda addr+1
+    sta oam+3,y
+    iny
+    iny
+    iny
+    iny
+    inx
+    cpx #METER_SEGMENTS
+    bne @segment
+    jmp @next
+@hide:
+    lda #$FF
+    ldx #METER_SEGMENTS
+@hide_loop:
+    sta oam,y
+    iny
+    iny
+    iny
+    iny
+    dex
+    bne @hide_loop
+@next:
+    ldx lane
+    inx
+    cpx #MAX_PLAYERS
+    beq @done
+    jmp @player             ; (muy lejos para un bne)
+@done:
+    rts
+
+; Dónde empieza en la OAM el rayo y el medidor de cada jugador
+bolt_oam:  .byte BOLT_SPRITE * 4, (BOLT_SPRITE + BOLT_LEN) * 4
+meter_oam: .byte METER_SPRITE * 4, (METER_SPRITE + METER_SEGMENTS) * 4
+; X del medidor, por (jugadores - 1) * 2 + jugador: con uno, a la derecha de la
+; autopista (columna 22); con dos, en el hueco del centro, uno junto al otro
+meter_x:   .byte 22 * 8, 0, 14 * 8, 18 * 8
 
 ; "PAUSA" con sprites (el fondo de la autopista se está desplazando y es
 ; más fácil poner el letrero encima)

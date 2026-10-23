@@ -21,14 +21,16 @@ MENU_SONG_ROW    = 8     ; título (y en la siguiente fila, el juego)
 MENU_PLAYERS_ROW = 12
 MENU_INST_ROW    = 15
 MENU_DIFF_ROW    = 18
+MENU_FAIL_ROW    = 21
 MENU_TEXT_WIDTH  = 26
 MENU_VALUE_WIDTH = 12
 
-MENU_ITEMS       = 4     ; opciones del jugador 1: canción, jugadores, instrumento, dificultad
+MENU_ITEMS       = 5     ; opciones del jugador 1: canción, jugadores, instrumento, dificultad, fallo
 ITEM_SONG        = 0
 ITEM_PLAYERS     = 1
 ITEM_INSTRUMENT  = 2
 ITEM_DIFFICULTY  = 3
+ITEM_FAIL        = 4
 
 PS_INSTRUMENT    = cur_instrument - pstate   ; posición dentro del bloque de un jugador
 
@@ -46,6 +48,7 @@ enter_menu:
     PRINT MENU_LABEL_COL, MENU_PLAYERS_ROW - 1, txt_players
     PRINT MENU_LABEL_COL, MENU_INST_ROW - 1, txt_instrument
     PRINT MENU_LABEL_COL, MENU_DIFF_ROW - 1, txt_difficulty
+    PRINT MENU_LABEL_COL, MENU_FAIL_ROW - 1, txt_fail
     PRINT_CENTER 25, txt_menu_help
 
     ; Los valores se escriben con las mismas rutinas que al cambiarlos
@@ -114,7 +117,7 @@ menu_update:
     lda pad_pressed+1
     sta tmp+1
     lda menu_cursor2
-    ldx #1                  ; 0 = instrumento, 1 = dificultad
+    ldx #2                  ; 0 = instrumento, 1 = dificultad, 2 = fallo
     jsr move_cursor
     sta menu_cursor2
     jsr direction
@@ -201,6 +204,8 @@ menu_change:
     beq @players
     cmp #ITEM_INSTRUMENT
     beq @instrument
+    cmp #ITEM_FAIL
+    beq @fail
 
     ; Dificultad: 0..3, dando la vuelta
     lda cur_difficulty
@@ -208,6 +213,15 @@ menu_change:
     adc menu_dir
     and #NUM_DIFFICULTIES - 1
     sta cur_difficulty
+    jsr store_player
+    ldx player
+    jmp menu_draw_player
+
+@fail:
+    ; Con fallo <-> sin fallo (izquierda o derecha da igual)
+    lda no_fail
+    eor #1
+    sta no_fail
     jsr store_player
     ldx player
     jmp menu_draw_player
@@ -393,7 +407,9 @@ menu_draw_player:
     stx tmp+1
     jsr menu_draw_instrument
     ldx tmp+1
-    ; sigue en menu_draw_difficulty
+    jsr menu_draw_difficulty
+    ldx tmp+1
+    jmp menu_draw_fail
 
 menu_draw_difficulty:
     jsr menu_value_ptr      ; ptr = nombre, o texto vacío
@@ -408,6 +424,30 @@ menu_draw_difficulty:
     adc menu_value_col,x
     sta addr
     lda #>($2000 + MENU_DIFF_ROW * 32)
+    adc #0
+    sta addr+1
+    lda #MENU_VALUE_WIDTH
+    jmp vbuf_text
+
+; "CON FALLO" / "SIN FALLO" del jugador X
+menu_draw_fail:
+    jsr menu_value_ptr
+    bcc @write
+    ldy player_offset,x
+    lda player_save + PS_NO_FAIL,y
+    asl a
+    tax
+    lda fail_names,x
+    sta ptr
+    lda fail_names+1,x
+    sta ptr+1
+@write:
+    ldx player_drawn
+    lda #<($2000 + MENU_FAIL_ROW * 32)
+    clc
+    adc menu_value_col,x
+    sta addr
+    lda #>($2000 + MENU_FAIL_ROW * 32)
     adc #0
     sta addr+1
     lda #MENU_VALUE_WIDTH
@@ -502,17 +542,21 @@ menu_place_cursors:
 
 .segment "RODATA"
 
-cursor_y:       .byte MENU_SONG_ROW * 8 - 1, MENU_PLAYERS_ROW * 8 - 1, MENU_INST_ROW * 8 - 1, MENU_DIFF_ROW * 8 - 1
+cursor_y:       .byte MENU_SONG_ROW * 8 - 1, MENU_PLAYERS_ROW * 8 - 1, MENU_INST_ROW * 8 - 1, MENU_DIFF_ROW * 8 - 1, MENU_FAIL_ROW * 8 - 1
 menu_value_col: .byte MENU_VALUE_COL, MENU_VALUE_COL2
 
 instrument_names: .addr txt_guitar, txt_keys, txt_bass, txt_drums
 difficulty_names: .addr txt_easy, txt_medium, txt_hard, txt_expert
 players_names:    .addr txt_one_player, txt_two_players
+fail_names:       .addr txt_with_fail, txt_no_fail
 
 txt_song:        .byte "CANCION", 0
 txt_players:     .byte "JUGADORES", 0
 txt_instrument:  .byte "INSTRUMENTO", 0
 txt_difficulty:  .byte "DIFICULTAD", 0
+txt_fail:        .byte "FALLO", 0
+txt_with_fail:   .byte "CON FALLO", 0
+txt_no_fail:     .byte "SIN FALLO", 0
 txt_menu_help:   .byte "START: JUGAR   B: VOLVER", 0
 txt_one_player:  .byte "1 JUGADOR", 0
 txt_two_players: .byte "2 JUGADORES", 0

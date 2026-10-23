@@ -7,6 +7,7 @@
 
 RES_INST_ROW    = 9
 RES_DIFF_ROW    = 10
+RES_STATUS_ROW  = 11     ; "FALLASTE" o "SIN FALLO"
 RES_SCORE_ROW   = 12     ; etiqueta; el valor va en la fila siguiente
 RES_NOTES_ROW   = 15
 RES_ACC_ROW     = 18
@@ -84,6 +85,21 @@ draw_player_results:
     jsr ptr_difficulty_name
     lda #RES_DIFF_ROW
     jsr res_print
+
+    ; Cómo terminó: perdiste, o jugaste sin fallo (esa partida no puede grabar récord)
+    lda failed
+    beq @not_failed
+    SET_PTR txt_res_failed
+    lda #RES_STATUS_ROW
+    jsr res_print
+    jmp @status_done
+@not_failed:
+    lda no_fail
+    beq @status_done
+    SET_PTR txt_res_no_fail
+    lda #RES_STATUS_ROW
+    jsr res_print
+@status_done:
 
     ; Puntaje: los 6 dígitos tal cual (score_digits son 0-9, el texto es '0'-'9')
     SET_PTR txt_score
@@ -336,6 +352,8 @@ star_thresholds: .byte 20, 40, 60, 80, 95
 results_col:     .byte 10, 0,    2, 17
 
 txt_results:    .byte "RESULTADOS", 0
+txt_res_failed: .byte "FALLASTE", 0
+txt_res_no_fail: .byte "SIN FALLO", 0
 txt_score:      .byte "PUNTAJE", 0
 txt_notes:      .byte "NOTAS", 0
 txt_accuracy:   .byte "PRECISION", 0

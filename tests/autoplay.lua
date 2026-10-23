@@ -17,7 +17,8 @@
 --   AUTOPLAY_SONG        canción en el menú (desde 0, orden alfabético)
 --   AUTOPLAY_MODE        cómo juega el jugador 1:
 --                        perfect (default): acierta todo; además pausa a media canción
---                        idle: no toca nada
+--                        idle: no toca nada (con "sin fallo": la canción llega al final)
+--                        fail: no toca nada y juega CON fallo: la vida se acaba y pierde
 --                        smash: machaca los 5 botones un cuadro sí y uno no; acierta
 --                        muchas notas de pura suerte, pero los golpes al aire deben
 --                        romperle el combo todo el tiempo
@@ -105,6 +106,11 @@ add(0, "right", instruments[1])
 add(0, "down", 1)
 local difficulty_presses = (difficulty - 1) % 4      -- desde medio (1), dando la vuelta
 add(0, "right", difficulty_presses)
+-- Sin fallo (último renglón): para los modos que no tocan o machacan, así la canción
+-- llega hasta el final como antes. Con "fail" y "perfect" se juega con fallo.
+local function wants_no_fail(p) return modes[p] == "idle" or modes[p] == "smash" end
+add(0, "down", 1)
+if wants_no_fail(1) then add(0, "right", 1) end
 if num_players == 2 then
   -- Del bajo (2) al instrumento pedido: cada pulsación avanza al siguiente
   -- instrumento válido, saltando batería (3, sin chart) y el del jugador 1
@@ -116,6 +122,8 @@ if num_players == 2 then
   add(1, "right", presses)
   add(1, "down", 1)
   add(1, "right", (difficulty2 - 1) % 4)
+  add(1, "down", 1)
+  if wants_no_fail(2) then add(1, "right", 1) end
 end
 for i, step in ipairs(steps) do MENU_SCRIPT[50 + i * 4] = step end
 local menu_done = 50 + #steps * 4
@@ -249,6 +257,7 @@ local charts = nil
 local triggers, trigger_count, prev_counter, unmuted = {}, {}, {}, {}
 for p = 1, num_players do triggers[p], trigger_count[p], prev_counter[p], unmuted[p] = {}, 0, 0, 0 end
 local results_frames = 0
+local results_at = 0     -- song_frame al llegar a los resultados (para ver si la canción terminó antes)
 local mid_screenshot_frame = nil
 
 local function check_player(p)
@@ -268,8 +277,16 @@ local function check_player(p)
     end
   end
 
-  local ok = off_sync == 0 and trigger_count[p] >= #chart and notes_total == hits
+  local failed, no_fail = read8(field(p, "failed")), read8(field(p, "no_fail"))
+  local ok
+  if modes[p] == "fail" then
+    -- Quien pierde deja de jugar y su canción puede terminar antes: no se exige sincronía completa
+    ok = notes_total == hits
+  else
+    ok = off_sync == 0 and trigger_count[p] >= #chart and notes_total == hits
+  end
   if modes[p] == "perfect" then
+    ok = ok and failed == 0 and no_fail == 0     -- un jugador perfecto no pierde
     -- Sin activar el poder estelar, el puntaje es exacto y la barra termina con 25% por frase
     -- (hasta llenarse). Activándolo, el puntaje sube pero a lo más al doble (las estrellas no cambian).
     local score_ok, star_ok
@@ -288,16 +305,22 @@ local function check_player(p)
     -- Acierta notas de suerte, pero cada golpe al aire rompe el combo, y
     -- las estrellas (que salen del puntaje) se quedan abajo
     ok = ok and notes_hit > 0 and max_combo <= NUM_LANES_SMASH_MAX and stars <= 2
+         and failed == 0 and no_fail == 1
+  elseif modes[p] == "fail" then
+    -- Sin tocar nada y con fallo: la vida se acaba, el instrumento queda callado y, si es el
+    -- único jugador, la canción termina antes de su última nota
+    ok = ok and failed == 1 and no_fail == 0 and score == 0 and notes_hit == 0 and unmuted[p] == 0
+    if num_players == 1 then ok = ok and results_at < chart[#chart].frame end
   else
     ok = ok and score == 0 and combo == 0 and notes_hit == 0 and percent == 0 and stars == 0
-         and unmuted[p] == 0
+         and unmuted[p] == 0 and failed == 0 and no_fail == 1
   end
   local text = string.format(
     "J%d %s inst=%d notas=%d/%d puntaje=%d (esperado %s) combo_max=%d precision=%d%% estrellas=%d " ..
-    "disparos=%d desfasadas=%d [%s] sin_silenciar=%d",
+    "disparos=%d desfasadas=%d [%s] sin_silenciar=%d perdio=%d sin_fallo=%d",
     p, modes[p], instruments[p], notes_hit, notes_total, score,
     modes[p] == "perfect" and tostring(exp_score) or "0", max_combo, percent, stars,
-    trigger_count[p], off_sync, table.concat(off_frames, " "), unmuted[p])
+    trigger_count[p], off_sync, table.concat(off_frames, " "), unmuted[p], failed, no_fail)
   return ok, text
 end
 
@@ -376,7 +399,7 @@ emu.addEventCallback(function()
       -- callado. No cuentan la pausa (calla el motor, con otro valor) ni los
       -- cuadros sin escritura al canal (al continuar no se avanza el motor).
       local chart = charts[p]
-      if modes[p] == "idle" and song_frame > chart[1].frame + 7 and song_frame < chart[#chart].frame
+      if (modes[p] == "idle" or modes[p] == "fail") and song_frame > chart[1].frame + 7 and song_frame < chart[#chart].frame
          and read8(A_PAUSED) == 0 and last_volume[p] ~= nil and last_volume[p] ~= MUTE_VALUE[instruments[p]] then
         unmuted[p] = unmuted[p] + 1
       end
@@ -387,6 +410,7 @@ emu.addEventCallback(function()
     if pause_frame and frame == pause_frame + 30 then write_file("captura_pausa.png", emu.takeScreenshot()) end
   elseif state == STATE_RESULTS and charts then
     results_frames = results_frames + 1
+    if results_frames == 1 then results_at = read16(A_SONG_FRAME) end
     if results_frames == 10 then
       write_file("captura_resultados.png", emu.takeScreenshot())
       finish()

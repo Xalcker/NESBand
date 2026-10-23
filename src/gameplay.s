@@ -263,6 +263,8 @@ note_hit:
     sta hud_dirty           ; puntaje y combo cambiaron
     lda #0
     sta player_muted        ; acertaste: tu instrumento vuelve a sonar
+    lda #LIFE_HIT
+    jsr life_up
     jsr star_note_hit       ; (antes que hold_start, que mueve ptr)
     jsr hold_start          ; si la nota tiene cola, empieza a sostenerse
     jsr start_fx            ; llamarada sobre el aro
@@ -287,7 +289,55 @@ note_miss:
     lda hud_dirty
     ora #HUD_SCORE | HUD_COMBO
     sta hud_dirty           ; el combo volvió a 0 y el multiplicador a x1
+    jmp life_down           ; y pierdes vida
+
+; -----------------------------------------------------------------------------
+; Vida (el medidor de rendimiento)
+;
+; Empieza a la mitad. Acertar sube un poco; fallar o dar un golpe al aire baja
+; más (más en las dificultades altas), así que hay que acertar la mayoría. Si
+; llega a 0, el jugador pierde: su instrumento calla y deja de jugar. En
+; "sin fallo" (no_fail) no pasa nada, y el medidor ni se dibuja.
+; -----------------------------------------------------------------------------
+
+; life_up: A = puntos de vida que se ganan
+life_up:
+    clc
+    adc life
+    cmp #LIFE_MAX + 1
+    bcc @store
+    lda #LIFE_MAX
+@store:
+    sta life
     rts
+
+; life_down: pierde vida según la dificultad del jugador (y pierde si llega a 0)
+life_down:
+    lda no_fail
+    ora failed
+    bne @done
+    ldx cur_difficulty
+    lda life
+    sec
+    sbc life_penalty,x
+    bcs @store
+    lda #0
+@store:
+    sta life
+    bne @done
+    lda #1                  ; se acabó la vida
+    sta failed
+    sta player_muted
+    lda hud_dirty
+    ora #HUD_COMBO          ; el renglón del combo pasa a decir "FALLASTE"
+    sta hud_dirty
+@done:
+    rts
+
+; Lo que se pierde por fallo, por dificultad. Con +1 por acierto, la vida se
+; sostiene acertando 3 de cada 4 notas (fácil y medio) o 4 de cada 5 (difícil y experto).
+;                 fácil medio difícil experto
+life_penalty:  .byte 3,    3,    4,      4
 
 ; -----------------------------------------------------------------------------
 ; start_fx: enciende la llamarada del carril `lane` del jugador actual.
@@ -387,6 +437,8 @@ star_note_hit:
     bne @clear
     lda #1
     sta star_hit            ; frase completa: cae el rayo sobre este carril (lo arma set_fx)
+    lda #LIFE_STAR
+    jsr life_up
     lda star_energy         ; y sube la barra 25%
     clc
     adc #STAR_PHRASE
@@ -530,6 +582,11 @@ update_holds:
     and #HOLD_TICK
     bne @flame
     jsr score_add_hold      ; cada 8 cuadros
+    lda song_frame          ; y cada 16, un poco de vida
+    and #%00001111
+    bne @flame
+    lda #LIFE_HOLD
+    jsr life_up
 @flame:
     lda song_frame          ; la llamarada sigue encendida mientras sostienes, y se anima:
     and #%00000100          ; cada 4 cuadros alterna entre la llama alta y la baja
