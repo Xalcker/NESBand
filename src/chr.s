@@ -8,6 +8,7 @@
 ;
 ; Organización:
 ;   $00-$0F  autopista, gemas y aros
+;   $10-$17  llamarada de acierto (sprites)
 ;   $20-$5A  fuente: el número de tile de cada letra es su código ASCII, así
 ;            un texto se escribe tal cual con .byte "HOLA" (solo mayúsculas)
 ;   $80-$8F  bloques de 4x4 px para el logo (ver BIG_ROW en title.s)
@@ -60,6 +61,7 @@ TILE_RING_A     = $08   ; + $09 mitad derecha (color 2)
 TILE_RING_B     = $0A   ; + $0B mitad derecha (color 3)
 TILE_FILL_A     = $0C   ; = aro + 4: presionado
 TILE_FILL_B     = $0E
+TILE_FX         = $10   ; llamarada de acierto: 4 cuadros x 2 tiles (arriba, abajo)
 TILE_DIGIT0     = '0'
 TILE_X          = 'X'
 TILE_BIG        = $80   ; + máscara de 4 bits (ver BIG_ROW)
@@ -96,6 +98,24 @@ TILE "....2222", "..222222", ".2222222", ".2221111", ".2221111", ".2222222", "..
 TILE "2222....", "222222..", "2222222.", "1111222.", "1111222.", "2222222.", "222222..", "2222...."
 TILE "....3333", "..333333", ".3333333", ".3331111", ".3331111", ".3333333", "..333333", "....3333"
 TILE "3333....", "333333..", "3333333.", "1111333.", "1111333.", "3333333.", "333333..", "3333...."
+
+; --- Llamarada de acierto (sprites) --------------------------------------------
+; Cada cuadro de la animación son 2 tiles apilados (arriba y abajo, 8x16 px) que
+; se dibujan sobre el aro. Colores de la paleta de sprites 0: 1 = blanco
+; (centro), 2 = amarillo, 3 = naranja (orilla). Tiles $10-$17.
+TILE_AT TILE_FX
+; cuadro 0: estallido
+TILE "3..22..3", ".3.22.3.", "..3223..", "3.2112.3", ".321123.", "..2112..", "3.2112.3", "..2112.."
+TILE "..2112..", ".321123.", "3.2112.3", "..3223..", ".3.22.3.", "3..22..3", "........", "........"
+; cuadro 1: llama alta
+TILE "........", "....3...", "...33...", "...33...", "..3223..", "..3223..", ".322223.", ".322223."
+TILE ".322223.", "32211223", "32211223", "32211223", "32211223", "32211223", ".322223.", "..3223.."
+; cuadro 2: llama baja
+TILE "........", "........", "........", "........", "....3...", "...33...", "...33...", "..3223.."
+TILE "..3223..", ".322223.", ".322123.", ".322123.", ".322223.", ".322223.", "..3223..", "..3333.."
+; cuadro 3: chispas que se dispersan
+TILE "........", "3.......", "......3.", "........", "..3...3.", "........", ".3......", "....3..."
+TILE "3......3", "....3...", ".3...3..", "........", "..3...3.", "3.......", "....3...", "........"
 
 ; --- Fuente (color 1) ----------------------------------------------------------
 

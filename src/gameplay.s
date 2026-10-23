@@ -251,6 +251,7 @@ note_hit:
     sta hud_dirty           ; puntaje y combo cambiaron
     lda #0
     sta player_muted        ; acertaste: tu instrumento vuelve a sonar
+    jsr start_fx            ; llamarada sobre el aro
     inc notes_hit
     bne @counted
     inc notes_hit+1
@@ -271,6 +272,34 @@ note_miss:
     sta player_muted        ; fallaste: tu instrumento se calla
     lda #HUD_SCORE | HUD_COMBO
     sta hud_dirty           ; el combo volvió a 0 y el multiplicador a x1
+    rts
+
+; -----------------------------------------------------------------------------
+; start_fx: enciende la llamarada del carril `lane` del jugador actual.
+; Cada carril de cada jugador tiene su ranura (jugador * 5 + carril), así que
+; un acorde enciende varias a la vez y volver a acertar en el mismo carril
+; reinicia la animación.
+; Los sprites se ponen en pantalla en update_fx (play.s).
+; -----------------------------------------------------------------------------
+start_fx:
+    jsr lane_column         ; columna del carril (deja X = jugador)
+    asl a
+    asl a
+    asl a                   ; x 8 = pixel donde empieza el carril
+    clc
+    adc #4                  ; el sprite mide 8 px y el carril 16: centrado
+    pha
+    lda player
+    beq @slot               ; jugador 0: las ranuras 0-4
+    lda #NUM_LANES          ; jugador 1: las ranuras 5-9
+@slot:
+    clc
+    adc lane
+    tax
+    pla
+    sta fx_x,x
+    lda #FX_FRAMES
+    sta fx_timer,x
     rts
 
 ; -----------------------------------------------------------------------------

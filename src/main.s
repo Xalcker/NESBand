@@ -43,6 +43,10 @@ SPLIT_Y         = SPLIT_ROW * 8        ; = pixel 200
 HIT_ROW         = SPLIT_ROW - 1        ; fila donde está la gema cuando toca el aro (justo encima)
 WINDOW          = 6                    ; tolerancia: +-6 cuadros (~100 ms) para acertar
 MAX_ERASE       = NUM_LANES * MAX_PLAYERS ; gemas que se pueden borrar en un mismo cuadro
+FX_SLOTS        = NUM_LANES * MAX_PLAYERS ; una llamarada por carril de cada jugador
+FX_FRAMES       = 8                    ; duración de la llamarada (2 cuadros por dibujo)
+FX_SPRITE       = 8                    ; primer sprite de las llamaradas (0-4: letrero de pausa)
+FX_Y            = HIT_ROW * 8 - 8      ; arriba de la llamarada: 2 tiles encima del aro
 SONG_LEAD_IN    = 128                  ; cuadros de autopista antes de que arranque la música
 RESULTS_DELAY   = 60                   ; cuadros entre el fin de la música y los resultados
 VBUF_SIZE       = 128                  ; bytes de la cola de textos para la NMI
@@ -210,6 +214,8 @@ pad_buttons:    .res MAX_PLAYERS ; botones de cada control (control 1, control 2
 pad_prev:       .res MAX_PLAYERS ; los del cuadro anterior
 pad_pressed:    .res MAX_PLAYERS ; los recién presionados
 row_buf:        .res 32  ; una fila completa de la nametable (32 tiles)
+fx_timer:       .res FX_SLOTS    ; llamaradas: cuadros que le quedan a cada una (0 = apagada)
+fx_x:           .res FX_SLOTS    ; y su posición X en pantalla
 erase_hi:       .res MAX_ERASE   ; cola de gemas a borrar: dirección y tile
 erase_lo:       .res MAX_ERASE
 erase_tile:     .res MAX_ERASE
@@ -639,7 +645,7 @@ palettes:
     .byte $0F, $10, $16, $30   ; fondo 1: rojo
     .byte $0F, $10, $28, $30   ; fondo 2: amarillo
     .byte $0F, $10, $12, $30   ; fondo 3: azul
-    .byte $0F, $30, $2A, $27   ; sprites 0: blanco (texto), verde, naranja
+    .byte $0F, $30, $28, $27   ; sprites 0: blanco (texto y centro de la llama), amarillo, naranja
     .byte $0F, $30, $16, $30   ; sprites 1: rojo
     .byte $0F, $30, $28, $30   ; sprites 2: amarillo
     .byte $0F, $30, $12, $30   ; sprites 3: azul

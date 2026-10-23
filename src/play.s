@@ -164,6 +164,12 @@ enter_play:
     jsr draw_strip          ; aros y marcador, en la nametable de $2400
 
     jsr hide_sprites
+    lda #0                  ; sin llamaradas encendidas
+    ldx #FX_SLOTS - 1
+@no_fx:
+    sta fx_timer,x
+    dex
+    bpl @no_fx
     jsr compute_scroll
     lda #1
     sta split_on            ; desde el siguiente vblank, pantalla dividida
@@ -306,6 +312,7 @@ play_update:
     cpx num_players
     bne @player
 
+    jsr update_fx           ; llamaradas de los aciertos
     jsr update_music        ; motor de sonido (y silenciar a quien haya fallado)
     jsr compute_scroll
 
@@ -337,6 +344,59 @@ play_update:
     ; El motor sigue corriendo en pausa (con el volumen en 0) pero la canción
     ; no avanza, así que al continuar sigue sincronizada con las notas
     jmp famistudio_update
+
+; -----------------------------------------------------------------------------
+; update_fx: dibuja las llamaradas encendidas y avanza su animación.
+; Cada ranura usa 2 sprites apilados (8 bytes de OAM). Como van uno sobre el
+; otro, cada llamarada ocupa un solo sprite por línea: con 5 carriles no se
+; acerca al límite de 8 por línea (dos jugadores con acordes sí lo pueden
+; pasar: entonces el PPU omite algunas, solo parpadea el efecto).
+; El dibujo es (FX_FRAMES - timer) / 2: 0 estallido, 1 llama, 2 llama baja,
+; 3 chispas.
+; -----------------------------------------------------------------------------
+update_fx:
+    ldx #0
+@slot:
+    txa
+    asl a
+    asl a
+    asl a                   ; 8 bytes de OAM por ranura
+    clc
+    adc #FX_SPRITE * 4
+    tay
+    lda fx_timer,x
+    beq @hide
+    sta tmp
+    lda #FX_FRAMES
+    sec
+    sbc tmp
+    and #%11111110          ; / 2 x 2: los tiles de cada dibujo son una pareja
+    clc
+    adc #TILE_FX
+    sta oam+1,y             ; mitad de arriba
+    adc #1                  ; (carry = 0)
+    sta oam+5,y             ; mitad de abajo
+    lda #FX_Y - 1           ; la coordenada Y del sprite es la línea - 1
+    sta oam,y
+    lda #FX_Y + 8 - 1
+    sta oam+4,y
+    lda #0                  ; paleta de sprites 0, sin voltear
+    sta oam+2,y
+    sta oam+6,y
+    lda fx_x,x
+    sta oam+3,y
+    sta oam+7,y
+    dec fx_timer,x
+    jmp @next
+@hide:
+    lda #$FF
+    sta oam,y
+    sta oam+4,y
+@next:
+    inx
+    cpx #FX_SLOTS
+    bne @slot
+    rts
 
 ; "PAUSA" con sprites (el fondo de la autopista se está desplazando y es
 ; más fácil poner el letrero encima)
