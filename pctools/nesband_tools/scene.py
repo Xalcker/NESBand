@@ -132,20 +132,33 @@ def draw_truss(cv: Canvas, x0: int) -> None:
         cv.set(x0 + x, 12, 1)
 
 
-def draw_lamp(cv: Canvas, x0: int, direction: int) -> None:
-    """Foco de 8x8 pegado a la torre (x0 = su borde izquierdo) y su haz de luz hacia abajo.
+def draw_shaft(cv: Canvas, x0: int, width: int, edge: int) -> None:
+    """Haz de luz vertical y continuo (no se corta con el período: con el scroll se ve fijo).
 
-    direction = +1: el haz abre hacia la derecha; -1: hacia la izquierda.
+    Punteado denso al centro y ralo hacia las orillas, como luz difusa; la orilla del lado
+    `edge` (+1 derecha, -1 izquierda; la que da a la autopista) lleva una línea sólida.
     """
-    apex_x = x0 + (6 if direction > 0 else 1)
-    for rel in range(1, 17):  # el haz: borde azul y relleno punteado
-        center = apex_x + direction * rel * 1.1
-        half = 1.0 + rel * 0.75
-        for x in range(int(center - half) - 1, int(center + half) + 2):
-            if abs(x - center) <= half:
-                edge = abs(x - center) > half - 1.1
-                if edge or (x + rel) % 2 == 0:
-                    cv.set(x, 14 + rel, 2)
+    center = x0 + (width - 1) / 2
+    half = width / 2
+    for y in range(PERIOD):
+        for x in range(x0, x0 + width):
+            d = abs(x - center) / half
+            if d < 0.38:
+                lit = (x + y) % 4 != 3  # denso: 3 de cada 4
+            elif d < 0.72:
+                lit = (x + y) % 2 == 0  # medio: tablero
+            else:
+                lit = (x + 2 * y) % 4 == 0  # ralo: 1 de cada 4
+            if lit:
+                cv.set(x, y, 2)
+        cv.set(x0 + (width - 1 if edge > 0 else 0), y, 2)
+
+
+def draw_lamp(cv: Canvas, x0: int, direction: int) -> None:
+    """Foco de 8x8 pegado a la torre (x0 = su borde izquierdo); su luz es el haz que se dibuja al lado.
+
+    direction = +1: el foco mira a la derecha; -1: a la izquierda.
+    """
     cv.rect(x0, 6, x0 + 7, 13, 0)  # el foco
     for x in range(8):
         cv.set(x0 + x, 6, 1)
@@ -160,6 +173,8 @@ def draw_lamp(cv: Canvas, x0: int, direction: int) -> None:
 def side_canvas() -> Canvas:
     """El costado del escenario (visto desde el borde de la pantalla hacia la autopista)."""
     cv = Canvas(SIDE_W, PERIOD, wrap_y=True)
+    draw_shaft(cv, 50, 16, +1)   # dos haces, uno ancho y otro angosto
+    draw_shaft(cv, 68, 10, +1)
     draw_lamp(cv, 40, +1)
     draw_speaker(cv, 0)
     draw_truss(cv, 24)
@@ -169,6 +184,8 @@ def side_canvas() -> Canvas:
 def center_canvas() -> Canvas:
     """El centro con 2 jugadores (7 tiles = 56 px): una torre con un foco a cada lado."""
     cv = Canvas(56, PERIOD, wrap_y=True)
+    draw_shaft(cv, 12, 8, -1)    # un haz entre cada foco y la torre
+    draw_shaft(cv, 36, 8, +1)
     draw_lamp(cv, 4, -1)
     draw_lamp(cv, 44, +1)
     draw_truss(cv, 20)
