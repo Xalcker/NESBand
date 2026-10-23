@@ -714,7 +714,9 @@ nmi:
     rti
 
 ; =============================================================================
-; irq: la dispara el MMC3 al terminar la scanline SPLIT_Y - 1
+; irq: la dispara el MMC3 al terminar de dibujar la scanline SPLIT_Y - 2 (la
+; línea de antes del vblank recarga el contador con SPLIT_Y - 1, y cada línea
+; desde la 0 le resta uno)
 ;
 ; A partir de aquí el PPU debe dibujar la franja fija: la nametable de $2400,
 ; sin scroll. A media pantalla no basta con $2005: hay que escribir la
@@ -725,14 +727,26 @@ nmi:
 ;   3) $2005 = X (= 0)
 ;   4) $2006 = ((Y & $38) << 2) | (X >> 3)
 ;
-; Estas escrituras caen a media scanline, así que esa línea sale revuelta, y
-; al terminarla el PPU avanza una línea por su cuenta. Por eso apuntamos a la
-; última línea de la fila anterior a la franja (SPLIT_Y - 1), que está en
-; blanco: la línea revuelta no se nota y los aros empiezan limpios.
+; Las tres primeras escrituras solo tocan el registro temporal (t) del PPU; la
+; cuarta copia t a la dirección que el PPU está usando para dibujar (v). Ojo:
+; mientras dibuja una línea, el PPU incrementa v cada 8 pixeles, y si la
+; cuarta escritura coincide con uno de esos incrementos, v queda revuelta y la
+; franja sale con basura (o con la autopista) en ese cuadro. En los emuladores
+; casi nunca pasa, pero en una NES real o en un FPGA (MiSTer) se ve como un
+; parpadeo. Por eso la cuarta escritura se hace en el hblank de la línea
+; SPLIT_Y - 1 (pixeles ~258-320), donde v no se incrementa: la interrupción
+; llega cerca del final de la línea SPLIT_Y - 2, hacemos las tres primeras y
+; esperamos (IRQ_WAIT) a que el PPU llegue a ese hueco.
+;
+; Como ya pasó el incremento de fin de línea, apuntamos directo a la primera
+; línea de la franja (SPLIT_Y).
 ; =============================================================================
-STRIP_SCROLL_Y = SPLIT_Y - 1
+STRIP_SCROLL_Y = SPLIT_Y
+IRQ_WAIT       = 15         ; vueltas de la espera (5 ciclos de CPU = 15 pixeles cada una)
 
 irq:
+    pha
+    txa
     pha
     sta MMC3_IRQ_DISABLE    ; confirmar la interrupción (si no, se repite)
     lda #(1 << 2) | (STRIP_SCROLL_Y >> 6)
@@ -741,8 +755,14 @@ irq:
     sta PPUSCROLL
     lda #0
     sta PPUSCROLL
+    ldx #IRQ_WAIT
+@wait:
+    dex
+    bne @wait
     lda #((STRIP_SCROLL_Y & $38) << 2)
-    sta PPUADDR
+    sta PPUADDR             ; en el hblank: aquí empieza a dibujarse la franja
+    pla
+    tax
     pla
     rti
 
