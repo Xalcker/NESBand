@@ -5,6 +5,8 @@
 ; instrumento, dificultad, puntaje, notas, precisión, combo máximo y estrellas.
 ; =============================================================================
 
+PS_NEW_RECORD   = new_record - pstate   ; posición dentro del bloque de un jugador (lo usa results_update)
+RES_RECORD_ROW  = 8      ; "NUEVO RECORD"
 RES_INST_ROW    = 9
 RES_DIFF_ROW    = 10
 RES_STATUS_ROW  = 11     ; "FALLASTE" o "SIN FALLO"
@@ -40,6 +42,7 @@ enter_results:
 @player:
     jsr load_player
     jsr compute_stats
+    jsr rec_check_new       ; ¿superó el récord guardado?
     jsr store_player        ; (percent y stars quedan guardados para las pruebas)
     jsr draw_player_results
     ldx player
@@ -57,15 +60,23 @@ results_update:
     ora pad_pressed+1
     and #BTN_START
     beq @done
+    lda player_save + PS_NEW_RECORD     ; ¿alguien tiene récord nuevo? Primero escribe sus iniciales
+    bne @initials
+    ldx num_players
+    cpx #2
+    bne @menu
+    lda player_save + PSTATE_SIZE + PS_NEW_RECORD
+    beq @menu
+@initials:
+    jmp enter_initials
+@menu:
     jmp enter_menu
 @done:
     rts
 
-; -----------------------------------------------------------------------------
-; draw_player_results: la columna del jugador cargado en pstate
-; -----------------------------------------------------------------------------
-draw_player_results:
-    ; Columna: results_col[(num_players - 1) * 2 + jugador]
+; results_set_col: res_col = columna de texto del jugador cargado:
+; results_col[(num_players - 1) * 2 + jugador]
+results_set_col:
     lda num_players
     sec
     sbc #1
@@ -75,6 +86,21 @@ draw_player_results:
     tax
     lda results_col,x
     sta res_col
+    rts
+
+; -----------------------------------------------------------------------------
+; draw_player_results: la columna del jugador cargado en pstate
+; -----------------------------------------------------------------------------
+draw_player_results:
+    jsr results_set_col
+
+    ; ¿Récord nuevo?
+    lda new_record
+    beq @no_record
+    SET_PTR txt_new_record
+    lda #RES_RECORD_ROW
+    jsr res_print
+@no_record:
 
     ; Instrumento y dificultad
     lda cur_instrument

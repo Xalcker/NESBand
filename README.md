@@ -121,6 +121,20 @@ jugadores el otro sigue; si pierden los dos, termina la canción. En el menú, e
 a **SIN FALLO**: no se puede perder (y no se ve el medidor), pero esa partida no podrá guardar récord
 cuando exista (issue #1).
 
+**Récords:** el cartucho guarda el mejor puntaje de cada **canción, instrumento y dificultad**. En el
+menú, debajo de FALLO, ves el récord de lo que elegiste (`029920 ABC 5*`: puntaje, iniciales y
+estrellas, o `---` si no hay). Si al terminar una canción superas el récord, los resultados dicen
+**NUEVO RECORD** y al presionar Start escribes tus iniciales como en un arcade (arriba/abajo cambia la
+letra, izquierda/derecha cambia de letra, A o Start confirma). Perder la canción o jugar **sin fallo** no
+graba récord. Con dos jugadores, cada quien tiene el suyo.
+
+Los récords viven en la **RAM con batería** del cartucho (8 KB en `$6000`, que el MMC3 habilita con
+`$A001`): el emulador los guarda en un archivo `nesband.sav` junto a las partidas guardadas (en Mesen,
+la carpeta `Saves`), y un flash cart como el EverDrive los guarda en la tarjeta SD. Si ese archivo
+falta o está dañado, el juego arranca con la tabla vacía. Cada canción se identifica por un hash de su
+título y su juego, no por su lugar en el menú, así que los récords no se mezclan si agregas o quitas
+canciones. Para borrarlos, borra el `.sav`.
+
 **Poder estelar:** algunas gemas tienen forma de **diamante**. Son frases de 4 notas: si aciertas las 4
 sin fallar ninguna, un rayo cae sobre el carril de la última y la barra blanca de la franja de abajo sube 25%. Con la barra a la mitad o más, presiona
 **Select** para activar el poder: todo lo que sumes vale el doble (el multiplicador pasa a x2, x4, x6 y

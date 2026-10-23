@@ -22,6 +22,8 @@ MENU_PLAYERS_ROW = 12
 MENU_INST_ROW    = 15
 MENU_DIFF_ROW    = 18
 MENU_FAIL_ROW    = 21
+MENU_REC_ROW     = 23    ; récord guardado de cada jugador (su etiqueta, en la fila de arriba)
+MENU_REC_WIDTH   = 13    ; "012345 ABC 5*"
 MENU_TEXT_WIDTH  = 26
 MENU_VALUE_WIDTH = 12
 
@@ -49,7 +51,8 @@ enter_menu:
     PRINT MENU_LABEL_COL, MENU_INST_ROW - 1, txt_instrument
     PRINT MENU_LABEL_COL, MENU_DIFF_ROW - 1, txt_difficulty
     PRINT MENU_LABEL_COL, MENU_FAIL_ROW - 1, txt_fail
-    PRINT_CENTER 25, txt_menu_help
+    PRINT MENU_LABEL_COL, MENU_REC_ROW - 1, txt_record
+    PRINT_CENTER 26, txt_menu_help
 
     ; Los valores se escriben con las mismas rutinas que al cambiarlos
     jsr select_song
@@ -63,6 +66,14 @@ enter_menu:
     ldx #1
     jsr menu_draw_player
     jsr flush_vbuf
+    ldx #0
+    jsr menu_draw_record
+    jsr flush_vbuf
+    ldx #1
+    jsr menu_draw_record
+    jsr flush_vbuf
+    lda #0
+    sta menu_rec_dirty
 
     jsr hide_sprites
     lda #ITEM_SONG
@@ -129,6 +140,23 @@ menu_update:
     jsr menu_change
 
 @done:
+    ; Los récords se redibujan de a uno por cuadro (la cola de textos es corta)
+    lda menu_rec_dirty
+    beq @rec_ok
+    and #%01
+    beq @rec2
+    lda menu_rec_dirty
+    and #%10
+    sta menu_rec_dirty
+    ldx #0
+    jsr menu_draw_record
+    jmp @rec_ok
+@rec2:
+    lda #0
+    sta menu_rec_dirty
+    ldx #1
+    jsr menu_draw_record
+@rec_ok:
     jsr menu_place_cursors
     lda menu_moved          ; ¿alguien movió el cursor o cambió algo? "blip"
     beq @no_sfx
@@ -214,6 +242,7 @@ menu_change:
     and #NUM_DIFFICULTIES - 1
     sta cur_difficulty
     jsr store_player
+    jsr mark_record_dirty
     ldx player
     jmp menu_draw_player
 
@@ -236,6 +265,7 @@ menu_change:
     jsr instrument_ok
     beq @instrument
     jsr store_player
+    jsr mark_record_dirty
     ldx player
     jmp menu_draw_player
 
@@ -254,6 +284,8 @@ menu_change:
     lda #1                  ; no hay instrumento libre en esta canción
     sta num_players
 @players_done:
+    lda #%11                ; el jugador 2 aparece o desaparece
+    sta menu_rec_dirty
     jsr menu_draw_players
     ldx #1
     jmp menu_draw_player
@@ -278,6 +310,8 @@ menu_change:
     jsr menu_draw_instrument
     ldx #1
     jsr menu_draw_instrument
+    lda #%11                ; cada canción tiene sus propios récords
+    sta menu_rec_dirty
     jmp start_preview
 @same_song:
     rts
@@ -297,6 +331,7 @@ select_song:
     ldy #SONG_SLOT
     lda (song_ptr),y
     jsr select_slot
+    jsr compute_song_hash   ; para encontrar sus récords
 
     ldx #0
 @player:
@@ -429,6 +464,79 @@ menu_draw_difficulty:
     lda #MENU_VALUE_WIDTH
     jmp vbuf_text
 
+; mark_record_dirty: hay que redibujar el récord del jugador actual
+mark_record_dirty:
+    ldx player
+    lda menu_rec_dirty
+    ora record_bit,x
+    sta menu_rec_dirty
+    rts
+
+; menu_draw_record: el récord guardado para la canción, instrumento y dificultad
+; del jugador X: "012345 ABC 5*", o "---" si no hay (en blanco si no juega)
+menu_draw_record:
+    jsr menu_value_ptr
+    bcc @write
+    lda player_offset,x
+    tay
+    lda player_save + PS_INSTRUMENT,y
+    asl a
+    asl a
+    ora player_save + (cur_difficulty - pstate),y
+    jsr rec_find
+    bcs @found
+    SET_PTR txt_no_record
+    jmp @write
+@found:
+    ldx #0
+@digit:
+    txa
+    clc
+    adc #R_SCORE
+    tay
+    lda (rec_ptr),y
+    clc
+    adc #'0'
+    sta numstr,x
+    inx
+    cpx #6
+    bne @digit
+    lda #' '
+    sta numstr+6
+    sta numstr+10
+    ldx #0
+@letter:
+    txa
+    clc
+    adc #R_INI
+    tay
+    lda (rec_ptr),y
+    sta numstr+7,x
+    inx
+    cpx #3
+    bne @letter
+    ldy #R_STARS
+    lda (rec_ptr),y
+    clc
+    adc #'0'
+    sta numstr+11
+    lda #'*'
+    sta numstr+12
+    lda #0
+    sta numstr+13
+    SET_PTR numstr
+@write:
+    ldx player_drawn
+    lda #<($2000 + MENU_REC_ROW * 32)
+    clc
+    adc menu_value_col,x
+    sta addr
+    lda #>($2000 + MENU_REC_ROW * 32)
+    adc #0
+    sta addr+1
+    lda #MENU_REC_WIDTH
+    jmp vbuf_text
+
 ; "CON FALLO" / "SIN FALLO" del jugador X
 menu_draw_fail:
     jsr menu_value_ptr
@@ -549,11 +657,14 @@ instrument_names: .addr txt_guitar, txt_keys, txt_bass, txt_drums
 difficulty_names: .addr txt_easy, txt_medium, txt_hard, txt_expert
 players_names:    .addr txt_one_player, txt_two_players
 fail_names:       .addr txt_with_fail, txt_no_fail
+record_bit:       .byte %01, %10
 
 txt_song:        .byte "CANCION", 0
 txt_players:     .byte "JUGADORES", 0
 txt_instrument:  .byte "INSTRUMENTO", 0
 txt_difficulty:  .byte "DIFICULTAD", 0
+txt_record:      .byte "RECORD", 0
+txt_no_record:   .byte "---", 0
 txt_fail:        .byte "FALLO", 0
 txt_with_fail:   .byte "CON FALLO", 0
 txt_no_fail:     .byte "SIN FALLO", 0

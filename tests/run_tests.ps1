@@ -37,7 +37,10 @@ $kinds = @(
     @('1p-fallo',      1, 'fail',    0, 3, 'perfect', 2, 3),
     @('2p-fallo',      2, 'perfect', 0, 3, 'fail',    2, 3),
     @('1p-estrella',   1, 'perfect', 0, 3, 'perfect', 2, 3, 1),
-    @('2p-estrella',   2, 'perfect', 0, 3, 'perfect', 2, 3, 1)
+    @('2p-estrella',   2, 'perfect', 0, 3, 'perfect', 2, 3, 1),
+    # Récords (solo con la canción de ejemplo, y en este orden: el segundo usa lo que guardó el primero)
+    @('1p-record1',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 1),
+    @('1p-record2',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 2)
 )
 
 $failed = $false
@@ -45,8 +48,12 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
     $songName = $songs[$s].Name
     if (-not ($Only | Where-Object { $songName -like $_ })) { continue }
     foreach ($kind in $kinds) {
-        $name, $players, $mode1, $inst1, $diff1, $mode2, $inst2, $diff2, $star = $kind
+        $name, $players, $mode1, $inst1, $diff1, $mode2, $inst2, $diff2, $star, $record = $kind
         if (-not $star) { $star = 0 }   # 1 = los jugadores perfectos activan el poder estelar con Select
+        if (-not $record) { $record = 0 }   # 1 = escribe iniciales y comprueba el .sav, 2 = comprueba que sigue ahí
+        if ($record -and $songName -ne 'nesband_demo') { continue }
+        # Cada caso empieza con los récords vacíos, salvo el que comprueba que sobrevivieron
+        if ($record -ne 2) { Remove-Item (Join-Path $root 'tools\mesen\Saves\nesband.sav') -ErrorAction SilentlyContinue }
         $out = Join-Path $root "build\test-$($songs[$s].Name)-$name"
         New-Item -ItemType Directory -Force $out | Out-Null
         Remove-Item "$out\resultado.txt" -ErrorAction SilentlyContinue
@@ -59,6 +66,7 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
         $env:AUTOPLAY_INSTRUMENT2 = $inst2
         $env:AUTOPLAY_DIFFICULTY2 = $diff2
         $env:AUTOPLAY_STAR = $star
+        $env:AUTOPLAY_RECORD = $record
         $env:TEST_OUT = $out
         $p = Start-Process -FilePath $mesen -PassThru -Wait -NoNewWindow -ArgumentList @(
             '--testrunner', "`"$root\build\nesband.nes`"", "`"$root\tests\autoplay.lua`"")

@@ -31,6 +31,8 @@
 --   AUTOPLAY_INSTRUMENT2 instrumento del jugador 2 (default: 2, bajo; debe ser distinto)
 --   AUTOPLAY_STAR        1 = los jugadores perfectos activan el poder estelar (Select) en
 --                        cuanto la barra llega a la mitad; 0 (default) = nunca lo activan
+--   AUTOPLAY_RECORD      0 (default); 1 = escribe iniciales y comprueba que el récord se guardó;
+--                        2 = (con el .sav de la corrida 1) el récord ya existía y no hay uno nuevo
 --   TEST_OUT             carpeta donde dejar resultado.txt y capturas .png
 --
 -- Requiere que Mesen tenga habilitado "AllowIoOsAccess" (escribir archivos) y
@@ -191,6 +193,12 @@ end
 
 local frame = 0
 local pause_frame, resume_frame = nil, nil
+local rec_mode = os.getenv("AUTOPLAY_RECORD") or "0"   -- ver "Pruebas de récords" más abajo
+local rec_before = nil                                   -- (modo 2) el récord que ya había al encender
+local eval_ok, eval_lines, eval_frame = nil, nil, nil    -- resultado de las comprobaciones, y cuándo se hicieron
+local RECORD_STEPS = { [10] = "start", [30] = "down", [50] = "start" }    -- modo 1: tras los resultados
+local RECORD_STEPS_2 = { [10] = "start" }                                   -- modo 2
+local STATE_MENU = 1
 local holds = {}     -- por jugador: sus notas sostenidas (se leen junto con el chart)
 local star_runs = {}    -- por jugador: cuántas frases estelares tiene su chart
 local star_shot_frame = nil   -- cuadro de la canción en que se captura una gema estelar en pantalla
@@ -205,6 +213,9 @@ local function bot_input(p)
   local script = MENU_SCRIPT[frame]
   if script and script[1] == p - 1 then
     input[script[2]] = true
+  elseif p == 1 and eval_frame then       -- flujo del récord, tras los resultados
+    local key = (rec_mode == "1" and RECORD_STEPS or RECORD_STEPS_2)[frame - eval_frame]
+    if key then input[key] = true end
   elseif p == 1 and modes[1] == "perfect" and playing and not pause_frame
          and read16(A_SONG_FRAME) == pause_at then
     input.start = true                    -- pausar
@@ -278,6 +289,9 @@ local function check_player(p)
   end
 
   local failed, no_fail = read8(field(p, "failed")), read8(field(p, "no_fail"))
+  -- Récord nuevo: solo un jugador perfecto con el .sav vacío (en el modo 2, ya estaba el mismo puntaje)
+  local new_record = read8(field(p, "new_record"))
+  local expect_record = (modes[p] == "perfect" and rec_mode ~= "2") and 1 or 0
   local ok
   if modes[p] == "fail" then
     -- Quien pierde deja de jugar y su canción puede terminar antes: no se exige sincronía completa
@@ -317,18 +331,29 @@ local function check_player(p)
   end
   local text = string.format(
     "J%d %s inst=%d notas=%d/%d puntaje=%d (esperado %s) combo_max=%d precision=%d%% estrellas=%d " ..
-    "disparos=%d desfasadas=%d [%s] sin_silenciar=%d perdio=%d sin_fallo=%d",
+    "disparos=%d desfasadas=%d [%s] sin_silenciar=%d perdio=%d sin_fallo=%d record_nuevo=%d",
     p, modes[p], instruments[p], notes_hit, notes_total, score,
     modes[p] == "perfect" and tostring(exp_score) or "0", max_combo, percent, stars,
-    trigger_count[p], off_sync, table.concat(off_frames, " "), unmuted[p], failed, no_fail)
-  return ok, text
+    trigger_count[p], off_sync, table.concat(off_frames, " "), unmuted[p], failed, no_fail, new_record)
+  return ok and new_record == expect_record, text
 end
 
 -- Sonido fuera del juego: música en el título y efectos en el menú y al empezar
 local title_notes, prev_title_counters = 0, { 0, 0, 0, 0 }
 local sfx_menu, sfx_play = false, false
 
-local function finish()
+-- Récords guardados (RAM con batería, $6000): firma, suma, y 250 registros de 13 bytes
+local REC_TABLE, REC_SIZE, REC_MAX = 0x6008, 13, 250
+local function find_record(key)
+  for i = 0, REC_MAX - 1 do
+    local a = REC_TABLE + i * REC_SIZE
+    if read8(a + 2) == key then return a end
+  end
+  return nil
+end
+local record_key = instruments[1] * 4 + difficulty
+
+local function evaluate()
   local all_ok, lines = true, {}
   local sound_ok = title_notes > 0 and sfx_menu and sfx_play
   all_ok = sound_ok
@@ -339,9 +364,50 @@ local function finish()
     all_ok = all_ok and ok
     lines[#lines + 1] = text
   end
+  return all_ok, lines
+end
+
+local function finalize(all_ok, lines)
   write_file("resultado.txt", string.format("cancion=%d %s -> %s\n", song, table.concat(lines, " | "),
                                             all_ok and "OK" or "FALLA"))
   emu.stop(all_ok and 0 or 1)
+end
+
+-- Pruebas de récords (AUTOPLAY_RECORD):
+--   1: tras los resultados, entra a escribir las iniciales: baja la primera letra (A -> Z),
+--      confirma y comprueba que el récord quedó en la RAM con batería
+--   2: (sin borrar el .sav de la corrida 1) el récord ya estaba al encender, y como el
+--      puntaje es igual, no hay récord nuevo y Start regresa directo al menú
+local function record_flow(frames_since)
+  local state = read8(A_STATE)
+  if rec_mode == "1" and frames_since == 40 then write_file("captura_iniciales.png", emu.takeScreenshot()) end
+  if rec_mode == "1" and frames_since == 80 then
+    local a = find_record(record_key)
+    local ok = state == STATE_MENU and a ~= nil
+    if ok then
+      ok = digits(a + 3, 6) == digits(field(1, "score_digits"), 6)
+           and read8(a + 9) == string.byte("Z") and read8(a + 10) == string.byte("A")
+           and read8(a + 11) == string.byte("A") and read8(a + 12) == read8(field(1, "stars"))
+           and read8(0x6000) == string.byte("N")
+    end
+    local lines = eval_lines
+    lines[#lines + 1] = "record guardado=" .. tostring(ok)
+    finalize(eval_ok and ok, lines)
+  elseif rec_mode == "2" and frames_since == 40 then
+    local lines = eval_lines
+    local ok = state == STATE_MENU and rec_before ~= nil
+    lines[#lines + 1] = "record previo=" .. tostring(rec_before ~= nil) .. " directo al menu=" .. tostring(state == STATE_MENU)
+    finalize(eval_ok and ok, lines)
+  end
+end
+
+local function finish()
+  local all_ok, lines = evaluate()
+  if rec_mode == "0" then
+    finalize(all_ok, lines)
+  else
+    eval_ok, eval_lines, eval_frame = all_ok, lines, frame     -- seguimos jugando el flujo del récord
+  end
 end
 
 emu.addEventCallback(function()
@@ -349,6 +415,8 @@ emu.addEventCallback(function()
   if SCREENSHOTS[frame] then write_file(SCREENSHOTS[frame], emu.takeScreenshot()) end
 
   local state = read8(A_STATE)
+  if rec_mode == "2" and frame == 100 then rec_before = find_record(record_key) end
+  if eval_frame then record_flow(frame - eval_frame) end
   if state == 0 then          -- título: ¿suena la música?
     for ch = 0, 3 do
       local c = read8(A_COUNTER + ch)

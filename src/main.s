@@ -91,6 +91,7 @@ STATE_TITLE     = 0
 STATE_MENU      = 1
 STATE_PLAY      = 2
 STATE_RESULTS   = 3
+STATE_INITIALS  = 4
 
 ; Ficha de una canción (la genera `nesband import-song` en src/songs/*/song.s)
 SONG_MUSIC       = 0    ; .addr  datos para el motor de FamiStudio
@@ -111,6 +112,7 @@ MMC3_IRQ_LATCH   = $C000   ; cuántas scanlines contar
 MMC3_IRQ_RELOAD  = $C001   ; reiniciar la cuenta
 MMC3_IRQ_DISABLE = $E000   ; apagar (y confirmar) la interrupción
 MMC3_IRQ_ENABLE  = $E001
+MMC3_PRG_RAM     = $A001   ; bit 7 = habilitar la RAM de $6000-$7FFF, bit 6 = protegerla contra escritura
 MMC3_PRG_MODE_1  = %01000000   ; $8000 fijo, $C000 intercambiable (R6)
 MMC3_R6          = 6           ; banco en $C000
 MMC3_R7          = 7           ; banco en $A000
@@ -175,6 +177,10 @@ next_vrow:      .res 1   ; fila de la nametable donde va
 row_mask:       .res 1   ; carriles con nota en la fila que se está dibujando
 star_hit:       .res 1   ; 1 = la nota que se acaba de acertar completó una frase estelar (set_fx lanza el rayo)
 row_star:       .res 1   ; carriles de esa fila cuya gema es de una frase estelar
+rec_ptr:        .res 2   ; registro de récord (de rec_find)
+rec_free:       .res 2   ; primer registro libre (de rec_find); byte alto 0 = no hay
+song_hash:      .res 2   ; identificador de la canción elegida (hash de su título y juego)
+menu_rec_dirty: .res 1   ; bits: 0 = hay que redibujar el récord del jugador 1, 1 = el del 2
 star_ptr:       .res 2   ; puntero de star_next (no toca ptr, que aún usa el juicio de la nota)
 tail_draw:      .res 1   ; carriles que llevan cola (en vez de interior) en esa fila
 tail_add:       .res 1   ; carriles cuya cola empieza en esa fila (la nota trae CHART_SUSTAIN)
@@ -221,6 +227,10 @@ score_pct:      .res 1   ; puntaje logrado / puntaje máximo posible, en %
 stars:          .res 1
 rings_shown:    .res 1   ; carriles con el aro relleno en pantalla (un bit por carril)
 hud_dirty:      .res 1   ; 1 = puntaje/combo cambiaron y hay que redibujarlos
+new_record:     .res 1   ; 1 = esta partida superó el récord guardado y puede grabar uno nuevo
+ini:            .res 3   ; iniciales que se están escribiendo (letras 'A'-'Z')
+ini_pos:        .res 1   ; cuál de las 3 letras se está cambiando
+ini_done:       .res 1   ; 1 = ya terminó de escribir las iniciales (y se grabó el récord)
 no_fail:        .res 1   ; 1 = "sin fallo": no pierde y no puede grabar récord (lo elige el menú: no se reinicia al jugar)
 life:           .res 1   ; vida (el medidor de rendimiento), 0..LIFE_MAX; al llegar a 0 pierdes
 failed:         .res 1   ; 1 = ya perdiste: tu instrumento calla y dejas de jugar
@@ -258,7 +268,7 @@ erase_hi:       .res MAX_ERASE   ; cola de gemas a borrar: dirección y tile
 erase_lo:       .res MAX_ERASE
 erase_tile:     .res MAX_ERASE
 vbuf:           .res VBUF_SIZE   ; cola de textos para la NMI (ver text.s)
-numstr:         .res 12  ; texto de un número (num_to_text) u otro texto armado al vuelo
+numstr:         .res 16  ; texto de un número (num_to_text) u otro texto armado al vuelo
 strip_buf:      .res 32  ; un renglón de la franja fija, antes de mandarlo a la cola
 hits100:        .res 3   ; ratio_num * 100, para calcular porcentajes (ratio100)
 ratio_num:      .res 2
@@ -272,9 +282,10 @@ ratio_res:      .res 1
     .byte "NES", $1A
     .byte 16         ; 16 bancos de 16 KB de PRG-ROM = 256 KB (ver nes.cfg)
     .byte 1          ; 1 banco de 8 KB de CHR-ROM
-    .byte $40        ; mapper 4 (MMC3): el mirroring lo elige el programa
+    .byte $42        ; mapper 4 (MMC3): el mirroring lo elige el programa; bit 1 = RAM con batería
     .byte $00
-    .res 8, $00
+    .byte 1          ; 1 bloque de 8 KB de PRG-RAM ($6000-$7FFF): ahí se guardan los récords
+    .res 7, $00
 
 ; -----------------------------------------------------------------------------
 ; Código
@@ -290,6 +301,8 @@ ratio_res:      .res 1
 .include "menu.s"
 .include "play.s"
 .include "results.s"
+.include "records.s"
+.include "initials.s"
 
 ; =============================================================================
 ; reset: lo primero que se ejecuta al encender o al presionar Reset
@@ -396,6 +409,7 @@ reset_continue:
     jsr store_player
     lda #1
     sta num_players
+    jsr records_init        ; los récords guardados (o una tabla nueva si no hay)
     jsr select_song         ; canción 0, y que los instrumentos existan en ella
 
     cli                     ; aceptar IRQ: solo la del MMC3 está encendida, y solo en el juego
@@ -426,7 +440,7 @@ jump_to_ptr:
     jmp (ptr)
 
 state_handlers:
-    .addr title_update, menu_update, play_update, results_update
+    .addr title_update, menu_update, play_update, results_update, initials_update
 
 ; Espera hasta que ocurra la siguiente NMI
 wait_nmi:
