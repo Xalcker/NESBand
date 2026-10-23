@@ -217,6 +217,12 @@ init_player:
     sta score_units
     sta score_units+1
     sta player_muted
+    sta tail_mask           ; sin colas dibujadas ni notas sostenidas
+    ldx #NUM_LANES - 1
+@no_hold:
+    sta hold_on,x
+    dex
+    bpl @no_hold
     lda #1
     sta multiplier
     jsr count_notes
@@ -256,8 +262,7 @@ count_notes:
 @entry:
     ldy #1
     lda (ptr),y             ; carriles
-    cmp #CHART_END
-    beq @done               ; fin del chart
+    bmi @release            ; fin de cola (o el fin del chart): no es una nota
     and #%00011111          ; solo los bits de carriles
 @bits:
     lsr a                   ; un carril -> carry
@@ -268,6 +273,7 @@ count_notes:
 @no_gem:
     cmp #0
     bne @bits
+@next:
     clc
     lda ptr
     adc #CHART_ENTRY
@@ -275,6 +281,9 @@ count_notes:
     bcc @entry
     inc ptr+1
     jmp @entry
+@release:
+    cmp #CHART_END
+    bne @next               ; fin de cola: no cuenta
 @done:
     rts
 
@@ -305,6 +314,7 @@ play_update:
 @player:
     jsr load_player
     jsr judge_lanes         ; aciertos y fallos
+    jsr update_holds        ; puntos de las notas sostenidas
     jsr update_hud          ; aros y marcador
     jsr store_player
     ldx player
@@ -367,6 +377,12 @@ update_fx:
     lda fx_timer,x
     beq @hide
     sta tmp
+    dec fx_timer,x
+    txa                     ; "semitransparente": cada llamarada se dibuja un cuadro sí y uno no,
+    clc                     ; y las de ranuras vecinas se alternan. Así casi nunca hay más de 8
+    adc frame_counter       ; sprites en una línea (con 2 jugadores el PPU descartaba siempre los
+    and #1                  ; del jugador 2)
+    bne @hide
     lda #FX_FRAMES
     sec
     sbc tmp
@@ -386,7 +402,6 @@ update_fx:
     lda fx_x,x
     sta oam+3,y
     sta oam+7,y
-    dec fx_timer,x
     jmp @next
 @hide:
     lda #$FF

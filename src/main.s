@@ -35,6 +35,10 @@ NUM_INSTRUMENTS = 4                    ; guitarra, teclado, bajo, batería
 NUM_DIFFICULTIES = 4                   ; fácil, medio, difícil, experto
 CHART_ENTRY     = 2                    ; bytes por entrada del chart: cuadros desde la anterior, carriles
 CHART_END       = $FF                  ; carriles = $FF: fin del chart
+CHART_SUSTAIN   = $40                  ; en una nota: tiene cola (la nota sostenida)
+CHART_RELEASE   = $80                  ; entrada de fin de cola: sus bits 0-4 son los carriles que se sueltan
+HOLD_TICK       = %00000111            ; mientras sostienes, cada 8 cuadros sumas puntos
+HOLD_FX         = 6                    ; la llamarada se mantiene en la llama alta mientras sostienes
 ; La pantalla de juego se divide en dos con la interrupción de scanline del
 ; MMC3 (ver irq): arriba la autopista que se desplaza; desde SPLIT_ROW, una
 ; franja fija con los aros y el marcador.
@@ -154,6 +158,9 @@ row_lo:         .res 2   ; ventana de cuadros de esa fila: [row_lo, row_hi)
 row_hi:         .res 2
 next_vrow:      .res 1   ; fila de la nametable donde va
 row_mask:       .res 1   ; carriles con nota en la fila que se está dibujando
+tail_draw:      .res 1   ; carriles que llevan cola (en vez de interior) en esa fila
+tail_add:       .res 1   ; carriles cuya cola empieza en esa fila (la nota trae CHART_SUSTAIN)
+tail_rem:       .res 1   ; carriles cuya cola termina en esa fila
 row_pending:    .res 1   ; 1 = hay una fila en row_buf esperando a la NMI
 row_addr:       .res 2   ; dirección de VRAM donde va row_buf
 erase_count:    .res 1   ; cuántas gemas hay que borrar en la próxima NMI
@@ -196,6 +203,10 @@ score_pct:      .res 1   ; puntaje logrado / puntaje máximo posible, en %
 stars:          .res 1
 rings_shown:    .res 1   ; carriles con el aro relleno en pantalla (un bit por carril)
 hud_dirty:      .res 1   ; 1 = puntaje/combo cambiaron y hay que redibujarlos
+tail_mask:      .res 1   ; carriles con una cola de nota sostenida en la parte ya dibujada de la autopista
+hold_on:        .res NUM_LANES   ; 1 = estás sosteniendo la nota de ese carril
+hold_end_lo:    .res NUM_LANES   ; cuadro en que termina su cola
+hold_end_hi:    .res NUM_LANES
 pstate_end:
 PSTATE_SIZE = pstate_end - pstate
 

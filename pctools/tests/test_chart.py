@@ -91,6 +91,36 @@ def test_chart_entries_use_deltas_and_spacers():
     assert chart_size(chart) == 12
 
 
+def test_chart_entries_sustain_flag_and_release():
+    from nesband_tools.chart import END_FLAG, SUSTAIN_FLAG, ChartNote, chart_entries
+
+    # Una nota con cola en el carril 0 (cuadros 100-160) y otra normal en medio
+    chart = [ChartNote(100, 0x01, end=160), ChartNote(130, 0x04)]
+    assert chart_entries(chart) == [
+        (100, 0x01 | SUSTAIN_FLAG),
+        (30, 0x04),
+        (30, 0x01 | END_FLAG),
+        (0, 0xFF),
+    ]
+
+
+def test_sustain_ends_respects_duration_and_next_note_in_lane():
+    from nesband_tools.chart import MIN_SUSTAIN, SUSTAIN_GAP, SUSTAIN_TRIM, sustain_ends
+
+    notes = [Note(0, 60, 100), Note(40, 64, 5), Note(200, 60, 10), Note(300, 60, 90)]
+    lanes = [0, 1, 0, 0]
+    ends = sustain_ends(notes, lanes)
+    # la 1ª es larga pero la siguiente en su carril llega en 200: termina por su duración
+    assert ends[0] == 100 - SUSTAIN_TRIM
+    assert ends[1] is None  # muy corta
+    assert ends[2] is None  # 10 cuadros < MIN_SUSTAIN
+    assert ends[3] == 300 + 90 - SUSTAIN_TRIM
+    # y si la siguiente nota del carril llega antes de que acabe, la cola la deja pasar
+    cut = sustain_ends([Note(0, 60, 100), Note(50, 62, 5)], [0, 0])
+    assert cut[0] == 50 - SUSTAIN_GAP - SUSTAIN_TRIM
+    assert MIN_SUSTAIN <= cut[0]
+
+
 def test_build_chart_frames_and_lanes():
     grid = BeatGrid(20, 0)
     notes = [Note(0, 60, 5), Note(10, 64, 5), Note(20, 67, 5)]

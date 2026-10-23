@@ -9,6 +9,7 @@
 ; Organización:
 ;   $00-$0F  autopista, gemas y aros
 ;   $10-$17  llamarada de acierto (sprites)
+;   $18-$1F  colas de las notas sostenidas
 ;   $20-$5A  fuente: el número de tile de cada letra es su código ASCII, así
 ;            un texto se escribe tal cual con .byte "HOLA" (solo mayúsculas)
 ;   $80-$8F  bloques de 4x4 px para el logo (ver BIG_ROW en title.s)
@@ -66,6 +67,10 @@ TILE_DIGIT0     = '0'
 TILE_X          = 'X'
 TILE_BIG        = $80   ; + máscara de 4 bits (ver BIG_ROW)
 
+TILE_TAIL_A     = $19   ; cola de nota sostenida (color 2): mitad izquierda; la derecha es $18 (el tile anterior)
+TILE_TAIL_B     = $1B   ; (color 3); la derecha es $1A. Con la línea del beat: +4 (ver TAIL_BEAT)
+TAIL_BEAT       = 4
+
 chr_start:
 
 ; --- Autopista ---------------------------------------------------------------
@@ -116,6 +121,24 @@ TILE "..3223..", ".322223.", ".322123.", ".322123.", ".322223.", ".322223.", "..
 ; cuadro 3: chispas que se dispersan
 TILE "........", "3.......", "......3.", "........", "..3...3.", "........", ".3......", "....3..."
 TILE "3......3", "....3...", ".3...3..", "........", "..3...3.", "3.......", "....3...", "........"
+
+; --- Colas de las notas sostenidas ----------------------------------------------
+; Una barra de 4 px en el centro del carril. Cada pareja se escribe como
+; [izquierda][derecha] pero el número de la derecha es el anterior, porque el
+; borrado de gemas escribe "tile y luego tile - 1" (ver la NMI).
+; $18-$19 color 2, $1A-$1B color 3, $1C-$1F las mismas con la línea del beat
+TILE_AT $18
+; $18 derecha color 2, $19 izquierda color 2 (con el borde del carril)
+TILE "22......", "22......", "22......", "22......", "22......", "22......", "22......", "22......"
+TILE "1.....22", "1.....22", "1.....22", "1.....22", "1.....22", "1.....22", "1.....22", "1.....22"
+; $1A derecha color 3, $1B izquierda color 3
+TILE "33......", "33......", "33......", "33......", "33......", "33......", "33......", "33......"
+TILE "1.....33", "1.....33", "1.....33", "1.....33", "1.....33", "1.....33", "1.....33", "1.....33"
+; $1C-$1D color 2 con la línea del beat, $1E-$1F color 3 con la línea del beat
+TILE "22......", "22......", "22......", "22111111", "22......", "22......", "22......", "22......"
+TILE "1.....22", "1.....22", "1.....22", "11111122", "1.....22", "1.....22", "1.....22", "1.....22"
+TILE "33......", "33......", "33......", "33111111", "33......", "33......", "33......", "33......"
+TILE "1.....33", "1.....33", "1.....33", "11111133", "1.....33", "1.....33", "1.....33", "1.....33"
 
 ; --- Fuente (color 1) ----------------------------------------------------------
 

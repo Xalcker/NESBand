@@ -118,22 +118,42 @@ local menu_done = 50 + #steps * 4
 MENU_SCRIPT[menu_done + 12] = { 0, "start" }
 local SCREENSHOTS = { [25] = "captura_titulo.png", [menu_done + 8] = "captura_menu.png" }
 
--- Notas del chart de un jugador: lista de {frame, mask} (sin rellenos)
+-- Notas del chart de un jugador: lista de {frame, mask} (sin rellenos ni fines de
+-- cola), y sus notas sostenidas: lista de {lane, first, last} (cuadro de la nota
+-- y cuadro en que termina su cola)
+local CHART_SUSTAIN, CHART_RELEASE = 0x40, 0x80
+local HOLD_POINTS, HOLD_TICK = 10, 8
 local function read_chart(p)
-  local notes = {}
+  local notes, holds, pending = {}, {}, {}
   local ptr = read16(field(p, "chart_start"))
   local frame = 0
   while read8(ptr + 1) ~= CHART_END do
     frame = frame + read8(ptr)
-    local mask = read8(ptr + 1) & 0x1F
-    if mask ~= 0 then notes[#notes + 1] = { frame = frame, mask = mask } end
+    local raw = read8(ptr + 1)
+    local mask = raw & 0x1F
+    if raw & CHART_RELEASE ~= 0 then
+      for lane = 0, 4 do
+        if (mask >> lane) & 1 == 1 and pending[lane] then
+          holds[#holds + 1] = { lane = lane, first = pending[lane], last = frame }
+          pending[lane] = nil
+        end
+      end
+    elseif mask ~= 0 then
+      notes[#notes + 1] = { frame = frame, mask = mask }
+      if raw & CHART_SUSTAIN ~= 0 then
+        for lane = 0, 4 do
+          if (mask >> lane) & 1 == 1 then pending[lane] = frame end
+        end
+      end
+    end
     ptr = ptr + CHART_ENTRY
   end
-  return notes
+  return notes, holds
 end
 
--- Puntaje esperado si se aciertan todas (mismas reglas que gameplay.s)
-local function expected(chart)
+-- Puntaje esperado si se aciertan todas y se sostienen las colas hasta el final
+-- (mismas reglas que gameplay.s: 10 puntos cada 8 cuadros mientras se sostiene)
+local function expected(chart, holds)
   local hits, score, combo = 0, 0, 0
   for _, n in ipairs(chart) do
     for lane = 0, 4 do
@@ -144,11 +164,18 @@ local function expected(chart)
       end
     end
   end
+  for _, h in ipairs(holds) do
+    for f = h.first, h.last - 1 do
+      if f % HOLD_TICK == 0 then score = score + HOLD_POINTS end
+    end
+  end
   return hits, score
 end
 
 local frame = 0
 local pause_frame, resume_frame = nil, nil
+local holds = {}     -- por jugador: sus notas sostenidas (se leen junto con el chart)
+local pause_at = PAUSE_AT   -- se recorre si cae en medio de una nota sostenida (al pausar se sueltan los botones)
 
 -- Mesen pide el estado de cada control justo cuando el juego lo lee: ahí lo
 -- reemplazamos por el guion del menú o por lo que decida el bot
@@ -159,7 +186,7 @@ local function bot_input(p)
   if script and script[1] == p - 1 then
     input[script[2]] = true
   elseif p == 1 and modes[1] == "perfect" and playing and not pause_frame
-         and read16(A_SONG_FRAME) == PAUSE_AT then
+         and read16(A_SONG_FRAME) == pause_at then
     input.start = true                    -- pausar
     pause_frame = frame
   elseif p == 1 and pause_frame and frame == pause_frame + PAUSE_FRAMES then
@@ -176,6 +203,10 @@ local function bot_input(p)
       if read8(ptr + 1) ~= CHART_END and lane_frame == next_frame then
         input[LANE_KEYS[lane + 1]] = true
       end
+    end
+    -- Notas sostenidas: mantiene el botón desde la nota hasta el fin de su cola
+    for _, h in ipairs(holds[p] or {}) do
+      if next_frame >= h.first and next_frame < h.last then input[LANE_KEYS[h.lane + 1]] = true end
     end
   end
   return input
@@ -206,7 +237,7 @@ local mid_screenshot_frame = nil
 
 local function check_player(p)
   local chart = charts[p]
-  local hits, exp_score = expected(chart)
+  local hits, exp_score = expected(chart, holds[p])
   local score = digits(field(p, "score_digits"), 6)
   local combo = digits(field(p, "combo_digits"), 3)
   local notes_hit, notes_total = read16(field(p, "notes_hit")), read16(field(p, "notes_total"))
@@ -284,7 +315,16 @@ emu.addEventCallback(function()
   if state == STATE_PLAY and read16(A_SONG_FRAME) > 0 then
     if not charts then
       charts = {}
-      for p = 1, num_players do charts[p] = read_chart(p) end
+      for p = 1, num_players do charts[p], holds[p] = read_chart(p) end
+      local busy = true
+      while busy do
+        busy = false
+        for p = 1, num_players do
+          for _, h in ipairs(holds[p]) do
+            if pause_at >= h.first - 2 and pause_at <= h.last + 2 then busy = true; pause_at = pause_at + 1 end
+          end
+        end
+      end
       mid_screenshot_frame = frame + 2000
     end
     local song_frame = read16(A_SONG_FRAME)

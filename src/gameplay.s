@@ -8,6 +8,11 @@
 ; y termina con carriles = $FF (CHART_END). Si entre dos notas hay más de 255
 ; cuadros, el generador mete entradas de relleno sin carriles (carriles = 0).
 ;
+; Notas sostenidas: una nota con el bit $40 (CHART_SUSTAIN) tiene cola, y su fin
+; es una entrada posterior con el bit $80 (CHART_RELEASE) y los carriles que se
+; sueltan en ese cuadro. Ver hold_start. (CHART_END = $FF también tiene el
+; bit $80, así que "bit 7 = no es una nota" vale para ambos.)
+;
 ; Guardar la distancia en vez del cuadro completo ahorra un byte por nota,
 ; pero obliga a que cada lector lleve la cuenta del cuadro donde va
 ; (chart_step). El chart no dice en qué fila se dibuja cada gema: eso depende
@@ -212,12 +217,16 @@ lane_seek:
 @check:
     ldy #1
     lda (ptr),y             ; carriles
-    cmp #CHART_END
-    beq @found              ; fin del chart
+    bmi @release            ; fin de cola (o el fin del chart): no es una nota
     and lane_bit,x
     bne @found
+@step:
     jsr chart_step
     jmp @check
+@release:
+    cmp #CHART_END
+    beq @found              ; fin del chart
+    bne @step               ; (siempre)
 @found:
     lda ptr
     sta lane_ptr_lo,x
@@ -251,6 +260,7 @@ note_hit:
     sta hud_dirty           ; puntaje y combo cambiaron
     lda #0
     sta player_muted        ; acertaste: tu instrumento vuelve a sonar
+    jsr hold_start          ; si la nota tiene cola, empieza a sostenerse
     jsr start_fx            ; llamarada sobre el aro
     inc notes_hit
     bne @counted
@@ -282,6 +292,9 @@ note_miss:
 ; Los sprites se ponen en pantalla en update_fx (play.s).
 ; -----------------------------------------------------------------------------
 start_fx:
+    lda #FX_FRAMES
+set_fx:                     ; A = cuadros que durará la llamarada
+    sta tmp
     jsr lane_column         ; columna del carril (deja X = jugador)
     asl a
     asl a
@@ -298,8 +311,114 @@ start_fx:
     tax
     pla
     sta fx_x,x
-    lda #FX_FRAMES
+    lda tmp
     sta fx_timer,x
+    rts
+
+; -----------------------------------------------------------------------------
+; Notas sostenidas
+;
+; Una nota con CHART_SUSTAIN tiene una cola: su fin es una entrada posterior
+; del chart con CHART_RELEASE y el bit de su carril. Al acertar la nota,
+; hold_start busca esa entrada y guarda su cuadro (hold_end). Mientras el
+; botón siga presionado hasta ese cuadro, update_holds suma puntos. Soltarlo
+; antes solo deja de dar puntos: no rompe el combo.
+; -----------------------------------------------------------------------------
+
+; hold_start: la nota que se acaba de acertar es la de `lane` (apuntada por ptr)
+hold_start:
+    ldx lane
+    lda #0
+    sta hold_on,x
+    ldy #1
+    lda (ptr),y
+    and #CHART_SUSTAIN
+    beq @done               ; nota normal
+    lda lane_frame_lo,x     ; seek_frame = cuadro de la nota; avanzamos hasta su fin
+    sta seek_frame
+    lda lane_frame_hi,x
+    sta seek_frame+1
+@scan:
+    jsr chart_step          ; (no toca X)
+    ldy #1
+    lda (ptr),y
+    bmi @event
+    jmp @scan               ; una nota (de cualquier carril): seguimos buscando
+@event:
+    cmp #CHART_END
+    beq @done               ; no debería pasar: toda cola tiene su fin
+    and lane_bit,x
+    beq @scan               ; es el fin de la cola de otro carril
+    lda seek_frame
+    sta hold_end_lo,x
+    lda seek_frame+1
+    sta hold_end_hi,x
+    lda #1
+    sta hold_on,x
+@done:
+    rts
+
+; update_holds: una vez por cuadro, para el jugador actual (ya juzgado)
+update_holds:
+    ldx #0
+@lane:
+    lda hold_on,x
+    beq @next
+    lda song_frame          ; ¿ya llegó al fin de la cola? (song_frame >= hold_end)
+    cmp hold_end_lo,x
+    lda song_frame+1
+    sbc hold_end_hi,x
+    bcs @finish
+    lda buttons
+    and lane_button,x
+    beq @finish             ; soltaste antes: ya no da puntos, y el combo sigue
+    stx lane
+    lda song_frame
+    and #HOLD_TICK
+    bne @flame
+    jsr score_add_hold      ; cada 8 cuadros
+@flame:
+    lda song_frame          ; la llamarada sigue encendida mientras sostienes, y se anima:
+    and #%00000100          ; cada 4 cuadros alterna entre la llama alta y la baja
+    beq @tall
+    lda #HOLD_FX - 2
+    bne @set                ; (siempre)
+@tall:
+    lda #HOLD_FX
+@set:
+    jsr set_fx
+    ldx lane
+    jmp @next
+@finish:
+    lda #0
+    sta hold_on,x
+@next:
+    inx
+    cpx #NUM_LANES
+    bne @lane
+    rts
+
+; score_add_hold: puntaje += 10 (fijos, sin multiplicador). No cuenta para las
+; estrellas: estas salen solo de las notas.
+score_add_hold:
+    lda hud_dirty
+    ora #HUD_SCORE
+    sta hud_dirty
+    ldx #4                  ; dígito de las decenas
+    lda #1
+@digit:
+    clc
+    adc score_digits,x
+    cmp #10
+    bcc @store
+    sbc #10                 ; (carry = 1 por el cmp)
+    sta score_digits,x
+    lda #1                  ; lo que se lleva al siguiente dígito
+    dex
+    bpl @digit
+    rts                     ; se pasó de 999999: se pierde
+@store:
+    sta score_digits,x
     rts
 
 ; -----------------------------------------------------------------------------
@@ -363,7 +482,13 @@ erase_gem:
     ; Debajo de la gema queda el borde del carril. La NMI escribe este tile y
     ; luego el anterior, que es el interior que le corresponde. (Si en esa
     ; fila había línea de beat, en este carril ya no se vuelve a dibujar.)
+    ; Si la nota tiene cola (hold_on), en su fila empieza la cola en vez del interior.
     lda #TILE_EDGE
+    ldx lane
+    ldy hold_on,x
+    beq @tile
+    lda lane_tail,x
+@tile:
     ldy erase_count
     sta erase_tile,y
     inc erase_count

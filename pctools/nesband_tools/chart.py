@@ -133,10 +133,36 @@ def assign_lanes(notes: list[Note], lanes: int, window: int = 4) -> list[int]:
     return result
 
 
+SUSTAIN_FLAG = 0x40  # en la entrada de una nota: tiene cola (su fin va en otra entrada)
+END_FLAG = 0x80  # entrada de fin de cola: los bits 0-4 son los carriles que la sueltan
+MIN_SUSTAIN = 16  # cuadros mínimos de cola (0.27 s); más corta no vale la pena mantenerla
+SUSTAIN_TRIM = 4  # la cola termina un poco antes de que acabe la nota: soltar a tiempo no castiga
+SUSTAIN_GAP = 3  # cuadros libres entre el fin de una cola y la siguiente nota del mismo carril
+
+
 @dataclass(frozen=True)
 class ChartNote:
     frame: int  # cuadro en que suena (contando la entrada de la autopista)
     mask: int  # bits 0-4 = carriles
+    end: int | None = None  # cuadro en que termina su cola (None = nota normal)
+
+
+def sustain_ends(notes: list[Note], lanes: list[int]) -> list[int | None]:
+    """Fin de la cola de cada nota, o None si dura muy poco.
+
+    La cola dura lo que la nota, pero termina antes de la siguiente nota del
+    mismo carril (con SUSTAIN_GAP cuadros libres) para poder soltar y volver a tocar.
+    """
+    ends: list[int | None] = []
+    for i, (note, lane) in enumerate(zip(notes, lanes)):
+        limit = note.frame + note.duration
+        for other, other_lane in zip(notes[i + 1 :], lanes[i + 1 :]):
+            if other_lane == lane:
+                limit = min(limit, other.frame - SUSTAIN_GAP)
+                break
+        length = limit - note.frame - SUSTAIN_TRIM
+        ends.append(note.frame + length if length >= MIN_SUSTAIN else None)
+    return ends
 
 
 def build_chart(notes: list[Note], difficulty: Difficulty, grid: BeatGrid, lead_in: int) -> list[ChartNote]:
@@ -144,7 +170,11 @@ def build_chart(notes: list[Note], difficulty: Difficulty, grid: BeatGrid, lead_
     la autopista (el juego calcula en qué fila se dibuja cada nota)."""
     reduced = reduce_notes(merge_attacks(notes), difficulty, grid)
     lanes = assign_lanes(reduced, difficulty.lanes)
-    return [ChartNote(lead_in + note.frame, 1 << lane) for note, lane in zip(reduced, lanes)]
+    ends = sustain_ends(reduced, lanes)
+    return [
+        ChartNote(lead_in + note.frame, 1 << lane, None if end is None else lead_in + end)
+        for note, lane, end in zip(reduced, lanes, ends)
+    ]
 
 
 CHART_END = 0xFF  # carriles = $FF marca el fin del chart
@@ -154,18 +184,32 @@ MAX_DELTA = 255
 def chart_entries(chart: list[ChartNote]) -> list[tuple[int, int]]:
     """El chart como lo lee el juego: pares (cuadros desde la entrada anterior, carriles).
 
-    Si dos notas están a más de 255 cuadros, se intercalan entradas de relleno
+    Si dos entradas están a más de 255 cuadros, se intercalan entradas de relleno
     sin carriles (carriles = 0) que solo hacen avanzar el tiempo.
+
+    Una nota con cola lleva SUSTAIN_FLAG, y su fin es otra entrada con END_FLAG y los
+    carriles que se sueltan en ese cuadro (así el formato sigue siendo de 2 bytes).
     """
+    events: list[tuple[int, int]] = []  # (cuadro, carriles)
+    end_masks: dict[int, int] = {}
+    for note in chart:
+        if note.end is None:
+            events.append((note.frame, note.mask))
+        else:
+            events.append((note.frame, note.mask | SUSTAIN_FLAG))
+            end_masks[note.end] = end_masks.get(note.end, 0) | note.mask
+    events += [(frame, END_FLAG | mask) for frame, mask in end_masks.items()]
+    events.sort(key=lambda e: e[0])  # estable: a igual cuadro, las notas van antes que los fines
+
     entries: list[tuple[int, int]] = []
     previous = 0
-    for note in chart:
-        delta = note.frame - previous
+    for frame, mask in events:
+        delta = frame - previous
         while delta > MAX_DELTA:
             entries.append((MAX_DELTA, 0))
             delta -= MAX_DELTA
-        entries.append((delta, note.mask))
-        previous = note.frame
+        entries.append((delta, mask))
+        previous = frame
     entries.append((0, CHART_END))
     return entries
 

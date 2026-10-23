@@ -224,10 +224,19 @@ build_row:
 ; -----------------------------------------------------------------------------
 ; player_row_mask: row_mask = carriles del jugador actual con nota en la
 ; ventana [row_lo, row_hi) de la fila que se está armando
+;
+; También lleva las colas de las notas sostenidas (tail_mask: los carriles que
+; ya tienen una cola abierta en lo dibujado). Las entradas de la ventana la
+; abren (nota con CHART_SUSTAIN) o la cierran (entrada CHART_RELEASE). La fila
+; de la nota lleva la gema, las siguientes llevan cola, y la fila donde termina
+; ya no. Al final quedan tail_draw (carriles con cola en esta fila) y
+; tail_mask actualizado para la fila siguiente.
 ; -----------------------------------------------------------------------------
 player_row_mask:
     lda #0
     sta row_mask
+    sta tail_add
+    sta tail_rem
     lda row_lo+1
     bmi @have_mask          ; ventana antes del cuadro 0: no hay notas
 
@@ -249,10 +258,24 @@ player_row_mask:
     lda render_frame+1
     sbc row_hi+1
     bcs @have_mask
-    ldy #1                  ; dentro de la ventana: sumamos sus carriles
+    ldy #1                  ; dentro de la ventana
     lda (render_ptr),y
+    bmi @release            ; fin de cola
+    and #%00011111          ; nota: sumamos sus carriles
     ora row_mask
     sta row_mask
+    lda (render_ptr),y
+    and #CHART_SUSTAIN
+    beq @skip
+    lda (render_ptr),y      ; con cola: sus carriles la abren
+    and #%00011111
+    ora tail_add
+    sta tail_add
+    jmp @skip
+@release:
+    and #%00011111          ; los carriles que sueltan: su cola termina en esta fila
+    ora tail_rem
+    sta tail_rem
 @skip:
     ; render_ptr a la siguiente entrada, y render_frame suma su distancia
     clc
@@ -272,6 +295,12 @@ player_row_mask:
     jmp @seek
 
 @have_mask:
+    lda tail_rem            ; cola de esta fila = las abiertas menos las que terminan aquí
+    eor #$FF
+    and tail_mask
+    sta tail_draw
+    ora tail_add            ; y para la siguiente fila, más las que abren aquí
+    sta tail_mask
     rts
 
 ; -----------------------------------------------------------------------------
@@ -291,7 +320,23 @@ draw_player_lanes:
     ldy lane
     lda row_mask
     and lane_bit,y
+    bne @gem
+    lda tail_draw           ; sin gema: ¿pasa una cola por aquí?
+    and lane_bit,y
     beq @next_lane
+    lda lane_tail,y         ; mitad izquierda de la cola; la derecha es el tile anterior
+    ldy edge_tile
+    cpy #TILE_EDGE_BEAT
+    bne @tail_tiles
+    clc
+    adc #TAIL_BEAT          ; esta fila lleva la línea del beat
+@tail_tiles:
+    sta row_buf,x
+    sec
+    sbc #1
+    sta row_buf+1,x
+    jmp @next_lane
+@gem:
     lda lane_gem,y          ; mitad izquierda de la gema (con el borde)
     sta row_buf,x
     clc
@@ -461,4 +506,5 @@ write_attributes:
 ; -----------------------------------------------------------------------------
 lane_bit:       .byte    %00001, %00010, %00100, %01000, %10000
 lane_gem:       .byte    TILE_GEM_A, TILE_GEM_A, TILE_GEM_A, TILE_GEM_A, TILE_GEM_B
+lane_tail:      .byte    TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_B
 lane_palette:   .byte    0,      1,      2,      3,      0       ; naranja comparte paleta con verde

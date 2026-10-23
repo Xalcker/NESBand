@@ -108,6 +108,11 @@ como el *overstrum* de Guitar Hero. Las **estrellas salen del puntaje** (qué po
 máximo posible lograste), no de las notas acertadas: machacando botones se aciertan notas de suerte,
 pero el combo nunca sube y el puntaje se queda abajo.
 
+**Efectos y notas sostenidas:** al acertar una nota sale una llamarada sobre el aro de su carril. Las
+notas largas del original llevan una **cola** (una barra detrás de la gema): acierta la gema y mantén el
+botón presionado mientras pasa la cola para sumar 10 puntos cada 8 cuadros. Si sueltas antes, solo dejas
+de sumar: no rompe el combo ni calla tu instrumento. Esos puntos no cuentan para las estrellas.
+
 En Mesen configura qué teclas corresponden a cada botón en *Settings → Input*. Para jugar de a dos, el
 **puerto 2** debe tener un control de NES conectado (por default Mesen lo deja vacío).
 
@@ -173,7 +178,11 @@ Qué hace, paso a paso:
      rapidísimos) se juntan en una sola nota que empieza donde empieza el sonido;
    - se quitan notas demasiado juntas, conservando primero las que caen en el tiempo;
    - a cada nota le toca un carril según su altura respecto a sus vecinas, respetando el contorno:
-     si la melodía sube, sube el carril; si repite nota, repite carril.
+     si la melodía sube, sube el carril; si repite nota, repite carril;
+   - las notas que duran al menos ~0.27 s se vuelven **notas sostenidas**: la entrada de la nota lleva la
+     marca `$40` y otra entrada posterior, con la marca `$80` y el carril, dice en qué cuadro termina la
+     cola (siempre antes de la siguiente nota del mismo carril). El formato sigue siendo de 2 bytes por
+     entrada.
 4. Se escribe `src/songs/<nombre>/song.s`, la ficha que lee el juego (título, fin, tempo, charts), y
    se regenera la lista de canciones.
 
@@ -306,6 +315,7 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 3. ~~Generador automático de charts por canal y dificultad~~ ✅ (primera versión)
 4. ~~Charts de bajo y teclado~~ ✅ · batería pendiente (necesita su propio criterio: bombo/tarola/platillo por tipo de ruido)
 5. ~~Menús: título, selección de canción/instrumento/dificultad, pausa, resultados~~ ✅
+   · ~~llamarada al acertar y notas sostenidas~~ ✅
 6. ~~Mapper con más espacio (MMC3) para muchas canciones~~ ✅ · pantalla de título ilustrada pendiente
    (ver [docs/ideas.md](docs/ideas.md))
 7. Editor visual de charts para retocar lo generado
