@@ -58,6 +58,9 @@ $kinds = @(
     @('2p-coop',       2, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 1),
     @('2p-coop-estrella', 2, 'perfect', 0, 3, 'perfect', 2, 3, 1, 0, 1),
     @('2p-coop-fallo', 2, 'fail',    0, 3, 'fail',    2, 3, 0, 0, 1),
+    # Co-Op con un caído: el jugador 2 cae y el 1 sigue; y el 1 lo revive con media barra de poder
+    @('2p-coop-cae',   2, 'perfect', 0, 3, 'fail',    2, 3, 0, 0, 1, 0, 0, 1),
+    @('2p-coop-revive', 2, 'perfect', 0, 3, 'fail',   2, 3, 0, 0, 1, 0, 0, 0, 1),
     # Récords (solo con la canción de ejemplo, y en este orden: el segundo usa lo que guardó el primero)
     @('1p-record1',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 1),
     @('1p-record2',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 2)
@@ -68,7 +71,9 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
     $songName = $songs[$s].Name
     if (-not ($Only | Where-Object { $songName -like $_ })) { continue }
     foreach ($kind in $kinds) {
-        $name, $players, $mode1, $inst1, $diff1, $mode2, $inst2, $diff2, $star, $record, $coop, $vs, $cut = $kind
+        $name, $players, $mode1, $inst1, $diff1, $mode2, $inst2, $diff2, $star, $record, $coop, $vs, $cut, $down, $revive = $kind
+        if (-not $down) { $down = 0 }       # 1 = en Co-Op el jugador 2 cae y el 1 sigue hasta el final
+        if (-not $revive) { $revive = 0 }   # 1 = y el jugador 1 lo revive con poder estelar
         if (-not $cut) { $cut = 0 }     # 1 = en VS la partida debe cortarse porque un jugador pierde
         if (-not $coop) { $coop = 0 }   # 1 = modo Co-Op
         if (-not $vs) { $vs = 0 }       # en VS, quién debe ganar (1, 2 o 3 = empate)
@@ -93,6 +98,8 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
         $env:AUTOPLAY_COOP = $coop
         $env:AUTOPLAY_VS = $vs
         $env:AUTOPLAY_CUT = $cut
+        $env:AUTOPLAY_DOWN = $down
+        $env:AUTOPLAY_REVIVE = $revive
         $env:TEST_OUT = $out
         $p = Start-Process -FilePath $mesen -PassThru -Wait -NoNewWindow -ArgumentList @(
             '--testrunner', "`"$romPath`"", "`"$root\tests\autoplay.lua`"")

@@ -501,12 +501,49 @@ star_missed:
 @done:
     rts
 
+PS_GRACE = life_grace - pstate
+
 ; update_star: una vez por cuadro, para el jugador actual: Select activa el
-; poder y, mientras está activo, la barra se vacía
+; poder (o, en Co-Op, si el compañero cayó, lo revive con media barra) y,
+; mientras está activo, la barra se vacía
 update_star:
     lda pressed
     and #BTN_SELECT
     beq @drain
+    lda game_mode           ; Co-Op: si el compañero cayó, Select lo revive (en vez de activar el poder)
+    beq @activate
+    lda player
+    eor #1
+    tax
+    ldy player_offset,x     ; Y = donde empieza la copia guardada del compañero
+    lda player_save + PS_FAILED,y
+    beq @activate           ; sigue en pie
+    lda star_energy
+    cmp #STAR_MIN
+    bcc @drain              ; no alcanza la media barra para revivirlo
+    sec
+    sbc #STAR_MIN           ; cuesta media barra
+    sta star_energy
+    bne @energy_left
+    sta star_active         ; (A = 0) sin energía no se puede seguir con el poder activo
+@energy_left:
+    lda #0
+    sta player_save + PS_FAILED,y
+    sta player_save + PS_MUTED,y
+    lda #LIFE_REVIVE
+    sta player_save + PS_LIFE,y
+    lda #LIFE_GRACE
+    sta player_save + PS_GRACE,y
+    lda player_save + (hud_dirty - pstate),y
+    ora #HUD_COMBO          ; su renglón del combo deja de decir "FALLASTE"
+    sta player_save + (hud_dirty - pstate),y
+    lda hud_dirty
+    ora #HUD_STAR | HUD_SCORE
+    sta hud_dirty
+    lda #SFX_ACEPTAR
+    jsr play_sfx
+    jmp @drain
+@activate:
     lda star_active
     bne @drain
     lda star_energy

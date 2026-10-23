@@ -86,14 +86,16 @@ instrumento (en Co-Op; en VS sí pueden, ver abajo): cada quien silencia su cana
   instrumento solo se calla cuando los dos están fallando. Con fallo activado, **si un jugador pierde
   (se le acaba la vida) la partida se corta y gana el otro**, sin importar el puntaje
   (`GANA J2 - J1 PERDIO`); esa partida no graba récord.
-- **Co-Op (banda):** los dos son una banda. El **puntaje, el combo (y su multiplicador), la barra de
-  poder estelar y la vida son de la banda**: si cualquiera falla, se rompe el combo de los dos; las
-  frases estelares de ambos llenan la misma barra (Select de cualquiera la activa) y si la vida se
-  acaba, pierden los dos. Hay un solo medidor de vida, al centro. Los resultados muestran lo de la banda
-  al centro (puntaje, combo máximo, estrellas sobre el máximo de los dos charts juntos) y, por jugador,
-  sus notas y precisión. Si uno de los dos elige "sin fallo", la banda juega sin fallo.
-  El **récord de banda** es aparte (por canción y la dificultad más alta de los dos) y sale bajo el
-  jugador 1 en el menú.
+- **Co-Op (banda):** los dos son una banda. El **puntaje, el combo (y su multiplicador) y la barra de
+  poder estelar son de la banda**: si cualquiera falla, se rompe el combo de los dos, y las frases
+  estelares de ambos llenan la misma barra (Select la activa). La **vida es de cada quien** (cada
+  jugador tiene su medidor): si uno cae, su instrumento calla y **el otro sigue tocando**; la banda
+  pierde cuando caen los dos. El que sigue en pie puede **revivir al caído gastando media barra de
+  poder estelar**: presiona Select (si hay un compañero caído, Select revive en vez de activar el poder);
+  vuelve con media vida. Los resultados muestran lo de la banda al centro (puntaje, combo máximo,
+  estrellas sobre el máximo de los dos charts juntos) y, por jugador, sus notas, precisión y si cayó.
+  El **récord de banda** es aparte (por canción y la dificultad más alta de los dos), solo vale si los
+  dos terminan en pie, y sale bajo el jugador 1 en el menú.
 
 **Juego** (modo "tap", un botón por carril, cada jugador con su control):
 
@@ -300,8 +302,10 @@ copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
     perfecto; también hay casos de VS donde gana el jugador 2 y de empate.
   - **Co-Op**: dos jugadores perfectos (el puntaje de la banda debe ser exactamente el de los dos
     charts mezclados cuadro por cuadro, con un solo combo, y la barra de poder la suma de las frases de
-    ambos), con poder estelar, y los dos sin tocar nada con fallo (la vida de la banda se acaba y
-    pierden los dos). Comprueba que lo compartido es idéntico en la copia de cada jugador.
+    ambos), con poder estelar, y los dos sin tocar nada con fallo (caen los dos y termina). Uno perfecto
+    con el otro sin tocar: el que cae deja de jugar y el otro termina la canción; y con revivir, el
+    jugador 1 gasta media barra de poder para devolverlo al juego. Comprueba que lo compartido es
+    idéntico en la copia de cada jugador.
   - 2 jugadores en **fácil y experto**: la autopista va a la velocidad de experto para los dos.
   - En todas, además: que suene la música del título y que suenen los efectos en el menú y al empezar.
   - Las capturas de cada pantalla quedan en `build/test-<canción>-<caso>/`.

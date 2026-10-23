@@ -54,6 +54,8 @@ enter_results:
     sta new_record
     lda player
     bne @checked
+    lda player_save + PSTATE_SIZE + PS_FAILED   ; y vale solo si los dos terminaron en pie
+    bne @checked
 @check:
     jsr rec_check_new       ; ¿superó el récord guardado?
     lda num_players         ; VS: si el rival perdió, la partida se cortó y no vale como récord
@@ -151,11 +153,6 @@ draw_player_results:
     lda #RES_DIFF_ROW
     jsr res_print
 
-    lda game_mode           ; Co-Op: estado y puntaje son de la banda (team_results)
-    beq @own_score
-    jmp @notes
-@own_score:
-
     ; Cómo terminó: perdiste, o jugaste sin fallo (esa partida no puede grabar récord)
     lda failed
     beq @not_failed
@@ -170,6 +167,10 @@ draw_player_results:
     lda #RES_STATUS_ROW
     jsr res_print
 @status_done:
+    lda game_mode           ; Co-Op: el puntaje es de la banda (team_results)
+    beq @own_score
+    jmp @notes
+@own_score:
 
     ; Puntaje: los 6 dígitos tal cual
     SET_PTR txt_score
@@ -312,20 +313,7 @@ team_results:
     lda #RES_RECORD_ROW
     jsr print_centered
 @no_record:
-    lda failed
-    beq @not_failed
-    SET_PTR txt_res_failed
-    lda #RES_STATUS_ROW
-    jsr print_centered
-    jmp @status_done
-@not_failed:
-    lda no_fail
-    beq @status_done
-    SET_PTR txt_res_no_fail
-    lda #RES_STATUS_ROW
-    jsr print_centered
-@status_done:
-    SET_PTR txt_score
+    SET_PTR txt_score       ; (el estado, FALLASTE o SIN FALLO, va en la columna de cada jugador)
     lda #RES_SCORE_ROW
     jsr print_centered
     jsr score_text

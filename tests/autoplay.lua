@@ -41,6 +41,8 @@
 --   AUTOPLAY_VS          (modo VS, 2 jugadores) quién debe ganar: 1, 2 o 3 = empate; 0 (default) = no se revisa
 --   AUTOPLAY_CUT         1 = (VS con fallo) la partida debe cortarse porque un jugador pierde: el otro gana
 --                        y no se le exige haber terminado la canción (#8)
+--   AUTOPLAY_DOWN        1 = Co-Op: el jugador 2 (sin tocar, con fallo) cae y el 1 sigue hasta el final (#10)
+--   AUTOPLAY_REVIVE      1 = además, el jugador 1 lo revive con Select cuando la barra de poder llega a la mitad
 --   TEST_OUT             carpeta donde dejar resultado.txt y capturas .png
 --
 -- Requiere que Mesen tenga habilitado "AllowIoOsAccess" (escribir archivos) y
@@ -57,7 +59,10 @@ local difficulty2 = tonumber(os.getenv("AUTOPLAY_DIFFICULTY2") or tostring(diffi
 local use_star = os.getenv("AUTOPLAY_STAR") == "1"
 local coop = os.getenv("AUTOPLAY_COOP") == "1" and num_players == 2
 local vs_expect = tonumber(os.getenv("AUTOPLAY_VS") or "0")
-local cut = os.getenv("AUTOPLAY_CUT") == "1"     -- VS: la partida se corta porque el otro jugador pierde (#8)
+local revive = os.getenv("AUTOPLAY_REVIVE") == "1"   -- Co-Op: el jugador 1 revive al 2 con poder estelar (#10)
+local down = revive or os.getenv("AUTOPLAY_DOWN") == "1"   -- Co-Op: el jugador 2 cae y el 1 sigue hasta el final (#10)
+local revived, prev_failed2 = 0, 0                -- veces que se revivió al jugador 2
+local cut = os.getenv("AUTOPLAY_CUT") == "1"    -- VS: la partida se corta porque el otro jugador pierde (#8)
 local STAR_MAX, STAR_PHRASE, STAR_MIN = 80, 20, 40       -- como en main.s
 local outdir = os.getenv("TEST_OUT") or "."
 local mem = emu.memType.nesMemory
@@ -330,6 +335,10 @@ local function bot_input(p)
         input[LANE_KEYS[lane + 1]] = true
       end
     end
+    -- Co-Op: si el compañero cayó y la barra llega a la mitad, Select lo revive
+    if revive and p == 1 and read8(field(2, "failed")) == 1 and read8(field(1, "star_energy")) >= STAR_MIN then
+      input.select = true
+    end
     -- Poder estelar: Select en cuanto la barra llega a la mitad
     if use_star and read8(field(p, "star_active")) == 0 and read8(field(p, "star_energy")) >= STAR_MIN then
       input.select = true
@@ -424,7 +433,7 @@ local function check_player(p)
   local new_record = read8(field(p, "new_record"))
   local expect_record = ((modes[p] == "perfect" or modes[p] == "human90") and rec_mode ~= "2") and 1 or 0
   if coop and p == 2 then expect_record = 0 end     -- el récord de la banda es del jugador 1
-  if cut then expect_record = 0 end                 -- una partida cortada no vale como récord
+  if cut or down then expect_record = 0 end         -- una partida cortada, o con un caído, no vale como récord
   local ok
   if modes[p] == "fail" or modes[p] == "human50" or (cut and modes[p] == "perfect") then
     -- Quien pierde deja de jugar y su canción puede terminar antes: no se exige sincronía completa
@@ -432,7 +441,12 @@ local function check_player(p)
   else
     ok = off_sync == 0 and trigger_count[p] >= #chart and notes_total == hits
   end
-  if cut and modes[p] == "perfect" then
+  if down and modes[p] == "perfect" then
+    -- Co-Op con un compañero caído: este sigue y termina la canción, tocando todas sus notas
+    -- (el puntaje de la banda ya no es el de la suma exacta: las notas del caído rompieron el combo)
+    ok = ok and failed == 0 and no_fail == 0 and notes_hit == hits and percent == 100
+         and results_at >= chart[#chart].frame
+  elseif cut and modes[p] == "perfect" then
     -- El otro jugador perdió y la partida se cortó: este no perdió y no llegó al final
     ok = ok and failed == 0 and no_fail == 0 and notes_hit > 0 and notes_hit < notes_total
   elseif modes[p] == "perfect" then
@@ -467,7 +481,13 @@ local function check_player(p)
   elseif modes[p] == "fail" then
     -- Sin tocar nada y con fallo: la vida se acaba, el instrumento queda callado y, si es el
     -- único jugador, la canción termina antes de su última nota
-    ok = ok and failed == 1 and no_fail == 0 and score == 0 and notes_hit == 0 and unmuted[p] <= UNMUTED_TOLERANCE
+    -- (en Co-Op el puntaje es de la banda, y revivido deja de estar callado hasta su siguiente fallo)
+    ok = ok and no_fail == 0 and notes_hit == 0 and (coop or score == 0)
+    if revive then
+      ok = ok and revived >= 1
+    else
+      ok = ok and failed == 1 and unmuted[p] <= UNMUTED_TOLERANCE
+    end
     if num_players == 1 then ok = ok and results_at < chart[#chart].frame end
   else
     ok = ok and score == 0 and combo == 0 and notes_hit == 0 and percent == 0 and stars == 0
@@ -479,7 +499,8 @@ local function check_player(p)
     p, modes[p], instruments[p], notes_hit, notes_total, score,
     modes[p] == "perfect" and tostring(team_score) or "0", max_combo, percent, stars,
     trigger_count[p], off_sync, table.concat(off_frames, " "), unmuted[p], failed, no_fail, new_record)
-  return ok and new_record == expect_record, text
+  -- (con revivir, el compañero puede terminar en pie y entonces sí hay récord de banda)
+  return ok and (new_record == expect_record or revive), text
 end
 
 -- Sonido fuera del juego: música en el título y efectos en el menú y al empezar
@@ -511,7 +532,7 @@ local function evaluate()
   if coop then
     -- Lo compartido debe ser igual en la copia de los dos jugadores
     local same = true
-    for _, name in ipairs({ "score_digits", "combo_digits", "life", "failed", "star_energy", "stars" }) do
+    for _, name in ipairs({ "score_digits", "combo_digits", "star_energy", "stars" }) do
       local n = (name == "score_digits") and 6 or (name == "combo_digits" and 3 or 1)
       if digits(field(1, name), n) ~= digits(field(2, name), n) then same = false end
     end
@@ -622,6 +643,11 @@ emu.addEventCallback(function()
     local nmi = read8(A_NMI_COUNT)
     if prev_nmi and (nmi - prev_nmi) % 256 ~= 1 and #lag_frames < 40 then lag_frames[#lag_frames + 1] = song_frame end
     prev_nmi = nmi
+    if num_players == 2 then
+      local failed2 = read8(field(2, "failed"))
+      if prev_failed2 == 1 and failed2 == 0 then revived = revived + 1 end
+      prev_failed2 = failed2
+    end
     for p = 1, num_players do
       if read8(field(p, "star_active")) == 1 then star_seen[p] = true end
       -- El contador del "ecualizador" del motor salta a 9 en cada nota nueva

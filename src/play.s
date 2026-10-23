@@ -88,13 +88,6 @@ enter_play:
 
     jsr set_layout          ; dónde va la autopista de cada jugador
 
-    lda game_mode           ; Co-Op: la vida es de la banda, así que el "sin fallo" de cualquiera
-    beq @fail_ready         ; de los dos vale para ambos (si no, uno jugaría sin perder y el otro no)
-    lda player_save + PS_NO_FAIL
-    ora player_save + PSTATE_SIZE + PS_NO_FAIL
-    sta player_save + PS_NO_FAIL
-    sta player_save + PSTATE_SIZE + PS_NO_FAIL
-@fail_ready:
 
     ; --- Cada jugador: su chart, marcador y carriles ---
     ldx #0
@@ -349,13 +342,19 @@ play_update:
     cpx num_players
     bne @player
 
-    ; ¿Alguien perdió? Con 1 jugador, él; con 2 basta con que pierda uno: en VS gana el
-    ; otro (vs_winner) y en Co-Op pierde la banda (la vida es compartida)
+    ; ¿Terminó la partida porque alguien perdió? Con 1 jugador, él. Con 2: en VS basta con que
+    ; pierda uno (gana el otro: vs_winner); en Co-Op la banda sigue mientras quede uno en pie
+    ; (puede revivir al caído con poder estelar: update_star)
     lda player_save + PS_FAILED
     ldx num_players
     cpx #2
     bne @check
+    ldx game_mode
+    bne @both
     ora player_save + PSTATE_SIZE + PS_FAILED
+    jmp @check
+@both:
+    and player_save + PSTATE_SIZE + PS_FAILED
 @check:
     cmp #0
     beq @alive
@@ -548,12 +547,6 @@ update_meters:
     bcc @plays
     jmp @hide               ; este jugador no juega (muy lejos para un bcs)
 @plays:
-    lda game_mode           ; Co-Op: un solo medidor, el de la banda (se dibuja con el jugador 1)
-    beq @shown
-    cpx #1
-    bne @shown
-    jmp @hide
-@shown:
     lda player_offset,x     ; X = dónde empieza su copia en player_save
     tax
     lda player_save + PS_NO_FAIL,x
@@ -589,10 +582,6 @@ update_meters:
     clc
     adc lane
     tax
-    lda game_mode
-    beq @pos
-    ldx #4                  ; Co-Op: en el centro
-@pos:
     lda meter_x,x
     sta addr+1
     lda #FX_Y - 1           ; coordenada Y del segmento de abajo (su borde de arriba es FX_Y)
@@ -653,9 +642,8 @@ update_meters:
 bolt_oam:  .byte BOLT_SPRITE * 4, (BOLT_SPRITE + BOLT_LEN) * 4
 meter_oam: .byte METER_SPRITE * 4, (METER_SPRITE + METER_SEGMENTS) * 4
 ; X del medidor, por (jugadores - 1) * 2 + jugador: con uno, a la derecha de la
-; autopista (columna 22); con dos, en el hueco del centro, uno junto al otro;
-; en Co-Op uno solo, al centro
-meter_x:   .byte 22 * 8, 0, 14 * 8, 18 * 8, 16 * 8
+; autopista (columna 22); con dos, en el hueco del centro, uno junto al otro
+meter_x:   .byte 22 * 8, 0, 14 * 8, 18 * 8
 
 ; "PAUSA" con sprites (el fondo de la autopista se está desplazando y es
 ; más fácil poner el letrero encima)

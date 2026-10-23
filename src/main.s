@@ -63,7 +63,8 @@ METER_SEGMENTS  = 6                    ; el medidor de vida son 6 sprites de 8 p
 METER_SPRITE    = BOLT_SPRITE + MAX_PLAYERS * BOLT_LEN ; primer sprite de los medidores (el último es el 60 de 64)
 LIFE_MAX        = METER_SEGMENTS * 8   ; vida: 1 punto = 1 pixel del medidor
 LIFE_START      = LIFE_MAX * 2 / 3     ; se empieza con dos tercios (no hay que clavar las primeras notas)
-LIFE_HIT        = 1                    ; acertar una nota
+LIFE_REVIVE     = LIFE_MAX / 2         ; vida con la que vuelve un compañero revivido (Co-Op)
+LIFE_HIT        = 1                   ; acertar una nota
 LIFE_GRACE      = 8                    ; tras perder vida, 8 cuadros sin perder más: una ráfaga de fallos
                                        ; (notas repetidas en un carril que caen antes de poder tocarlas, una
                                        ; por cuadro) se cobra una sola vez; más respiro regalaría la canción
@@ -224,13 +225,15 @@ combo_digits:   .res 3
 combo_bin:      .res 2   ; el combo en binario (combo_digits es para dibujarlo)
 max_combo:      .res 2
 score_units:    .res 2   ; el puntaje / 50 en binario (para las estrellas)
-life:           .res 1   ; vida (el medidor de rendimiento), 0..LIFE_MAX; al llegar a 0 pierdes
-failed:         .res 1   ; 1 = ya perdiste: tu instrumento calla y dejas de jugar
 star_energy:    .res 1   ; barra de poder estelar, 0..STAR_MAX
 star_active:    .res 1   ; 1 = poder estelar activado (puntaje x2, la barra se vacía)
 star_timer:     .res 1   ; cuadros que faltan para gastar el siguiente punto de energía
 shared_end:
 SHARED_SIZE = shared_end - shared_start
+; La vida no se comparte: en Co-Op cada quien tiene la suya, y si uno cae el otro puede
+; seguir y revivirlo con poder estelar (ver update_star)
+life:           .res 1   ; vida (el medidor de rendimiento), 0..LIFE_MAX; al llegar a 0 pierdes
+failed:         .res 1   ; 1 = ya perdiste: tu instrumento calla y dejas de jugar
 player_channel: .res 1   ; canal del APU que se silencia al fallar (0-3)
 player_muted:   .res 1   ; 1 = el jugador falló: su instrumento no suena hasta el siguiente acierto
 chart_start:    .res 2   ; chart elegido (instrumento + dificultad)
@@ -585,9 +588,7 @@ share_dirty:
     .byte HUD_SCORE, HUD_SCORE, HUD_SCORE, HUD_SCORE, HUD_SCORE, HUD_SCORE   ; score_digits
     .byte HUD_COMBO, HUD_COMBO, HUD_COMBO   ; combo_digits
     .byte 0, 0, 0, 0, 0, 0                  ; combo_bin, max_combo, score_units
-    .byte 0                                 ; life (el medidor son sprites)
-    .byte HUD_COMBO                         ; failed ("FALLASTE" va en el renglón del combo)
-    .byte HUD_STAR                          ; star_energy
+    .byte HUD_STAR                       ; star_energy
     .byte HUD_STAR | HUD_SCORE              ; star_active (también cambia el multiplicador)
     .byte 0                                 ; star_timer
 .assert * - share_dirty = SHARED_SIZE, error, "share_dirty debe tener un byte por campo compartido"
