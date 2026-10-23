@@ -52,6 +52,34 @@ draw_strip:
     dey
     bne @row
 
+    ; El público del escenario: las filas SPLIT_ROW .. 29 a los lados de los marcadores
+    ; (scene_strip trae 5 filas de 32 columnas por distribución: 1 jugador, 2 jugadores)
+    lda #<scene_strip
+    sta ptr
+    lda #>scene_strip
+    sta ptr+1
+    lda num_players
+    cmp #2
+    bcc @crowd
+    lda ptr                 ; 2 jugadores: sus filas van 5 * 32 bytes después (el carry está en 1)
+    adc #5 * 32 - 1
+    sta ptr
+    bcc @crowd
+    inc ptr+1
+@crowd:
+    bit PPUSTATUS
+    lda #>(STRIP_NT + SPLIT_ROW * 32)
+    sta PPUADDR
+    lda #<(STRIP_NT + SPLIT_ROW * 32)
+    sta PPUADDR
+    ldy #0
+@crowd_tile:
+    lda (ptr),y
+    sta PPUDATA
+    iny
+    cpy #5 * 32
+    bne @crowd_tile
+
     ldx #0
 @player:
     jsr load_player
@@ -276,7 +304,7 @@ clear_strip_buf:
     rts
 
 ;                     verde        rojo         amarillo     azul         naranja
-lane_ring_tile: .byte TILE_RING_A, TILE_RING_A, TILE_RING_A, TILE_RING_A, TILE_RING_B
+lane_ring_tile: .byte TILE_RING_A, TILE_RING_A, TILE_RING_B, TILE_RING_A, TILE_RING_B   ; (ver lane_gem)
 
 txt_combo:      .byte "COMBO "
 txt_failed:     .byte "FALLASTE  "        ; STRIP_WIDTH (10) caracteres

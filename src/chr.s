@@ -45,10 +45,17 @@
     TILE_PLANE r7, 1
 .endmacro
 
-; Rellena con tiles vacíos hasta llegar al tile número n
-.macro TILE_AT n
-    .assert * - chr_start <= (n) * 16, error, "Hay tiles encimados: el anterior se pasó del número pedido"
-    .res (n) * 16 - (* - chr_start)
+; Rellena con tiles vacíos hasta llegar al tile número n. `org` es donde empieza el tile 0 del
+; banco que se está escribiendo: sin él, el banco base (chr_start); los bancos del escenario
+; (ver al final) lo piden porque sus tiles son los $80-$FF de un banco de 2 KB.
+.macro TILE_AT n, org
+    .ifblank org
+        .assert * - chr_start <= (n) * 16, error, "Hay tiles encimados: el anterior se pasó del número pedido"
+        .res (n) * 16 - (* - chr_start)
+    .else
+        .assert * - (org) <= (n) * 16, error, "Hay tiles encimados: el anterior se pasó del número pedido"
+        .res (n) * 16 - (* - (org))
+    .endif
 .endmacro
 
 ; Números de tile
@@ -216,6 +223,9 @@ TILE "11...11.", ".11.11..", "..111...", "..111...", "..111...", ".11.11..", "11
 TILE "11...11.", "11...11.", ".11.11..", "..111...", "..111...", "..111...", "..111...", "........"
 TILE "1111111.", ".....11.", "....11..", "...11...", "..11....", ".11.....", "1111111.", "........"
 
+; --- Escenario: tiles fijos que se repiten con el scroll (los genera `nesband build-scene`) ---
+SCENE_CHR_LOW
+
 ; --- Bloques del logo (color 3) ------------------------------------------------
 ; Tile $80 + m, donde los bits de m dicen qué cuartos de 4x4 px están llenos:
 ;   bit 3 = arriba-izq, bit 2 = arriba-der, bit 1 = abajo-izq, bit 0 = abajo-der
@@ -251,7 +261,11 @@ TILE_AT TILE_BIG
     .byte 0, 0
 .endmacro
 
-TILE_AT TILE_BAR
+; Es una macro porque estos tiles también van en los bancos del escenario (SCENE_CHR_BANK, ver
+; scene_art.s): ahí el fondo cambia de banco en $0800-$0FFF y todo lo que el juego dibuja en esa
+; mitad debe estar en cada uno.
+.macro BG_STAR_TILES org
+TILE_AT TILE_BAR, org
 .repeat 9, n
     BAR_TILE n, 1           ; color 3: blanco (la franja usa la paleta 3, ver write_attributes)
 .endrepeat
@@ -263,10 +277,13 @@ TILE "22......", "2222....", "222222..", "2222222.", "2222222.", "222222..", "22
 TILE "1.....33", "1...3333", "1.333333", "13333333", "13333333", "1.333333", "1...3333", "1.....33"
 TILE "33......", "3333....", "333333..", "3333333.", "3333333.", "333333..", "3333....", "33......"
 
-TILE_AT TILE_BAR_ON
+TILE_AT TILE_BAR_ON, org
 .repeat 9, n
     BAR_TILE n, 0           ; color 2: azul
 .endrepeat
+.endmacro
+
+BG_STAR_TILES
 
 ; Rayo de las frases estelares completas (paleta de sprites 1: 1 = blanco, 2 = cian).
 ; Dos tiles que se alternan en una columna: $A9 baja de derecha a izquierda y $AA
@@ -293,3 +310,19 @@ TILE_AT TILE_METER
 .repeat 9, n
     METER_TILE n
 .endrepeat
+
+; --- Bancos del escenario ------------------------------------------------------------
+; Lo de arriba son los 4 KB que ven el fondo y los sprites (unidades 0-3 de 1 KB). Después van
+; 3 bancos de 2 KB, los que el fondo pone en $0800-$0FFF mientras se juega (ver scene.s): el
+; público quieto, con los brazos arriba y saltando. Cada uno repite los tiles del juego que
+; viven en esa mitad (BG_STAR_TILES) y trae los del escenario.
+; El "origen" que se le da a TILE_AT queda 128 tiles antes del inicio del banco, para usar los
+; mismos números de tile que ve el PPU ($80-$FF).
+TILE_AT $100
+scene_bank_idle:
+SCENE_CHR_BANK 0, scene_bank_idle - $80 * 16
+scene_bank_arms:
+SCENE_CHR_BANK 1, scene_bank_arms - $80 * 16
+scene_bank_jump:
+SCENE_CHR_BANK 2, scene_bank_jump - $80 * 16
+.assert * - scene_bank_idle = 3 * $800, error, "Cada banco del escenario debe medir 2 KB (SCENE_BANK_IDLE..JUMP en scene.s)"

@@ -166,6 +166,22 @@ x8), las llamaradas se vuelven azules y la barra se va vaciando (una barra llena
 frases que completes mientras está activo la rellenan. Las estrellas de los resultados no cuentan el
 doble: salen solo del combo normal.
 
+**Escenario:** a los lados de la autopista hay un escenario de concierto (bocinas, torres de luces
+y focos con su haz) y, en la franja de abajo, el **público**. Reacciona a cómo juegas:
+
+- Sin combo (menos de 10), el público está quieto.
+- Con combo, levanta los brazos y **salta al empezar cada tiempo de la canción** (con su tempo, `beat_frames`),
+  y la luz late con él.
+- Con el **poder estelar** activo, las luces cambian de color en cada tiempo (cian, rojo, amarillo y violeta).
+- Al completar una **frase estelar** (el rayo), hay un destello blanco en las luces.
+- Si pierdes (todos los jugadores), las luces se apagan.
+
+Con 2 jugadores, el escenario ocupa el centro, entre las dos autopistas (una torre con un foco a cada
+lado y un poco de público).
+
+![Escenario con 1 jugador](docs/escenario-1p.png)
+![Escenario con 2 jugadores](docs/escenario-2p.png)
+
 En Mesen configura qué teclas corresponden a cada botón en *Settings → Input*. Para jugar de a dos, el
 **puerto 2** debe tener un control de NES conectado (por default Mesen lo deja vacío).
 
@@ -307,7 +323,10 @@ copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
     jugador 1 gasta media barra de poder para devolverlo al juego. Comprueba que lo compartido es
     idéntico en la copia de cada jugador.
   - 2 jugadores en **fácil y experto**: la autopista va a la velocidad de experto para los dos.
-  - En todas, además: que suene la música del título y que suenen los efectos en el menú y al empezar.
+  - En todas, además: que suene la música del título y que suenen los efectos en el menú y al empezar,
+    y el **escenario**: la fase de los tiempos debe cuadrar cuadro por cuadro con la canción, el público
+    solo se anima (brazos arriba y saltos) cuando alguien lleva combo, las luces cambian con el poder
+    estelar y al salir del juego el fondo vuelve a su banco de gráficos de siempre.
   - Las capturas de cada pantalla quedan en `build/test-<canción>-<caso>/`.
 - `pytest` prueba el generador de charts (lectura de FamiStudio, tempo, reducción, carriles).
 
@@ -326,6 +345,8 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 | `src/menu.s` | Menú de canción, instrumento y dificultad |
 | `src/play.s` | Preparar la canción elegida, cada cuadro de juego (por jugador), pausa y fin |
 | `src/hud.s` | La franja fija de abajo: aros y marcador de cada jugador |
+| `src/scene.s` | El escenario vivo: cómo reaccionan el público y las luces (banco de CHR y color de la paleta) |
+| `src/scene_art.s` | El arte del escenario (tiles y tablas), **generado** por `uv run nesband build-scene` (`pctools/nesband_tools/scene.py`) |
 | `src/results.s` | Pantalla de resultados por jugador: precisión, combo máximo, estrellas |
 | `src/text.s` | Escribir textos y números en pantalla |
 | `src/highway.s` | La autopista: reloj de la canción, scroll, armado de cada fila de notas |
@@ -335,7 +356,7 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 | `audio/` | Proyectos de FamiStudio (texto) de la música del título y los efectos |
 | `src/famistudio/` | Motor de sonido de FamiStudio 4.5.3 (licencia MIT, sin modificar) |
 | `src/songs/` | Canciones convertidas (generadas por `nesband import-song`) |
-| `src/chr.s` | Los gráficos (tiles) dibujados como texto; la fuente usa el código ASCII como número de tile |
+| `src/chr.s` | Los gráficos (tiles) dibujados como texto; la fuente usa el código ASCII como número de tile. Incluye los 3 bancos del escenario (CHR de 16 KB) |
 | `src/nes.inc` | Direcciones de los registros del hardware |
 | `nes.cfg` | Mapa de memoria del cartucho MMC3 para el linker: dos bancos fijos con el código y 15 slots de canción |
 | `pctools/` | Herramientas de PC en Python (`nesband import-song`) |
@@ -365,6 +386,13 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
   `irq` cambia a qué parte de la memoria de video apunta el PPU: arriba se ve la autopista
   desplazándose y abajo una franja fija con los aros y el marcador. Para que el MMC3 pueda contar, los
   sprites usan la tabla de patrones de `$1000` y el fondo la de `$0000`.
+- **Animar sin gastar CPU.** El escenario no dibuja nada cada cuadro: el público son tiles del fondo
+  ya escritos en la nametable, y lo que cambia es **qué dibujo hay detrás de esos números de tile**.
+  El MMC3 deja cambiar el banco de CHR del fondo (`$0800-$0FFF`) con una escritura, así que tres
+  bancos con el público en tres poses se alternan según la música (`scene.s`). Las luces son un
+  solo color de la paleta que se reescribe en el vblank. Los costados, en cambio, bajan con el
+  scroll de la autopista: por eso son un dibujo que se repite cada 24 px (3 filas), de modo que
+  al dar la vuelta de la nametable (30 filas) no se nota el corte.
 - **Un jugador a la vez.** Todo lo de un jugador (sus carriles, puntaje, combo, chart) vive en un bloque
   de variables (`pstate`). Cada jugador guarda su copia; `load_player` la trae antes de procesarlo y
   `store_player` la devuelve. Así el mismo código sirve para 1 o 2 jugadores.

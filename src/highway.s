@@ -192,13 +192,30 @@ build_row:
     stx edge_tile
     sty inner_tile
 
-    ; 2) Fila vacía
-    ldx #31
-    lda #TILE_BLANK
+    ; 2) El fondo de la fila: el escenario de los costados (scene.s); en la autopista, vacío.
+    ; scene_rows trae 3 filas por distribución (1 jugador, 2 jugadores) de 32 columnas;
+    ; cuál toca depende de la fila de la nametable: el dibujo se repite cada 3 filas.
+    ldx next_vrow
+    lda scene_phase_of_vrow,x
+    asl a
+    asl a
+    asl a
+    asl a
+    asl a                   ; fase * 32
+    ldx num_players
+    cpx #2
+    bcc @layout
+    adc #3 * 32 - 1         ; 2 jugadores: sus 3 filas van después (el carry está en 1)
+@layout:
+    tay
+    ldx #0
 @clear:
+    lda scene_rows,y
     sta row_buf,x
-    dex
-    bpl @clear
+    iny
+    inx
+    cpx #32
+    bne @clear
 
     ; 3) La autopista de cada jugador
     ldx #0
@@ -446,8 +463,8 @@ compute_scroll:
 ;   bits 0-1 arriba-izq, 2-3 arriba-der, 4-5 abajo-izq, 6-7 abajo-der
 ; -----------------------------------------------------------------------------
 write_attributes:
-    ; 1) Paleta de cada columna de 16 px: 0 por default, la del carril donde hay uno
-    lda #0
+    ; 1) Paleta de cada columna de 16 px: la 3 (escenario) por default, la del carril donde hay uno
+    lda #3
     ldx #15
 @clear:
     sta attr_cols,x
@@ -542,7 +559,10 @@ write_attributes:
 ; Tablas por carril:     verde  rojo  amarillo  azul  naranja
 ; -----------------------------------------------------------------------------
 lane_bit:       .byte    %00001, %00010, %00100, %01000, %10000
-lane_gem:       .byte    TILE_GEM_A, TILE_GEM_A, TILE_GEM_A, TILE_GEM_A, TILE_GEM_B
-lane_star:      .byte    TILE_STAR_A, TILE_STAR_A, TILE_STAR_A, TILE_STAR_A, TILE_STAR_B
-lane_tail:      .byte   TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_B
-lane_palette:   .byte    0,      1,      2,      3,      0       ; naranja comparte paleta con verde
+; Solo hay 4 paletas de fondo y la 3 es del escenario (público, luces y marcador), así que los
+; carriles comparten: verde + naranja (0), rojo + amarillo (1) y el azul solo (2). En cada pareja
+; el segundo usa los tiles "B" (color 3 de la paleta).
+lane_gem:       .byte    TILE_GEM_A, TILE_GEM_A, TILE_GEM_B, TILE_GEM_A, TILE_GEM_B
+lane_star:      .byte    TILE_STAR_A, TILE_STAR_A, TILE_STAR_B, TILE_STAR_A, TILE_STAR_B
+lane_tail:      .byte   TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_B, TILE_TAIL_A, TILE_TAIL_B
+lane_palette:   .byte    0,      1,      1,      2,      0

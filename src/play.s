@@ -68,6 +68,7 @@ enter_play:
     sta next_beat+1
     jmp @beat_back
 @beat_ready:
+    jsr scene_init          ; el público baila al ritmo de estos mismos tiempos
 
     ; Velocidad: la de la dificultad más alta entre los jugadores
     lda #0
@@ -363,6 +364,7 @@ play_update:
     jsr update_meters       ; medidores de vida
     jsr update_fx           ; llamaradas de los aciertos
     jsr update_bolts        ; y los rayos de las notas estelares
+    jsr scene_update        ; público y luces del escenario
     jsr update_music        ; motor de sonido (y silenciar a quien haya fallado)
     jsr compute_scroll
 

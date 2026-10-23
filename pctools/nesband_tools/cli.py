@@ -412,6 +412,15 @@ def preview(args: argparse.Namespace) -> None:
         print(f"  pista {index + 1:2d} (--song {index})")
 
 
+def build_scene(args: argparse.Namespace) -> None:
+    from . import scene
+
+    if args.preview:
+        scene.preview()
+    else:
+        scene.main()
+
+
 def list_songs(args: argparse.Namespace) -> None:
     names = write_song_list()
     print(f"{len(names)} canciones en src/songs/list.s: {', '.join(names)}")
@@ -459,6 +468,10 @@ def main() -> None:
 
     p = sub.add_parser("build-audio", help="Exporta la música del título y los efectos (audio/*.txt) a src/audio/")
     p.set_defaults(func=build_audio)
+
+    p = sub.add_parser("build-scene", help="Genera src/scene_art.s: el público, las luces y las torres del escenario")
+    p.add_argument("--preview", action="store_true", help="en vez de generar, dibuja el escenario como texto")
+    p.set_defaults(func=build_scene)
 
     p = sub.add_parser("reimport", help="Vuelve a importar canciones con las opciones que se usaron la primera vez")
     p.add_argument("names", nargs="*", help="canciones (default: todas)")

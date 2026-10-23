@@ -293,6 +293,14 @@ hits100:        .res 3   ; ratio_num * 100, para calcular porcentajes (ratio100)
 ratio_num:      .res 2
 ratio_den:      .res 2
 ratio_res:      .res 1
+scene_on:       .res 1   ; 1 = la NMI aplica el banco y el color del escenario (solo mientras se juega)
+scene_bank:     .res 1   ; banco de CHR del fondo ($0800-$0FFF) con el público en su pose
+scene_color:    .res 1   ; color 2 de la paleta 3 de fondo: la luz del escenario
+scene_phase:    .res 1   ; cuadros desde el último tiempo de la canción
+scene_beat:     .res 1   ; tiempos transcurridos (solo importa su paridad y sus 2 bits bajos)
+scene_alive:    .res 1   ; scene_update: jugadores que siguen en pie
+scene_cheer:    .res 1   ; ... con combo para animar al público
+scene_star:     .res 1   ; ... con poder estelar activo
 
 ; -----------------------------------------------------------------------------
 ; Encabezado iNES: le dice al emulador qué tipo de cartucho es
@@ -300,7 +308,7 @@ ratio_res:      .res 1
 .segment "HEADER"
     .byte "NES", $1A
     .byte 16         ; 16 bancos de 16 KB de PRG-ROM = 256 KB (ver nes.cfg)
-    .byte 1          ; 1 banco de 8 KB de CHR-ROM
+    .byte 2          ; 2 bancos de 8 KB de CHR-ROM = 16 KB (ver nes.cfg y los bancos del escenario en chr.s)
     .byte $42        ; mapper 4 (MMC3): el mirroring lo elige el programa; bit 1 = RAM con batería
     .byte $00
     .byte 1          ; 1 bloque de 8 KB de PRG-RAM ($6000-$7FFF): ahí se guardan los récords
@@ -315,11 +323,15 @@ ratio_res:      .res 1
 .include "highway.s"
 .include "gameplay.s"
 .include "hud.s"
+.include "scene.s"
 .include "audio.s"
 .include "title.s"
 .include "menu.s"
 .include "play.s"
+; results.s va en el banco fijo de $E000 (segmento CODE2): el de $8000 (CODE) ya está lleno
+.segment "CODE2"
 .include "results.s"
+.segment "CODE"
 .include "records.s"
 .include "initials.s"
 
@@ -481,6 +493,11 @@ ppu_off:
     sta PPUMASK
     sta row_pending         ; descartar lo que el juego dejó pendiente para la NMI,
     sta erase_count         ; o se escribiría encima de la pantalla nueva
+    sta scene_on            ; fuera del escenario: el fondo vuelve a su banco de siempre
+    lda #MMC3_PRG_MODE_1 | 1
+    sta MMC3_BANK_SELECT
+    lda #SCENE_BANK_BASE
+    sta MMC3_BANK_DATA
     rts
 
 ppu_on:
@@ -693,6 +710,24 @@ nmi:
     lda #0
     sta nmi_ready
 @done:
+    ; 4b) Escenario (solo en el juego): el banco de CHR del público y el color de las luces.
+    ; Es el único código que toca el registro de banco del MMC3 con la NMI encendida:
+    ; select_slot (menú) y ppu_off lo usan con scene_on = 0 / la NMI apagada, para que la
+    ; NMI no se meta entre su "elegir registro" y su "poner valor".
+    lda scene_on
+    beq @no_scene
+    lda #MMC3_PRG_MODE_1 | 1    ; R1: el fondo en $0800-$0FFF
+    sta MMC3_BANK_SELECT
+    lda scene_bank
+    sta MMC3_BANK_DATA
+    bit PPUSTATUS
+    lda #$3F                    ; color 2 de la paleta 3 de fondo ($3F0E)
+    sta PPUADDR
+    lda #$0E
+    sta PPUADDR
+    lda scene_color
+    sta PPUDATA
+@no_scene:
     ; 5) Scroll, en todos los cuadros (la IRQ del cuadro anterior lo cambió).
     ; Va al final porque escribir en $2006 descompone el scroll.
     lda #PPUCTRL_BASE
@@ -781,15 +816,17 @@ irq:
 
 ; Colores (índices de la paleta del NES). $0F = negro.
 ; Juego: 4 paletas de fondo de 3 colores + el negro común. Color 1 = gris
-; de las líneas y del marcador; color 2 = gema del carril; color 3 = gema del
-; carril naranja (que comparte paleta con el verde porque solo hay 4 paletas).
+; de las líneas y del marcador; color 2 = gema del carril; color 3 = la del
+; segundo carril que comparte la paleta (ver lane_gem en highway.s). La paleta 3 es
+; del escenario: gris (estructura), azul (luz de fondo, que cambia con las luces:
+; ver scene.s) y blanco; también la usan la barra de poder estelar y el puntaje.
 PALETTES_PLAY = 0
 PALETTES_MENU = 32
 palettes:
     .byte $0F, $10, $2A, $27   ; fondo 0: verde + naranja
-    .byte $0F, $10, $16, $30   ; fondo 1: rojo
-    .byte $0F, $10, $28, $30   ; fondo 2: amarillo
-    .byte $0F, $10, $12, $30   ; fondo 3: azul
+    .byte $0F, $10, $16, $28   ; fondo 1: rojo + amarillo
+    .byte $0F, $10, $12, $30   ; fondo 2: azul
+    .byte $0F, $10, $12, $30   ; fondo 3: escenario
     .byte $0F, $30, $28, $27   ; sprites 0: blanco (texto y centro de la llama), amarillo, naranja
     .byte $0F, $30, $2C, $21   ; sprites 1: llama del poder estelar (blanco, cian, azul)
     .byte $0F, $30, $16, $30   ; sprites 2: medidor de vida, bajo (rojo)
@@ -816,5 +853,6 @@ palettes:
 ; -----------------------------------------------------------------------------
 ; Gráficos (CHR-ROM)
 ; -----------------------------------------------------------------------------
+.include "scene_art.s"          ; las tablas del escenario y las macros con sus tiles (para chr.s)
 .segment "CHARS"
 .include "chr.s"

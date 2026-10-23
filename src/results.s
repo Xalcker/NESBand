@@ -610,4 +610,4 @@ txt_slash:      .byte "/", 0
 txt_percent:    .byte "%", 0
 txt_continue:   .byte "START: CONTINUAR", 0
 
-.segment "CODE"
+.segment "CODE2"

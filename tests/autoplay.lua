@@ -88,6 +88,10 @@ local A_VS_RESULT = label("vs_result")
 -- de silenciar (un cuadro de 16 ms, que no se oye). Si de verdad no se silencia, son cientos.
 local UNMUTED_TOLERANCE = 3
 local A_NMI_COUNT = label("frame_counter")
+local A_SCENE_BANK, A_SCENE_COLOR = label("scene_bank"), label("scene_color")   -- escenario (#4)
+local A_SCENE_PHASE, A_SCENE_ON = label("scene_phase"), label("scene_on")
+local A_BEAT_FRAMES, A_SONG_PTR = label("beat_frames"), label("song_ptr")
+local SONG_BEAT_FRAMES, SONG_FIRST_BEAT = 4, 5                                 -- campos de la ficha de la canción
 local prev_nmi, lag_frames = nil, {}
 local A_COUNTER = label("famistudio_chn_note_counter")
 local A_SFX_PTR_HI = label("famistudio_sfx_base_addr") + 2   -- no 0 mientras suena un efecto
@@ -240,6 +244,11 @@ local STATE_MENU = 1
 local holds = {}     -- por jugador: sus notas sostenidas (se leen junto con el chart)
 local star_runs = {}    -- por jugador: cuántas frases estelares tiene su chart
 local star_shot_frame = nil   -- cuadro de la canción en que se captura una gema estelar en pantalla
+local scene_shots = {}          -- capturas del escenario que ya se tomaron (por banco y por color de luz)
+local scene_banks = {}          -- bancos de público que se vieron durante la canción
+local scene_lights = {}         -- colores de luz que se vieron (con poder estelar cambian cada tiempo)
+local scene_drift = 0           -- cuadros en que la fase del tiempo del escenario no cuadró con la canción
+local scene_behind = false      -- el cuadro anterior la fase iba un cuadro atrás (puede ser solo la muestra)
 local star_seen = {}    -- por jugador: ¿se vio el poder estelar activo en algún cuadro?
 local pause_at = PAUSE_AT   -- se recorre si cae en medio de una nota sostenida (al pausar se sueltan los botones)
 
@@ -546,6 +555,27 @@ local function evaluate()
     all_ok = all_ok and same
     lines[#lines + 1] = string.format("VS misma dificultad=%s (%d, %d)", tostring(same), d1, d2)
   end
+  -- Escenario (#4): sigue el tiempo de la canción, el público salta solo con combo, las luces
+  -- cambian con el poder estelar y al salir del juego el fondo vuelve a su banco de siempre
+  local perfect, other = false, false
+  for p = 1, num_players do
+    if modes[p] == "perfect" then perfect = true elseif modes[p]:sub(1, 5) == "human" then other = true end
+  end
+  local scene_ok = scene_drift == 0 and read8(A_SCENE_ON) == 0 and scene_banks[4] == true
+  if perfect and not cut then   -- (si la partida se corta al principio, no hay tiempo de animarse)
+    scene_ok = scene_ok and scene_banks[6] == true and scene_banks[8] == true   -- brazos arriba y saltos
+  elseif not other and not perfect then
+    scene_ok = scene_ok and scene_banks[6] == nil and scene_banks[8] == nil     -- sin combo, quieto
+  end
+  if use_star and perfect then
+    local changed = false
+    for color in pairs(scene_lights) do
+      if color ~= 0x12 and color ~= 0x22 and color ~= 0x30 and color ~= 0x0F then changed = true end
+    end
+    scene_ok = scene_ok and changed
+  end
+  all_ok = all_ok and scene_ok
+  lines[#lines + 1] = string.format("escenario=%s (desfase %d cuadros)", tostring(scene_ok), scene_drift)
   if vs_expect ~= 0 then
     local winner = read8(A_VS_RESULT)
     all_ok = all_ok and winner == vs_expect
@@ -673,6 +703,36 @@ emu.addEventCallback(function()
         end
       end
       last_volume[p] = nil
+    end
+    -- El escenario: una captura de cada pose del público (banco 4 quieto, 6 brazos, 8 salto)
+    -- y de las luces del poder estelar, la primera vez que aparecen
+    local bank, color = read8(A_SCENE_BANK), read8(A_SCENE_COLOR)
+    scene_banks[bank] = true
+    scene_lights[color] = true
+    -- Los saltos del público van con los tiempos de la canción: la fase debe ser (cuadro - primer tiempo) mod cuadros por tiempo
+    local song_ptr = read16(A_SONG_PTR)
+    local beat = read8(song_ptr + SONG_BEAT_FRAMES)
+    -- (Si el cuadro de pantalla termina a media vuelta del juego, song_frame ya avanzó y scene_update
+    -- aún no: la fase va un cuadro atrás. Eso solo vale si al cuadro siguiente ya cuadra.)
+    if beat > 0 then
+      local expected = (song_frame - read16(song_ptr + SONG_FIRST_BEAT)) % beat
+      local phase = read8(A_SCENE_PHASE)
+      if phase == expected then
+        scene_behind = false
+      elseif scene_behind or phase ~= (expected - 1) % beat then
+        scene_drift = scene_drift + 1
+      else
+        scene_behind = true
+      end
+    end
+    local shot = scene_shots[bank]
+    if shot == nil and song_frame > 100 then
+      scene_shots[bank] = true
+      write_file("captura_escenario_banco" .. bank .. ".png", emu.takeScreenshot())
+    end
+    if color ~= 0x12 and color ~= 0x22 and color ~= 0x30 and color ~= 0x0F and not scene_shots["c" .. color] then
+      scene_shots["c" .. color] = true
+      write_file(string.format("captura_escenario_luz%02X.png", color), emu.takeScreenshot())
     end
     if frame == mid_screenshot_frame then write_file("captura_juego.png", emu.takeScreenshot()) end
     if song_frame == star_shot_frame then write_file("captura_estrella.png", emu.takeScreenshot()) end
