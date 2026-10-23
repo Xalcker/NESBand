@@ -45,6 +45,13 @@ enter_initials:
     sta ini_pos
     sta ini_done
     jsr results_set_col
+    lda game_mode
+    beq @own
+    SET_PTR txt_band        ; Co-Op: el récord es de la banda
+    lda #INI_INST_ROW
+    jsr res_print
+    jmp @score_label
+@own:
     lda cur_instrument
     jsr ptr_instrument_name
     lda #INI_INST_ROW
@@ -53,6 +60,7 @@ enter_initials:
     jsr ptr_difficulty_name
     lda #INI_INST_ROW + 1
     jsr res_print
+@score_label:
     SET_PTR txt_score
     lda #INI_SCORE_LABEL
     jsr res_print
@@ -79,7 +87,9 @@ enter_initials:
     ldx player
     inx
     cpx num_players
-    bne @player
+    beq @players_done
+    jmp @player             ; (muy lejos para un bne)
+@players_done:
 
     lda #0
     sta scroll_y

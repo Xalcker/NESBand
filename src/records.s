@@ -14,7 +14,8 @@
 ; Registro (13 bytes):
 ;   0-1  id de la canción (hash de su título y juego: así el récord no se pega
 ;        a otra canción si cambia el orden o el número de canciones del cartucho)
-;   2    clave = instrumento * 4 + dificultad ($FF = registro libre)
+;   2    clave = instrumento * 4 + dificultad ($FF = registro libre); los récords
+;        de banda del Co-Op usan REC_BAND + la dificultad más alta de los dos
 ;   3-8  puntaje: 6 dígitos decimales, uno por byte (como score_digits)
 ;   9-11 iniciales (3 letras)
 ;   12   estrellas (0-5)
@@ -30,6 +31,7 @@ REC_TABLE    = RECORDS + 8
 REC_SIZE     = 13
 REC_MAX      = 250                      ; 250 * 13 = 3250 bytes; hay 180 combinaciones posibles con 15 canciones
 REC_FREE     = $FF                      ; clave de un registro sin usar
+REC_BAND     = $10                      ; clave de los récords de banda (Co-Op): REC_BAND + dificultad; las de un jugador son instrumento * 4 + dificultad (0-15)
 
 R_ID         = 0
 R_KEY        = 2
@@ -223,12 +225,26 @@ rec_find:
     clc
     rts
 
-; rec_key: A = clave (instrumento * 4 + dificultad) del jugador cargado en pstate
+; rec_key: A = clave (instrumento * 4 + dificultad) del jugador cargado en pstate;
+; en Co-Op, la de la banda
 rec_key:
+    lda game_mode
+    bne rec_team_key
     lda cur_instrument
     asl a
     asl a
     ora cur_difficulty
+    rts
+
+; rec_team_key: A = clave del récord de la banda (Co-Op): REC_BAND + la dificultad
+; más alta de los dos jugadores. No depende de los instrumentos: la banda es la banda.
+rec_team_key:
+    lda player_save + (cur_difficulty - pstate)
+    cmp player_save + PSTATE_SIZE + (cur_difficulty - pstate)
+    bcs @higher
+    lda player_save + PSTATE_SIZE + (cur_difficulty - pstate)
+@higher:
+    ora #REC_BAND
     rts
 
 ; -----------------------------------------------------------------------------

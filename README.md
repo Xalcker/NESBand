@@ -74,7 +74,23 @@ Compilar la ROM **no** necesita FamiStudio ni Python: la canción ya convertida 
 **Menú:** ↑/↓ elige la opción (canción, jugadores, instrumento, dificultad), ←/→ cambia el valor,
 Start juega y B regresa al título. Mientras eliges, suena la canción. Con **2 jugadores**, el jugador 2
 elige su instrumento y dificultad con el control 2 (su cursor es naranja). No pueden tocar el mismo
-instrumento: cada quien silencia su canal al fallar.
+instrumento (en Co-Op; en VS sí pueden, ver abajo): cada quien silencia su canal al fallar.
+
+**Modos de 2 jugadores:** en JUGADORES, ←/→ cambia entre `1 JUGADOR`, `2 JUGADORES VS` y
+`2 JUGADORES COOP`.
+
+- **VS:** cada quien juega su partida, con su instrumento y dificultad. Al final, los resultados dicen
+  `GANA J1 POR 001230` (la diferencia de puntaje) o `EMPATE`. Pueden elegir **el mismo instrumento**
+  (y dificultad) para un duelo sobre las mismas notas; como comparten canal de sonido, el instrumento
+  solo se calla cuando los dos están fallando.
+- **Co-Op (banda):** los dos son una banda. El **puntaje, el combo (y su multiplicador), la barra de
+  poder estelar y la vida son de la banda**: si cualquiera falla, se rompe el combo de los dos; las
+  frases estelares de ambos llenan la misma barra (Select de cualquiera la activa) y si la vida se
+  acaba, pierden los dos. Hay un solo medidor de vida, al centro. Los resultados muestran lo de la banda
+  al centro (puntaje, combo máximo, estrellas sobre el máximo de los dos charts juntos) y, por jugador,
+  sus notas y precisión. Si uno de los dos elige "sin fallo", la banda juega sin fallo.
+  El **récord de banda** es aparte (por canción y la dificultad más alta de los dos) y sale bajo el
+  jugador 1 en el menú.
 
 **Juego** (modo "tap", un botón por carril, cada jugador con su control):
 
@@ -126,7 +142,7 @@ menú, debajo de FALLO, ves el récord de lo que elegiste (`029920 ABC 5*`: punt
 estrellas, o `---` si no hay). Si al terminar una canción superas el récord, los resultados dicen
 **NUEVO RECORD** y al presionar Start escribes tus iniciales como en un arcade (arriba/abajo cambia la
 letra, izquierda/derecha cambia de letra, A o Start confirma). Perder la canción o jugar **sin fallo** no
-graba récord. Con dos jugadores, cada quien tiene el suyo.
+graba récord. Con dos jugadores en VS, cada quien tiene el suyo; en Co-Op hay uno de banda.
 
 Los récords viven en la **RAM con batería** del cartucho (8 KB en `$6000`, que el MMC3 habilita con
 `$A001`): el emulador los guarda en un archivo `nesband.sav` junto a las partidas guardadas (en Mesen,
@@ -251,7 +267,10 @@ uv run pytest
 ```
 
 Con muchas canciones la batería completa tarda (unos 3 minutos por canción); para probar solo
-algunas: `.\tests\run_tests.ps1 -Only wily,cv3_*` (acepta comodines).
+algunas: `.\tests\run_tests.ps1 -Only wily,cv3_*` (acepta comodines). Para cambios del motor basta la
+corrida rápida, `.\tests\run_tests.ps1 -Rapida` (la demo y 3 canciones representativas); la completa
+es para cambios de charts, del generador o de los bancos. `-Rom` y `-NoBuild` permiten probar una
+copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
 
 - `run_tests.ps1` corre la ROM en Mesen, sin ventana, con un bot por jugador (`tests/autoplay.lua`)
   que recorre todo: título → menú (elige canción, jugadores, instrumentos y experto) → juego →
@@ -266,7 +285,12 @@ algunas: `.\tests\run_tests.ps1 -Only wily,cv3_*` (acepta comodines).
   - 1 jugador **en fácil**: la autopista más lenta.
   - 2 jugadores **perfectos** (guitarra + bajo).
   - 2 jugadores **mixto**: uno perfecto y el otro sin tocar nada, para comprobar que cada quien lleva
-    su propio juego (puntaje, silenciado, resultados).
+    su propio juego (puntaje, silenciado, resultados). Revisa además que el VS declare ganador al
+    perfecto; también hay casos de VS donde gana el jugador 2 y de empate.
+  - **Co-Op**: dos jugadores perfectos (el puntaje de la banda debe ser exactamente el de los dos
+    charts mezclados cuadro por cuadro, con un solo combo, y la barra de poder la suma de las frases de
+    ambos), con poder estelar, y los dos sin tocar nada con fallo (la vida de la banda se acaba y
+    pierden los dos). Comprueba que lo compartido es idéntico en la copia de cada jugador.
   - 2 jugadores en **fácil y experto**: la autopista va a la velocidad de experto para los dos.
   - En todas, además: que suene la música del título y que suenen los efectos en el menú y al empezar.
   - Las capturas de cada pantalla quedan en `build/test-<canción>-<caso>/`.

@@ -136,6 +136,9 @@ buttons:        .res 1   ; botones del control del jugador actual (en menús: el
 pressed:        .res 1   ; los que se acaban de presionar (no estaban en el cuadro anterior)
 player:         .res 1   ; jugador cargado en el bloque pstate (0 o 1)
 num_players:    .res 1   ; 1 o 2
+game_mode:      .res 1   ; 0 = VS (cada quien su partida; también con 1 jugador), 1 = Co-Op (banda: ver share_team)
+vs_result:      .res 1   ; resultado del VS: 0 = no hubo, 1 = gana J1, 2 = gana J2, 3 = empate (lo escribe enter_results)
+team_dirty:     .res 1   ; bits de hud_dirty que cambiaron por lo compartido (share_team)
 
 game_state:     .res 1   ; STATE_...
 cur_song:       .res 1   ; lo que se eligió en el menú
@@ -205,6 +208,23 @@ inner_tile:     .res 1
 pstate:
 cur_instrument: .res 1   ; elegido en el menú
 cur_difficulty: .res 1
+; Lo compartido: en Co-Op los dos jugadores forman una banda y estos campos son
+; los mismos para ambos (store_player los copia al otro jugador). En VS cada
+; quien lleva los suyos. Tienen que ir juntos, en este orden (share_dirty).
+shared_start:
+multiplier:     .res 1   ; x1..x4
+score_digits:   .res 6   ; puntaje en decimal, un dígito por byte (más fácil de dibujar)
+combo_digits:   .res 3
+combo_bin:      .res 2   ; el combo en binario (combo_digits es para dibujarlo)
+max_combo:      .res 2
+score_units:    .res 2   ; el puntaje / 50 en binario (para las estrellas)
+life:           .res 1   ; vida (el medidor de rendimiento), 0..LIFE_MAX; al llegar a 0 pierdes
+failed:         .res 1   ; 1 = ya perdiste: tu instrumento calla y dejas de jugar
+star_energy:    .res 1   ; barra de poder estelar, 0..STAR_MAX
+star_active:    .res 1   ; 1 = poder estelar activado (puntaje x2, la barra se vacía)
+star_timer:     .res 1   ; cuadros que faltan para gastar el siguiente punto de energía
+shared_end:
+SHARED_SIZE = shared_end - shared_start
 player_channel: .res 1   ; canal del APU que se silencia al fallar (0-3)
 player_muted:   .res 1   ; 1 = el jugador falló: su instrumento no suena hasta el siguiente acierto
 chart_start:    .res 2   ; chart elegido (instrumento + dificultad)
@@ -214,14 +234,8 @@ lane_ptr_lo:    .res NUM_LANES   ; siguiente nota pendiente de cada carril
 lane_ptr_hi:    .res NUM_LANES
 lane_frame_lo:  .res NUM_LANES   ; y el cuadro en que suena
 lane_frame_hi:  .res NUM_LANES
-multiplier:     .res 1   ; x1..x4
-score_digits:   .res 6   ; puntaje en decimal, un dígito por byte (más fácil de dibujar)
-combo_digits:   .res 3
 notes_total:    .res 2   ; gemas en el chart
 notes_hit:      .res 2   ; gemas acertadas
-combo_bin:      .res 2   ; el combo en binario (combo_digits es para dibujarlo)
-max_combo:      .res 2
-score_units:    .res 2   ; el puntaje / 50 en binario (para las estrellas)
 percent:        .res 1   ; notas acertadas, en %
 score_pct:      .res 1   ; puntaje logrado / puntaje máximo posible, en %
 stars:          .res 1
@@ -232,11 +246,6 @@ ini:            .res 3   ; iniciales que se están escribiendo (letras 'A'-'Z')
 ini_pos:        .res 1   ; cuál de las 3 letras se está cambiando
 ini_done:       .res 1   ; 1 = ya terminó de escribir las iniciales (y se grabó el récord)
 no_fail:        .res 1   ; 1 = "sin fallo": no pierde y no puede grabar récord (lo elige el menú: no se reinicia al jugar)
-life:           .res 1   ; vida (el medidor de rendimiento), 0..LIFE_MAX; al llegar a 0 pierdes
-failed:         .res 1   ; 1 = ya perdiste: tu instrumento calla y dejas de jugar
-star_energy:    .res 1   ; barra de poder estelar, 0..STAR_MAX
-star_active:    .res 1   ; 1 = poder estelar activado (puntaje x2, la barra se vacía)
-star_timer:     .res 1   ; cuadros que faltan para gastar el siguiente punto de energía
 star_failed:    .res 1   ; 1 = ya fallaste una nota de la frase estelar en curso
 tail_mask:      .res 1   ; carriles con una cola de nota sostenida en la parte ya dibujada de la autopista
 hold_on:        .res NUM_LANES   ; 1 = estás sosteniendo la nota de ese carril
@@ -268,7 +277,7 @@ erase_hi:       .res MAX_ERASE   ; cola de gemas a borrar: dirección y tile
 erase_lo:       .res MAX_ERASE
 erase_tile:     .res MAX_ERASE
 vbuf:           .res VBUF_SIZE   ; cola de textos para la NMI (ver text.s)
-numstr:         .res 16  ; texto de un número (num_to_text) u otro texto armado al vuelo
+numstr:         .res 20  ; texto de un número (num_to_text) u otro texto armado al vuelo
 strip_buf:      .res 32  ; un renglón de la franja fija, antes de mandarlo a la cola
 hits100:        .res 3   ; ratio_num * 100, para calcular porcentajes (ratio100)
 ratio_num:      .res 2
@@ -518,7 +527,63 @@ store_player:
     inx
     cpx #PSTATE_SIZE
     bne @copy
+    lda game_mode
+    bne share_team          ; Co-Op: lo compartido también es del otro jugador
     rts
+
+; -----------------------------------------------------------------------------
+; share_team: (Co-Op) copia lo compartido del jugador actual a la copia guardada
+; del otro, para que cuando le toque cargarse vea el mismo puntaje, combo, vida y
+; poder estelar. Si algo cambió, le marca a su marcador lo que debe redibujar
+; (el otro jugador dibuja la misma banda debajo de su autopista).
+; Deja el carry en 1, como lo deja el ciclo de store_player (select_song lo revisa).
+; -----------------------------------------------------------------------------
+share_team:
+    lda player
+    eor #1
+    tax                     ; X = el otro jugador
+    lda player_offset,x
+    clc
+    adc #shared_start - pstate
+    tay                     ; Y = donde empieza lo compartido en su copia
+    ldx #0
+    stx team_dirty
+@field:
+    lda shared_start,x
+    cmp player_save,y
+    beq @same
+    sta player_save,y
+    lda team_dirty
+    ora share_dirty,x       ; qué renglón del marcador depende de este campo
+    sta team_dirty
+@same:
+    iny
+    inx
+    cpx #SHARED_SIZE
+    bne @field
+    lda player
+    eor #1
+    tax
+    lda player_offset,x
+    tay
+    lda player_save + (hud_dirty - pstate),y
+    ora team_dirty
+    sta player_save + (hud_dirty - pstate),y
+    sec
+    rts
+
+; Qué renglón del marcador cambia con cada campo compartido (en el orden de shared_start)
+share_dirty:
+    .byte HUD_SCORE                         ; multiplier
+    .byte HUD_SCORE, HUD_SCORE, HUD_SCORE, HUD_SCORE, HUD_SCORE, HUD_SCORE   ; score_digits
+    .byte HUD_COMBO, HUD_COMBO, HUD_COMBO   ; combo_digits
+    .byte 0, 0, 0, 0, 0, 0                  ; combo_bin, max_combo, score_units
+    .byte 0                                 ; life (el medidor son sprites)
+    .byte HUD_COMBO                         ; failed ("FALLASTE" va en el renglón del combo)
+    .byte HUD_STAR                          ; star_energy
+    .byte HUD_STAR | HUD_SCORE              ; star_active (también cambia el multiplicador)
+    .byte 0                                 ; star_timer
+.assert * - share_dirty = SHARED_SIZE, error, "share_dirty debe tener un byte por campo compartido"
 
 player_offset: .byte 0, PSTATE_SIZE    ; dónde empieza la copia de cada jugador
 

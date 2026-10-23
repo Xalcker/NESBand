@@ -492,6 +492,11 @@ update_star:
     lda #SFX_ACEPTAR
     jsr play_sfx
 @drain:
+    lda game_mode           ; Co-Op: la barra es de la banda y se pasa por aquí una vez por
+    beq @drain_now          ; jugador; solo el jugador 1 la gasta, o se vaciaría al doble
+    lda player
+    bne @done
+@drain_now:
     lda star_active
     beq @done
     dec star_timer
