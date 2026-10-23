@@ -28,6 +28,8 @@
 --                        va a la velocidad de la más alta de los dos.
 --   AUTOPLAY_MODE2       cómo juega el jugador 2 (default: perfect)
 --   AUTOPLAY_INSTRUMENT2 instrumento del jugador 2 (default: 2, bajo; debe ser distinto)
+--   AUTOPLAY_STAR        1 = los jugadores perfectos activan el poder estelar (Select) en
+--                        cuanto la barra llega a la mitad; 0 (default) = nunca lo activan
 --   TEST_OUT             carpeta donde dejar resultado.txt y capturas .png
 --
 -- Requiere que Mesen tenga habilitado "AllowIoOsAccess" (escribir archivos) y
@@ -41,6 +43,8 @@ local instruments = { tonumber(os.getenv("AUTOPLAY_INSTRUMENT") or "0"),
                       tonumber(os.getenv("AUTOPLAY_INSTRUMENT2") or "2") }
 local difficulty = tonumber(os.getenv("AUTOPLAY_DIFFICULTY") or "3")   -- 0 fácil .. 3 experto
 local difficulty2 = tonumber(os.getenv("AUTOPLAY_DIFFICULTY2") or tostring(difficulty))
+local use_star = os.getenv("AUTOPLAY_STAR") == "1"
+local STAR_MAX, STAR_PHRASE, STAR_MIN = 80, 20, 40       -- como en main.s
 local outdir = os.getenv("TEST_OUT") or "."
 local mem = emu.memType.nesMemory
 
@@ -123,8 +127,10 @@ local SCREENSHOTS = { [25] = "captura_titulo.png", [menu_done + 8] = "captura_me
 -- y cuadro en que termina su cola)
 local CHART_SUSTAIN, CHART_RELEASE = 0x40, 0x80
 local HOLD_POINTS, HOLD_TICK = 10, 8
+local CHART_STAR = 0x20
 local function read_chart(p)
   local notes, holds, pending = {}, {}, {}
+  local star_runs, prev_star = 0, false
   local ptr = read16(field(p, "chart_start"))
   local frame = 0
   while read8(ptr + 1) ~= CHART_END do
@@ -139,7 +145,10 @@ local function read_chart(p)
         end
       end
     elseif mask ~= 0 then
-      notes[#notes + 1] = { frame = frame, mask = mask }
+      local star = raw & CHART_STAR ~= 0           -- frases estelares: rachas de notas con la marca
+      notes[#notes + 1] = { frame = frame, mask = mask, star = star }
+      if star and not prev_star then star_runs = star_runs + 1 end
+      prev_star = star
       if raw & CHART_SUSTAIN ~= 0 then
         for lane = 0, 4 do
           if (mask >> lane) & 1 == 1 then pending[lane] = frame end
@@ -148,7 +157,7 @@ local function read_chart(p)
     end
     ptr = ptr + CHART_ENTRY
   end
-  return notes, holds
+  return notes, holds, star_runs
 end
 
 -- Puntaje esperado si se aciertan todas y se sostienen las colas hasta el final
@@ -175,6 +184,9 @@ end
 local frame = 0
 local pause_frame, resume_frame = nil, nil
 local holds = {}     -- por jugador: sus notas sostenidas (se leen junto con el chart)
+local star_runs = {}    -- por jugador: cuántas frases estelares tiene su chart
+local star_shot_frame = nil   -- cuadro de la canción en que se captura una gema estelar en pantalla
+local star_seen = {}    -- por jugador: ¿se vio el poder estelar activo en algún cuadro?
 local pause_at = PAUSE_AT   -- se recorre si cae en medio de una nota sostenida (al pausar se sueltan los botones)
 
 -- Mesen pide el estado de cada control justo cuando el juego lo lee: ahí lo
@@ -203,6 +215,10 @@ local function bot_input(p)
       if read8(ptr + 1) ~= CHART_END and lane_frame == next_frame then
         input[LANE_KEYS[lane + 1]] = true
       end
+    end
+    -- Poder estelar: Select en cuanto la barra llega a la mitad
+    if use_star and read8(field(p, "star_active")) == 0 and read8(field(p, "star_energy")) >= STAR_MIN then
+      input.select = true
     end
     -- Notas sostenidas: mantiene el botón desde la nota hasta el fin de su cola
     for _, h in ipairs(holds[p] or {}) do
@@ -254,7 +270,18 @@ local function check_player(p)
 
   local ok = off_sync == 0 and trigger_count[p] >= #chart and notes_total == hits
   if modes[p] == "perfect" then
-    ok = ok and score == exp_score and combo == math.min(hits, 999) and notes_hit == hits
+    -- Sin activar el poder estelar, el puntaje es exacto y la barra termina con 25% por frase
+    -- (hasta llenarse). Activándolo, el puntaje sube pero a lo más al doble (las estrellas no cambian).
+    local score_ok, star_ok
+    if use_star then
+      score_ok = score <= 2 * exp_score and (star_runs[p] < 2 or (score > exp_score and star_seen[p]))
+      star_ok = true
+    else
+      score_ok = score == exp_score
+      star_ok = read8(field(p, "star_energy")) == math.min(STAR_MAX, STAR_PHRASE * star_runs[p])
+                and read8(field(p, "star_active")) == 0
+    end
+    ok = ok and score_ok and star_ok and combo == math.min(hits, 999) and notes_hit == hits
          and max_combo == hits and percent == 100 and stars == 5
     if p == 1 then ok = ok and resume_frame ~= nil end
   elseif modes[p] == "smash" then
@@ -315,7 +342,13 @@ emu.addEventCallback(function()
   if state == STATE_PLAY and read16(A_SONG_FRAME) > 0 then
     if not charts then
       charts = {}
-      for p = 1, num_players do charts[p], holds[p] = read_chart(p) end
+      for p = 1, num_players do charts[p], holds[p], star_runs[p] = read_chart(p) end
+      for i, n in ipairs(charts[1]) do          -- captura con el rayo de la primera frase estelar completa
+        if n.star and not (charts[1][i + 1] and charts[1][i + 1].star) then
+          star_shot_frame = n.frame + 3
+          break
+        end
+      end
       local busy = true
       while busy do
         busy = false
@@ -329,6 +362,7 @@ emu.addEventCallback(function()
     end
     local song_frame = read16(A_SONG_FRAME)
     for p = 1, num_players do
+      if read8(field(p, "star_active")) == 1 then star_seen[p] = true end
       -- El contador del "ecualizador" del motor salta a 9 en cada nota nueva
       -- (un contador por canal: 0 = pulso 1, 1 = pulso 2, 2 = triángulo)
       local counter = read8(A_COUNTER + instruments[p])
@@ -349,6 +383,7 @@ emu.addEventCallback(function()
       last_volume[p] = nil
     end
     if frame == mid_screenshot_frame then write_file("captura_juego.png", emu.takeScreenshot()) end
+    if song_frame == star_shot_frame then write_file("captura_estrella.png", emu.takeScreenshot()) end
     if pause_frame and frame == pause_frame + 30 then write_file("captura_pausa.png", emu.takeScreenshot()) end
   elseif state == STATE_RESULTS and charts then
     results_frames = results_frames + 1

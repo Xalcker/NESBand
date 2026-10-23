@@ -100,6 +100,7 @@ update_music:
 ; -----------------------------------------------------------------------------
 PS_MUTED   = player_muted - pstate      ; posición dentro del bloque de un jugador
 PS_CHANNEL = player_channel - pstate
+PS_STAR_ACTIVE = star_active - pstate   ; (lo usa update_fx, en play.s)
 
 apply_mute:
     ldx #0

@@ -121,6 +121,23 @@ def test_sustain_ends_respects_duration_and_next_note_in_lane():
     assert MIN_SUSTAIN <= cut[0]
 
 
+def test_star_phrases_are_separated_runs():
+    from nesband_tools.chart import STAR_FIRST, STAR_FLAG, STAR_PHRASE_LEN, STAR_SPACING, ChartNote, chart_entries, star_notes
+
+    stars = star_notes(100)
+    runs = []
+    for i, star in enumerate(stars):
+        if star and (i == 0 or not stars[i - 1]):
+            runs.append(i)
+    assert runs == list(range(STAR_FIRST, 100 - STAR_PHRASE_LEN, STAR_SPACING))
+    assert all(sum(stars[r : r + STAR_PHRASE_LEN]) == STAR_PHRASE_LEN for r in runs)
+    assert star_notes(5) == [False] * 5  # canción corta: sin frases
+
+    entries = chart_entries([ChartNote(10, 0x04, star=True), ChartNote(20, 0x01)])
+    assert entries[0] == (10, 0x04 | STAR_FLAG)
+    assert entries[1] == (10, 0x01)
+
+
 def test_build_chart_frames_and_lanes():
     grid = BeatGrid(20, 0)
     notes = [Note(0, 60, 5), Note(10, 64, 5), Note(20, 67, 5)]

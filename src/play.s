@@ -164,12 +164,15 @@ enter_play:
     jsr draw_strip          ; aros y marcador, en la nametable de $2400
 
     jsr hide_sprites
-    lda #0                  ; sin llamaradas encendidas
+    lda #0                  ; sin llamaradas ni rayos encendidos
+    sta star_hit
     ldx #FX_SLOTS - 1
 @no_fx:
     sta fx_timer,x
     dex
     bpl @no_fx
+    sta bolt_timer
+    sta bolt_timer+1
     jsr compute_scroll
     lda #1
     sta split_on            ; desde el siguiente vblank, pantalla dividida
@@ -218,6 +221,10 @@ init_player:
     sta score_units+1
     sta player_muted
     sta tail_mask           ; sin colas dibujadas ni notas sostenidas
+    sta star_energy         ; ni poder estelar
+    sta star_active
+    sta star_timer
+    sta star_failed
     ldx #NUM_LANES - 1
 @no_hold:
     sta hold_on,x
@@ -315,6 +322,7 @@ play_update:
     jsr load_player
     jsr judge_lanes         ; aciertos y fallos
     jsr update_holds        ; puntos de las notas sostenidas
+    jsr update_star         ; Select activa el poder estelar; la barra se vacía
     jsr update_hud          ; aros y marcador
     jsr store_player
     ldx player
@@ -323,6 +331,7 @@ play_update:
     bne @player
 
     jsr update_fx           ; llamaradas de los aciertos
+    jsr update_bolts        ; y los rayos de las notas estelares
     jsr update_music        ; motor de sonido (y silenciar a quien haya fallado)
     jsr compute_scroll
 
@@ -396,7 +405,17 @@ update_fx:
     sta oam,y
     lda #FX_Y + 8 - 1
     sta oam+4,y
-    lda #0                  ; paleta de sprites 0, sin voltear
+    lda #0                  ; paleta de sprites 0 (fuego), o la 1 (azul) si el jugador tiene el
+    cpx #NUM_LANES          ; poder estelar activo; leemos su copia guardada
+    bcs @second
+    lda player_save + PS_STAR_ACTIVE
+    jmp @palette
+@second:
+    lda player_save + PSTATE_SIZE + PS_STAR_ACTIVE
+@palette:
+    beq @attr               ; (A = 0: fuego)
+    lda #1
+@attr:
     sta oam+2,y
     sta oam+6,y
     lda fx_x,x
@@ -411,6 +430,77 @@ update_fx:
     inx
     cpx #FX_SLOTS
     bne @slot
+    rts
+
+; -----------------------------------------------------------------------------
+; update_bolts: el rayo que cae sobre el carril al acertar una nota estelar.
+; Una columna de BOLT_LEN sprites (cada uno de 8x8, sobre el anterior) que sube
+; desde el aro: un rayo largo en zigzag. Los dos dibujos del zigzag se
+; alternan y se intercambian en cada cuadro para que "chispee". Hay un rayo
+; por jugador (a diferencia de las llamaradas, que son una por carril).
+; -----------------------------------------------------------------------------
+update_bolts:
+    ldx #0
+@player:
+    stx tmp                 ; jugador (X pasa a contar sprites más abajo)
+    txa
+    asl a
+    asl a
+    asl a
+    asl a
+    asl a
+    asl a                   ; 16 sprites x 4 bytes de OAM por jugador
+    clc
+    adc #BOLT_SPRITE * 4
+    tay                     ; Y = OAM del primer sprite de este rayo
+    lda bolt_timer,x
+    beq @hide
+    dec bolt_timer,x
+    lda bolt_x,x
+    sta addr                ; posición X del rayo
+    lda #FX_Y + 8 - 1       ; el de más abajo queda sobre el aro (coordenada Y = línea - 1)
+    sta tmp+1
+    ldx #BOLT_LEN           ; sprites por dibujar
+@sprite:
+    lda tmp+1
+    sta oam,y
+    sec
+    sbc #8                  ; el siguiente va 8 px más arriba
+    sta tmp+1
+    txa
+    clc
+    adc frame_counter       ; zigzag: alterna el dibujo entre sprites vecinos y entre cuadros
+    and #1
+    clc
+    adc #TILE_BOLT
+    sta oam+1,y
+    lda #1                  ; paleta de sprites 1 (blanco, cian, azul)
+    sta oam+2,y
+    lda addr
+    sta oam+3,y
+    iny
+    iny
+    iny
+    iny
+    dex
+    bne @sprite
+    jmp @next
+@hide:
+    lda #$FF
+    ldx #BOLT_LEN
+@hide_loop:
+    sta oam,y
+    iny
+    iny
+    iny
+    iny
+    dex
+    bne @hide_loop
+@next:
+    ldx tmp
+    inx
+    cpx #MAX_PLAYERS
+    bne @player
     rts
 
 ; "PAUSA" con sprites (el fondo de la autopista se está desplazando y es

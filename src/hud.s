@@ -5,6 +5,7 @@
 ; scroll (ver irq en main.s). Debajo de la autopista de cada jugador, como
 ; tiles de fondo:
 ;   fila SPLIT_ROW      los 5 aros (rellenos mientras mantienes el botón)
+;   fila SPLIT_ROW + 1  barra de poder estelar
 ;   fila SPLIT_ROW + 2  puntaje y multiplicador   "000000 X4"
 ;   fila SPLIT_ROW + 3  combo                      "COMBO 123"
 ; Con sprites no se podría: dos jugadores son 10 aros en la misma línea y el
@@ -24,8 +25,11 @@ STRIP_WIDTH  = HIGHWAY_TILES        ; cada bloque mide lo que la autopista
 HUD_ENTRY    = 3 + STRIP_WIDTH      ; bytes que ocupa un renglón en vbuf
 HUD_BUDGET   = 4 * HUD_ENTRY        ; a lo más 4 renglones por cuadro
 
-HUD_SCORE    = %01                  ; bits de hud_dirty
-HUD_COMBO    = %10
+STAR_ROW     = SPLIT_ROW + 1        ; barra de poder estelar (entre los aros y el puntaje)
+
+HUD_SCORE    = %001                 ; bits de hud_dirty
+HUD_COMBO    = %010
+HUD_STAR     = %100
 
 ; -----------------------------------------------------------------------------
 ; draw_strip: la franja completa, con el dibujo apagado (al empezar a jugar)
@@ -53,7 +57,7 @@ draw_strip:
     jsr load_player
     lda #$FF                ; ningún estado de aros coincide con $FF: se dibujan
     sta rings_shown
-    lda #HUD_SCORE | HUD_COMBO
+    lda #HUD_SCORE | HUD_COMBO | HUD_STAR
     sta hud_dirty
     jsr update_hud
     jsr flush_vbuf          ; el dibujo está apagado: se puede copiar ya
@@ -104,13 +108,23 @@ update_hud:
 @score_ok:
     lda hud_dirty
     and #HUD_COMBO
+    beq @combo_ok
+    jsr hud_room
+    bcc @combo_ok
+    lda hud_dirty
+    and #<~HUD_COMBO
+    sta hud_dirty
+    jsr queue_combo
+@combo_ok:
+    lda hud_dirty
+    and #HUD_STAR
     beq @done
     jsr hud_room
     bcc @done
     lda hud_dirty
-    and #<~HUD_COMBO
+    and #<~HUD_STAR
     sta hud_dirty
-    jmp queue_combo
+    jmp queue_star
 @done:
     rts
 
@@ -162,11 +176,47 @@ queue_score:
     bpl @digit
     lda #'X'
     sta strip_buf+7
-    lda multiplier
+    jsr eff_multiplier      ; x2..x8 con el poder estelar activo
     clc
     adc #'0'
     sta strip_buf+8
     lda #<(STRIP_NT + SCORE_ROW * 32)
+    jmp queue_strip_buf
+
+; La barra de poder estelar: 10 tiles de 8 px; cada uno se llena de izquierda a
+; derecha según star_energy (tiles TILE_BAR + 0..8 píxeles llenos). Con el poder
+; activo se dibuja con el otro color (TILE_BAR_ON).
+queue_star:
+    ldx #0
+@tile:
+    txa
+    asl a
+    asl a
+    asl a                   ; píxel donde empieza este tile
+    sta tmp
+    lda star_energy
+    sec
+    sbc tmp
+    bcs @some
+    lda #0                  ; la energía no llega a este tile: vacío
+    beq @filled             ; (siempre)
+@some:
+    cmp #9
+    bcc @filled
+    lda #8                  ; lleno
+@filled:
+    ldy star_active
+    beq @color
+    clc
+    adc #TILE_BAR_ON - TILE_BAR
+@color:
+    clc
+    adc #TILE_BAR
+    sta strip_buf,x
+    inx
+    cpx #STRIP_WIDTH
+    bne @tile
+    lda #<(STRIP_NT + STAR_ROW * 32)
     jmp queue_strip_buf
 
 ; "COMBO 123"

@@ -12,6 +12,7 @@
 ; es una entrada posterior con el bit $80 (CHART_RELEASE) y los carriles que se
 ; sueltan en ese cuadro. Ver hold_start. (CHART_END = $FF también tiene el
 ; bit $80, así que "bit 7 = no es una nota" vale para ambos.)
+; El bit $20 (CHART_STAR) marca las notas de las frases de poder estelar.
 ;
 ; Guardar la distancia en vez del cuadro completo ahorra un byte por nota,
 ; pero obliga a que cada lector lleve la cuenta del cuadro donde va
@@ -145,6 +146,7 @@ judge_lanes:
     cmp #WINDOW + 1
     bcc @next
 @miss:
+    jsr star_missed         ; si era una nota estelar, la frase ya no cuenta
     jsr note_miss
 @advance:
     jsr lane_advance
@@ -256,10 +258,12 @@ lane_advance:
 ; note_hit / note_miss (note_miss también sirve para los golpes al aire)
 ; -----------------------------------------------------------------------------
 note_hit:
-    lda #HUD_SCORE | HUD_COMBO
+    lda hud_dirty
+    ora #HUD_SCORE | HUD_COMBO
     sta hud_dirty           ; puntaje y combo cambiaron
     lda #0
     sta player_muted        ; acertaste: tu instrumento vuelve a sonar
+    jsr star_note_hit       ; (antes que hold_start, que mueve ptr)
     jsr hold_start          ; si la nota tiene cola, empieza a sostenerse
     jsr start_fx            ; llamarada sobre el aro
     inc notes_hit
@@ -280,7 +284,8 @@ note_miss:
     lda #1
     sta multiplier
     sta player_muted        ; fallaste: tu instrumento se calla
-    lda #HUD_SCORE | HUD_COMBO
+    lda hud_dirty
+    ora #HUD_SCORE | HUD_COMBO
     sta hud_dirty           ; el combo volvió a 0 y el multiplicador a x1
     rts
 
@@ -313,6 +318,154 @@ set_fx:                     ; A = cuadros que durará la llamarada
     sta fx_x,x
     lda tmp
     sta fx_timer,x
+    lda star_hit            ; frase estelar completa: además cae el rayo sobre este carril
+    beq @no_bolt
+    lda fx_x,x
+    ldy player
+    sta bolt_x,y
+    lda #BOLT_FRAMES
+    sta bolt_timer,y
+    lda #0
+    sta star_hit
+@no_bolt:
+    rts
+
+; -----------------------------------------------------------------------------
+; Poder estelar
+;
+; Algunas notas del chart (CHART_STAR) forman frases de unas 4 notas seguidas.
+; Si aciertas todas, la barra de poder sube 25%. Con la barra a la mitad o más,
+; Select activa el poder: el puntaje vale el doble (x2, x4, x6, x8) mientras la
+; barra se vacía. Las frases que completes con el poder activo la rellenan.
+;
+; El juego reconoce el final de una frase porque la siguiente nota del chart
+; ya no es estelar (star_next). star_failed recuerda si fallaste alguna nota
+; de la frase en curso.
+; -----------------------------------------------------------------------------
+
+; star_next: carry = 1 si la siguiente nota del chart (después de la de ptr)
+; también es estelar. Usa star_ptr: no mueve ptr.
+star_next:
+    lda ptr
+    sta star_ptr
+    lda ptr+1
+    sta star_ptr+1
+@step:
+    clc
+    lda star_ptr
+    adc #CHART_ENTRY
+    sta star_ptr
+    bcc @read
+    inc star_ptr+1
+@read:
+    ldy #1
+    lda (star_ptr),y
+    bmi @event
+    and #%00011111
+    beq @step               ; entrada de relleno: seguimos
+    lda (star_ptr),y
+    and #CHART_STAR
+    beq @no
+    sec
+    rts
+@event:
+    cmp #CHART_END
+    bne @step               ; fin de cola: seguimos
+@no:
+    clc
+    rts
+
+; star_note_hit: se acaba de acertar la nota de ptr
+star_note_hit:
+    ldy #1
+    lda (ptr),y
+    and #CHART_STAR
+    beq @done
+    jsr star_next
+    bcs @done               ; la frase sigue
+    lda star_failed         ; era la última nota de la frase
+    bne @clear
+    lda #1
+    sta star_hit            ; frase completa: cae el rayo sobre este carril (lo arma set_fx)
+    lda star_energy         ; y sube la barra 25%
+    clc
+    adc #STAR_PHRASE
+    cmp #STAR_MAX + 1
+    bcc @store
+    lda #STAR_MAX
+@store:
+    sta star_energy
+    lda hud_dirty
+    ora #HUD_STAR
+    sta hud_dirty
+@clear:
+    lda #0
+    sta star_failed
+@done:
+    rts
+
+; star_missed: se acaba de fallar la nota de ptr (se pasó sin tocarla)
+star_missed:
+    ldy #1
+    lda (ptr),y
+    and #CHART_STAR
+    beq @done
+    lda #1
+    sta star_failed
+    jsr star_next
+    bcs @done
+    lda #0                  ; era la última de la frase: la siguiente empieza limpia
+    sta star_failed
+@done:
+    rts
+
+; update_star: una vez por cuadro, para el jugador actual: Select activa el
+; poder y, mientras está activo, la barra se vacía
+update_star:
+    lda pressed
+    and #BTN_SELECT
+    beq @drain
+    lda star_active
+    bne @drain
+    lda star_energy
+    cmp #STAR_MIN
+    bcc @drain
+    lda #1
+    sta star_active
+    lda #STAR_DRAIN
+    sta star_timer
+    lda hud_dirty
+    ora #HUD_STAR | HUD_SCORE ; el multiplicador cambia
+    sta hud_dirty
+    lda #SFX_ACEPTAR
+    jsr play_sfx
+@drain:
+    lda star_active
+    beq @done
+    dec star_timer
+    bne @done
+    lda #STAR_DRAIN
+    sta star_timer
+    dec star_energy
+    lda hud_dirty
+    ora #HUD_STAR
+    sta hud_dirty
+    lda star_energy
+    bne @done
+    sta star_active         ; se acabó la energía
+    lda hud_dirty
+    ora #HUD_SCORE
+    sta hud_dirty
+@done:
+    rts
+
+; eff_multiplier: A = multiplicador de puntaje (el del combo, x2 con el poder activo)
+eff_multiplier:
+    lda multiplier
+    ldx star_active
+    beq @done
+    asl a
+@done:
     rts
 
 ; -----------------------------------------------------------------------------
@@ -558,7 +711,8 @@ score_add:
     bcc @units_ok
     inc score_units+1
 @units_ok:
-    ldy multiplier
+    jsr eff_multiplier      ; (las estrellas solo cuentan el multiplicador del combo)
+    tay
 @times:
     ldx #4                  ; dígito de las decenas
     lda #5

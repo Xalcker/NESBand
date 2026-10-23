@@ -133,6 +133,10 @@ def assign_lanes(notes: list[Note], lanes: int, window: int = 4) -> list[int]:
     return result
 
 
+STAR_FLAG = 0x20  # en la entrada de una nota: forma parte de una frase de poder estelar
+STAR_PHRASE_LEN = 4  # notas por frase (si aciertas todas, la barra sube 25%)
+STAR_FIRST = 10  # índice de la primera nota de la primera frase
+STAR_SPACING = 24  # notas entre el inicio de una frase y el de la siguiente
 SUSTAIN_FLAG = 0x40  # en la entrada de una nota: tiene cola (su fin va en otra entrada)
 END_FLAG = 0x80  # entrada de fin de cola: los bits 0-4 son los carriles que la sueltan
 MIN_SUSTAIN = 16  # cuadros mínimos de cola (0.27 s); más corta no vale la pena mantenerla
@@ -145,6 +149,7 @@ class ChartNote:
     frame: int  # cuadro en que suena (contando la entrada de la autopista)
     mask: int  # bits 0-4 = carriles
     end: int | None = None  # cuadro en que termina su cola (None = nota normal)
+    star: bool = False  # nota de una frase de poder estelar
 
 
 def sustain_ends(notes: list[Note], lanes: list[int]) -> list[int | None]:
@@ -171,10 +176,22 @@ def build_chart(notes: list[Note], difficulty: Difficulty, grid: BeatGrid, lead_
     reduced = reduce_notes(merge_attacks(notes), difficulty, grid)
     lanes = assign_lanes(reduced, difficulty.lanes)
     ends = sustain_ends(reduced, lanes)
+    stars = star_notes(len(reduced))
     return [
-        ChartNote(lead_in + note.frame, 1 << lane, None if end is None else lead_in + end)
-        for note, lane, end in zip(reduced, lanes, ends)
+        ChartNote(lead_in + note.frame, 1 << lane, None if end is None else lead_in + end, star)
+        for note, lane, end, star in zip(reduced, lanes, ends, stars)
     ]
+
+
+def star_notes(count: int) -> list[bool]:
+    """Qué notas forman frases de poder estelar: grupos de STAR_PHRASE_LEN notas
+    seguidas, separados por STAR_SPACING notas. El juego reconoce el final de una
+    frase porque la nota que sigue ya no es estelar."""
+    stars = [False] * count
+    for start in range(STAR_FIRST, count - STAR_PHRASE_LEN, STAR_SPACING):
+        for i in range(start, start + STAR_PHRASE_LEN):
+            stars[i] = True
+    return stars
 
 
 CHART_END = 0xFF  # carriles = $FF marca el fin del chart
@@ -193,10 +210,11 @@ def chart_entries(chart: list[ChartNote]) -> list[tuple[int, int]]:
     events: list[tuple[int, int]] = []  # (cuadro, carriles)
     end_masks: dict[int, int] = {}
     for note in chart:
+        mask = note.mask | (STAR_FLAG if note.star else 0)
         if note.end is None:
-            events.append((note.frame, note.mask))
+            events.append((note.frame, mask))
         else:
-            events.append((note.frame, note.mask | SUSTAIN_FLAG))
+            events.append((note.frame, mask | SUSTAIN_FLAG))
             end_masks[note.end] = end_masks.get(note.end, 0) | note.mask
     events += [(frame, END_FLAG | mask) for frame, mask in end_masks.items()]
     events.sort(key=lambda e: e[0])  # estable: a igual cuadro, las notas van antes que los fines

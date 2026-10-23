@@ -37,6 +37,11 @@ CHART_ENTRY     = 2                    ; bytes por entrada del chart: cuadros de
 CHART_END       = $FF                  ; carriles = $FF: fin del chart
 CHART_SUSTAIN   = $40                  ; en una nota: tiene cola (la nota sostenida)
 CHART_RELEASE   = $80                  ; entrada de fin de cola: sus bits 0-4 son los carriles que se sueltan
+CHART_STAR      = $20                  ; en una nota: forma parte de una frase de poder estelar
+STAR_MAX        = 80                   ; energía llena (px de la barra: 10 tiles de 8)
+STAR_PHRASE     = STAR_MAX / 4         ; lo que da completar una frase: 25%
+STAR_MIN        = STAR_MAX / 2         ; se puede activar con la barra a la mitad o más
+STAR_DRAIN      = 10                   ; cuadros por cada punto de energía que se gasta (barra llena = ~13 s)
 HOLD_TICK       = %00000111            ; mientras sostienes, cada 8 cuadros sumas puntos
 HOLD_FX         = 6                    ; la llamarada se mantiene en la llama alta mientras sostienes
 ; La pantalla de juego se divide en dos con la interrupción de scanline del
@@ -51,6 +56,9 @@ FX_SLOTS        = NUM_LANES * MAX_PLAYERS ; una llamarada por carril de cada jug
 FX_FRAMES       = 8                    ; duración de la llamarada (2 cuadros por dibujo)
 FX_SPRITE       = 8                    ; primer sprite de las llamaradas (0-4: letrero de pausa)
 FX_Y            = HIT_ROW * 8 - 8      ; arriba de la llamarada: 2 tiles encima del aro
+BOLT_FRAMES     = 10                   ; el rayo de una frase estelar completa dura 10 cuadros
+BOLT_LEN        = 16                   ; y mide 16 sprites de 8 px (uno sobre otro): 128 px de alto
+BOLT_SPRITE     = FX_SPRITE + FX_SLOTS * 2 ; primer sprite de los rayos (después de las llamaradas)
 SONG_LEAD_IN    = 128                  ; cuadros de autopista antes de que arranque la música
 RESULTS_DELAY   = 60                   ; cuadros entre el fin de la música y los resultados
 VBUF_SIZE       = 128                  ; bytes de la cola de textos para la NMI
@@ -158,6 +166,9 @@ row_lo:         .res 2   ; ventana de cuadros de esa fila: [row_lo, row_hi)
 row_hi:         .res 2
 next_vrow:      .res 1   ; fila de la nametable donde va
 row_mask:       .res 1   ; carriles con nota en la fila que se está dibujando
+star_hit:       .res 1   ; 1 = la nota que se acaba de acertar completó una frase estelar (set_fx lanza el rayo)
+row_star:       .res 1   ; carriles de esa fila cuya gema es de una frase estelar
+star_ptr:       .res 2   ; puntero de star_next (no toca ptr, que aún usa el juicio de la nota)
 tail_draw:      .res 1   ; carriles que llevan cola (en vez de interior) en esa fila
 tail_add:       .res 1   ; carriles cuya cola empieza en esa fila (la nota trae CHART_SUSTAIN)
 tail_rem:       .res 1   ; carriles cuya cola termina en esa fila
@@ -203,6 +214,10 @@ score_pct:      .res 1   ; puntaje logrado / puntaje máximo posible, en %
 stars:          .res 1
 rings_shown:    .res 1   ; carriles con el aro relleno en pantalla (un bit por carril)
 hud_dirty:      .res 1   ; 1 = puntaje/combo cambiaron y hay que redibujarlos
+star_energy:    .res 1   ; barra de poder estelar, 0..STAR_MAX
+star_active:    .res 1   ; 1 = poder estelar activado (puntaje x2, la barra se vacía)
+star_timer:     .res 1   ; cuadros que faltan para gastar el siguiente punto de energía
+star_failed:    .res 1   ; 1 = ya fallaste una nota de la frase estelar en curso
 tail_mask:      .res 1   ; carriles con una cola de nota sostenida en la parte ya dibujada de la autopista
 hold_on:        .res NUM_LANES   ; 1 = estás sosteniendo la nota de ese carril
 hold_end_lo:    .res NUM_LANES   ; cuadro en que termina su cola
@@ -227,6 +242,8 @@ pad_pressed:    .res MAX_PLAYERS ; los recién presionados
 row_buf:        .res 32  ; una fila completa de la nametable (32 tiles)
 fx_timer:       .res FX_SLOTS    ; llamaradas: cuadros que le quedan a cada una (0 = apagada)
 fx_x:           .res FX_SLOTS    ; y su posición X en pantalla
+bolt_timer:     .res MAX_PLAYERS ; rayo de cada jugador: cuadros que le quedan (0 = apagado)
+bolt_x:         .res MAX_PLAYERS ; y su posición X (la del carril de la última nota de la frase)
 erase_hi:       .res MAX_ERASE   ; cola de gemas a borrar: dirección y tile
 erase_lo:       .res MAX_ERASE
 erase_tile:     .res MAX_ERASE
@@ -657,7 +674,7 @@ palettes:
     .byte $0F, $10, $28, $30   ; fondo 2: amarillo
     .byte $0F, $10, $12, $30   ; fondo 3: azul
     .byte $0F, $30, $28, $27   ; sprites 0: blanco (texto y centro de la llama), amarillo, naranja
-    .byte $0F, $30, $16, $30   ; sprites 1: rojo
+    .byte $0F, $30, $2C, $21   ; sprites 1: llama del poder estelar (blanco, cian, azul)
     .byte $0F, $30, $28, $30   ; sprites 2: amarillo
     .byte $0F, $30, $12, $30   ; sprites 3: azul
 ; Menús: texto blanco (color 1), gris (2) y el logo naranja (3)

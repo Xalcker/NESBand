@@ -113,6 +113,13 @@ notas largas del original llevan una **cola** (una barra detrás de la gema): ac
 botón presionado mientras pasa la cola para sumar 10 puntos cada 8 cuadros. Si sueltas antes, solo dejas
 de sumar: no rompe el combo ni calla tu instrumento. Esos puntos no cuentan para las estrellas.
 
+**Poder estelar:** algunas gemas tienen forma de **diamante**. Son frases de 4 notas: si aciertas las 4
+sin fallar ninguna, un rayo cae sobre el carril de la última y la barra blanca de la franja de abajo sube 25%. Con la barra a la mitad o más, presiona
+**Select** para activar el poder: todo lo que sumes vale el doble (el multiplicador pasa a x2, x4, x6 y
+x8), las llamaradas se vuelven azules y la barra se va vaciando (una barra llena dura unos 13 s). Las
+frases que completes mientras está activo la rellenan. Las estrellas de los resultados no cuentan el
+doble: salen solo del combo normal.
+
 En Mesen configura qué teclas corresponden a cada botón en *Settings → Input*. Para jugar de a dos, el
 **puerto 2** debe tener un control de NES conectado (por default Mesen lo deja vacío).
 
@@ -315,7 +322,7 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 3. ~~Generador automático de charts por canal y dificultad~~ ✅ (primera versión)
 4. ~~Charts de bajo y teclado~~ ✅ · batería pendiente (necesita su propio criterio: bombo/tarola/platillo por tipo de ruido)
 5. ~~Menús: título, selección de canción/instrumento/dificultad, pausa, resultados~~ ✅
-   · ~~llamarada al acertar y notas sostenidas~~ ✅
+   · ~~llamarada al acertar, notas sostenidas y poder estelar~~ ✅
 6. ~~Mapper con más espacio (MMC3) para muchas canciones~~ ✅ · pantalla de título ilustrada pendiente
    (ver [docs/ideas.md](docs/ideas.md))
 7. Editor visual de charts para retocar lo generado

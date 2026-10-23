@@ -67,7 +67,12 @@ TILE_DIGIT0     = '0'
 TILE_X          = 'X'
 TILE_BIG        = $80   ; + máscara de 4 bits (ver BIG_ROW)
 
-TILE_TAIL_A     = $19   ; cola de nota sostenida (color 2): mitad izquierda; la derecha es $18 (el tile anterior)
+TILE_STAR_A     = $99   ; gema estelar (diamante, color 2) + $9A mitad derecha
+TILE_STAR_B     = $9B   ; (color 3) + $9C
+TILE_BAR        = $90   ; barra de poder estelar: + 0..8 píxeles llenos (blanco)
+TILE_BAR_ON     = $A0   ; lo mismo con el poder activo (azul)
+TILE_BOLT       = $A9   ; rayo de las frases estelares: dos dibujos, $A9 y $AA
+TILE_TAIL_A     = $19  ; cola de nota sostenida (color 2): mitad izquierda; la derecha es $18 (el tile anterior)
 TILE_TAIL_B     = $1B   ; (color 3); la derecha es $1A. Con la línea del beat: +4 (ver TAIL_BEAT)
 TAIL_BEAT       = 4
 
@@ -225,3 +230,45 @@ TILE_AT TILE_BIG
         .endrepeat
     .endrepeat
 .endrepeat
+
+; --- Poder estelar -----------------------------------------------------------------
+; Barra: un tile de 8 px de ancho con n píxeles llenos de izquierda a derecha
+; (color 3 = blanco, o color 2 = azul con el poder activo) y borde arriba y abajo
+; en color 1. Los colores salen de la paleta 3 de fondo, que write_attributes
+; asigna a la fila de la barra para que no cambie con el color de cada carril.
+.macro BAR_TILE n, on
+    _bar_fill .set ($FF << (8 - n)) & $FF
+    .byte 0, $FF                ; plano 0: fila 0 vacía, fila 1 borde (color 1)
+    .repeat 4
+        .byte _bar_fill * (on)  ; filas 2-5: el color 3 usa también el plano 0
+    .endrepeat
+    .byte $FF, 0                ; fila 6 borde, fila 7 vacía
+    .byte 0, 0                  ; plano 1: filas 0-1 vacías
+    .repeat 4
+        .byte _bar_fill
+    .endrepeat
+    .byte 0, 0
+.endmacro
+
+TILE_AT TILE_BAR
+.repeat 9, n
+    BAR_TILE n, 1           ; color 3: blanco (la franja usa la paleta 3, ver write_attributes)
+.endrepeat
+
+; Gemas de las frases estelares: un diamante de 14 px (color 2 y color 3)
+; $99-$9A color 2, $9B-$9C color 3
+TILE "1.....22", "1...2222", "1.222222", "12222222", "12222222", "1.222222", "1...2222", "1.....22"
+TILE "22......", "2222....", "222222..", "2222222.", "2222222.", "222222..", "2222....", "22......"
+TILE "1.....33", "1...3333", "1.333333", "13333333", "13333333", "1.333333", "1...3333", "1.....33"
+TILE "33......", "3333....", "333333..", "3333333.", "3333333.", "333333..", "3333....", "33......"
+
+TILE_AT TILE_BAR_ON
+.repeat 9, n
+    BAR_TILE n, 0           ; color 2: azul
+.endrepeat
+
+; Rayo de las frases estelares completas (paleta de sprites 1: 1 = blanco, 2 = cian).
+; Dos tiles que se alternan en una columna: $A9 baja de derecha a izquierda y $AA
+; sube de vuelta, así que uno sobre otro forman un zigzag continuo
+TILE "....2112", "....2112", "...2112.", "...2112.", "..2112..", "..2112..", ".2112...", ".2112..."
+TILE ".2112...", ".2112...", "..2112..", "..2112..", "...2112.", "...2112.", "....2112", "....2112"

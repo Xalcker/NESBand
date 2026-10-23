@@ -33,7 +33,9 @@ $kinds = @(
     @('1p-smash',      1, 'smash',   0, 3, 'perfect', 2, 3),
     @('2p-perfect',    2, 'perfect', 0, 3, 'perfect', 2, 3),
     @('2p-mixto',      2, 'perfect', 1, 3, 'idle',    0, 3),
-    @('2p-velocidades', 2, 'perfect', 0, 0, 'perfect', 2, 3)
+    @('2p-velocidades', 2, 'perfect', 0, 0, 'perfect', 2, 3),
+    @('1p-estrella',   1, 'perfect', 0, 3, 'perfect', 2, 3, 1),
+    @('2p-estrella',   2, 'perfect', 0, 3, 'perfect', 2, 3, 1)
 )
 
 $failed = $false
@@ -41,7 +43,8 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
     $songName = $songs[$s].Name
     if (-not ($Only | Where-Object { $songName -like $_ })) { continue }
     foreach ($kind in $kinds) {
-        $name, $players, $mode1, $inst1, $diff1, $mode2, $inst2, $diff2 = $kind
+        $name, $players, $mode1, $inst1, $diff1, $mode2, $inst2, $diff2, $star = $kind
+        if (-not $star) { $star = 0 }   # 1 = los jugadores perfectos activan el poder estelar con Select
         $out = Join-Path $root "build\test-$($songs[$s].Name)-$name"
         New-Item -ItemType Directory -Force $out | Out-Null
         Remove-Item "$out\resultado.txt" -ErrorAction SilentlyContinue
@@ -53,6 +56,7 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
         $env:AUTOPLAY_MODE2 = $mode2
         $env:AUTOPLAY_INSTRUMENT2 = $inst2
         $env:AUTOPLAY_DIFFICULTY2 = $diff2
+        $env:AUTOPLAY_STAR = $star
         $env:TEST_OUT = $out
         $p = Start-Process -FilePath $mesen -PassThru -Wait -NoNewWindow -ArgumentList @(
             '--testrunner', "`"$root\build\nesband.nes`"", "`"$root\tests\autoplay.lua`"")

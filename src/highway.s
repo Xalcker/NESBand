@@ -235,6 +235,7 @@ build_row:
 player_row_mask:
     lda #0
     sta row_mask
+    sta row_star
     sta tail_add
     sta tail_rem
     lda row_lo+1
@@ -264,6 +265,14 @@ player_row_mask:
     and #%00011111          ; nota: sumamos sus carriles
     ora row_mask
     sta row_mask
+    lda (render_ptr),y
+    and #CHART_STAR
+    beq @not_star           ; nota de una frase estelar: su gema es una estrella
+    lda (render_ptr),y
+    and #%00011111
+    ora row_star
+    sta row_star
+@not_star:
     lda (render_ptr),y
     and #CHART_SUSTAIN
     beq @skip
@@ -337,7 +346,14 @@ draw_player_lanes:
     sta row_buf+1,x
     jmp @next_lane
 @gem:
+    lda row_star
+    and lane_bit,y
+    bne @star_gem
     lda lane_gem,y          ; mitad izquierda de la gema (con el borde)
+    jmp @gem_tiles
+@star_gem:
+    lda lane_star,y         ; la de las frases de poder estelar tiene forma de diamante
+@gem_tiles:
     sta row_buf,x
     clc
     adc #1                  ; la mitad derecha es el tile siguiente
@@ -484,6 +500,27 @@ write_attributes:
     lda #$23
     jsr @one_table
     lda #$27
+    jsr @one_table
+
+    ; 4) En la franja ($2400), las filas 26-27 (barra de poder estelar y puntaje)
+    ;    usan la paleta 3 en vez de la de cada carril: sus colores 2 y 3 son azul y
+    ;    blanco para todos. Son los cuadros de abajo (bits 4-7) de los bytes de la
+    ;    fila 6 de la tabla ($27C0 + 6 * 8).
+    bit PPUSTATUS
+    lda #$27
+    sta PPUADDR
+    lda #$C0 + 6 * 8
+    sta PPUADDR
+    ldx #0
+@bar_row:
+    lda attr_row,x
+    ora #%11110000
+    sta PPUDATA
+    inx
+    cpx #8
+    bne @bar_row
+    rts
+
 @one_table:
     bit PPUSTATUS
     sta PPUADDR
@@ -506,5 +543,6 @@ write_attributes:
 ; -----------------------------------------------------------------------------
 lane_bit:       .byte    %00001, %00010, %00100, %01000, %10000
 lane_gem:       .byte    TILE_GEM_A, TILE_GEM_A, TILE_GEM_A, TILE_GEM_A, TILE_GEM_B
-lane_tail:      .byte    TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_B
+lane_star:      .byte    TILE_STAR_A, TILE_STAR_A, TILE_STAR_A, TILE_STAR_A, TILE_STAR_B
+lane_tail:      .byte   TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_B
 lane_palette:   .byte    0,      1,      2,      3,      0       ; naranja comparte paleta con verde
