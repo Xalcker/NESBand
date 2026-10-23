@@ -230,6 +230,7 @@ init_player:
     sta player_muted
     sta tail_mask           ; sin colas dibujadas ni notas sostenidas
     sta failed              ; (no_fail no se toca: lo eligió el menú)
+    sta life_grace
     sta star_energy         ; ni poder estelar
     sta star_active
     sta star_timer
@@ -333,6 +334,10 @@ play_update:
     jsr load_player
     lda failed
     bne @no_judge           ; quien ya perdió no juega más
+    lda life_grace          ; el respiro después de un fallo se acaba
+    beq @judge
+    dec life_grace
+@judge:
     jsr judge_lanes         ; aciertos y fallos
     jsr update_holds        ; puntos de las notas sostenidas
     jsr update_star         ; Select activa el poder estelar; la barra se vacía
@@ -344,15 +349,16 @@ play_update:
     cpx num_players
     bne @player
 
-    ; ¿Perdieron todos? (con 2 jugadores, si solo uno pierde el otro sigue)
+    ; ¿Alguien perdió? Con 1 jugador, él; con 2 basta con que pierda uno: en VS gana el
+    ; otro (vs_winner) y en Co-Op pierde la banda (la vida es compartida)
     lda player_save + PS_FAILED
-    beq @alive
     ldx num_players
     cpx #2
-    bne @all_failed
-    lda player_save + PSTATE_SIZE + PS_FAILED
+    bne @check
+    ora player_save + PSTATE_SIZE + PS_FAILED
+@check:
+    cmp #0
     beq @alive
-@all_failed:
     jmp enter_results
 @alive:
     jsr update_meters       ; medidores de vida

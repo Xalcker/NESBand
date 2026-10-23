@@ -36,6 +36,7 @@ ITEM_DIFFICULTY  = 3
 ITEM_FAIL        = 4
 
 PS_INSTRUMENT    = cur_instrument - pstate   ; posición dentro del bloque de un jugador
+PS_DIFFICULTY    = cur_difficulty - pstate
 
 enter_menu:
     jsr ppu_off
@@ -238,7 +239,17 @@ menu_change:
     cmp #ITEM_FAIL
     beq @fail
 
-    ; Dificultad: 0..3, dando la vuelta
+    ; Dificultad: 0..3, dando la vuelta. En VS los dos juegan la misma (un duelo solo es
+    ; justo con las mismas notas): la elige el jugador 1 y el jugador 2 la sigue.
+    lda num_players
+    cmp #2
+    bne @difficulty
+    lda game_mode
+    bne @difficulty
+    lda player
+    beq @difficulty
+    rts                     ; el jugador 2 no puede cambiarla en VS
+@difficulty:
     lda cur_difficulty
     clc
     adc menu_dir
@@ -246,6 +257,8 @@ menu_change:
     sta cur_difficulty
     jsr store_player
     jsr mark_record_dirty
+    lda #0
+    jsr vs_mirror
     ldx player
     jmp menu_draw_player
 
@@ -269,6 +282,8 @@ menu_change:
     beq @instrument
     jsr store_player
     jsr mark_record_dirty
+    lda #1
+    jsr vs_mirror
     ldx player
     jmp menu_draw_player
 
@@ -298,8 +313,15 @@ menu_change:
     lda num_players
     cmp #2
     bne @players_done
-    ldx #1                  ; el jugador 2 necesita un instrumento distinto
-    jsr load_player
+    ldx #1                  ; el jugador 2: en Co-Op necesita un instrumento distinto; en VS
+    jsr load_player         ; juega lo mismo que el jugador 1 (dificultad e instrumento)
+    lda game_mode
+    bne @fix_p2
+    lda player_save + PS_INSTRUMENT
+    sta cur_instrument
+    lda player_save + PS_DIFFICULTY
+    sta cur_difficulty
+@fix_p2:
     jsr fix_instrument
     jsr store_player
     bcs @players_done
@@ -336,6 +358,32 @@ menu_change:
     sta menu_rec_dirty
     jmp start_preview
 @same_song:
+    rts
+
+; vs_mirror: (VS, 2 jugadores) el jugador 1 acaba de cambiar su dificultad (A = 0) o su
+; instrumento (A <> 0): el jugador 2 lo copia. Su instrumento sí puede cambiarlo después.
+vs_mirror:
+    tay
+    lda num_players
+    cmp #2
+    bne @none
+    lda game_mode
+    bne @none
+    lda player
+    bne @none               ; solo cuando quien cambió es el jugador 1
+    lda cur_difficulty
+    sta player_save + PSTATE_SIZE + PS_DIFFICULTY
+    tya
+    beq @redraw
+    lda cur_instrument
+    sta player_save + PSTATE_SIZE + PS_INSTRUMENT
+@redraw:
+    lda menu_rec_dirty
+    ora #%10                ; su récord es de otro instrumento o dificultad
+    sta menu_rec_dirty
+    ldx #1
+    jmp menu_draw_player
+@none:
     rts
 
 ; -----------------------------------------------------------------------------

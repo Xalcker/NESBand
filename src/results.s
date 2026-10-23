@@ -56,6 +56,19 @@ enter_results:
     bne @checked
 @check:
     jsr rec_check_new       ; ¿superó el récord guardado?
+    lda num_players         ; VS: si el rival perdió, la partida se cortó y no vale como récord
+    cmp #2
+    bne @checked
+    lda game_mode
+    bne @checked
+    lda player
+    eor #1
+    tax
+    ldy player_offset,x
+    lda player_save + PS_FAILED,y
+    beq @checked
+    lda #0
+    sta new_record
 @checked:
     jsr store_player        ; (percent y stars quedan guardados para las pruebas)
     jsr draw_player_results
@@ -337,6 +350,34 @@ team_results:
 ; 2 (gana J2) o 3 (empate), y escribe "GANA J1 POR 001230" (o "EMPATE")
 ; -----------------------------------------------------------------------------
 vs_winner:
+    lda player_save + PS_FAILED         ; si uno perdió (la partida se corta) y el otro no, gana el otro
+    cmp player_save + PSTATE_SIZE + PS_FAILED
+    beq @by_score                       ; los dos perdieron, o ninguno: por puntaje
+    ldx #1
+    bcc @survivor                       ; perdió el jugador 2: gana el 1
+    ldx #2                              ; perdió el jugador 1: gana el 2
+@survivor:
+    stx vs_result
+    ldx #18                             ; "GANA J? - J? PERDIO"
+@lost_text:
+    lda txt_wins_lost,x
+    sta numstr,x
+    dex
+    bpl @lost_text
+    lda vs_result
+    ora #'0'
+    sta numstr + 6
+    lda #3                              ; el que perdió es el otro: 3 - jugador
+    sec
+    sbc vs_result
+    ora #'0'
+    sta numstr + 11
+    lda #0
+    sta numstr + 19
+    SET_PTR numstr
+    lda #RES_WINNER_ROW
+    jmp print_centered
+@by_score:
     ldx #0
 @compare:
     lda player_save + PS_SCORE,x        ; de la cifra más alta a la más baja
@@ -575,6 +616,7 @@ txt_notes:      .byte "NOTAS", 0
 txt_accuracy:   .byte "PRECISION", 0
 txt_max_combo:  .byte "COMBO MAXIMO", 0
 txt_wins:       .byte "GANA J? POR "       ; 12 caracteres: después va la diferencia de puntaje
+txt_wins_lost:  .byte "GANA J? - J? PERDIO"   ; 19 caracteres: gana por el fallo del rival
 txt_tie:        .byte "EMPATE", 0
 txt_slash:      .byte "/", 0
 txt_percent:    .byte "%", 0

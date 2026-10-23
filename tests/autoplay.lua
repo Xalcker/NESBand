@@ -22,6 +22,9 @@
 --                        smash: machaca los 5 botones un cuadro sí y uno no; acierta
 --                        muchas notas de pura suerte, pero los golpes al aire deben
 --                        romperle el combo todo el tiempo
+--                        human90 / human50: jugador "humano" que acierta ~90% / ~45% de las notas, con
+--                        los errores en rachas y golpes al aire (semilla fija). El de 90% debe terminar
+--                        la canción con fallo activado y el de 45% debe perder (balance de la vida, #7)
 --   AUTOPLAY_INSTRUMENT  instrumento del jugador 1: 0 guitarra (default), 1 teclado, 2 bajo
 --   AUTOPLAY_PLAYERS     1 (default) o 2
 --   AUTOPLAY_DIFFICULTY  dificultad del jugador 1: 0 fácil .. 3 experto (default)
@@ -36,6 +39,8 @@
 --   AUTOPLAY_COOP        1 = modo Co-Op (con 2 jugadores): puntaje, combo, vida y poder estelar de
 --                        la banda; el puntaje esperado es el de los dos charts mezclados por cuadro
 --   AUTOPLAY_VS          (modo VS, 2 jugadores) quién debe ganar: 1, 2 o 3 = empate; 0 (default) = no se revisa
+--   AUTOPLAY_CUT         1 = (VS con fallo) la partida debe cortarse porque un jugador pierde: el otro gana
+--                        y no se le exige haber terminado la canción (#8)
 --   TEST_OUT             carpeta donde dejar resultado.txt y capturas .png
 --
 -- Requiere que Mesen tenga habilitado "AllowIoOsAccess" (escribir archivos) y
@@ -52,6 +57,7 @@ local difficulty2 = tonumber(os.getenv("AUTOPLAY_DIFFICULTY2") or tostring(diffi
 local use_star = os.getenv("AUTOPLAY_STAR") == "1"
 local coop = os.getenv("AUTOPLAY_COOP") == "1" and num_players == 2
 local vs_expect = tonumber(os.getenv("AUTOPLAY_VS") or "0")
+local cut = os.getenv("AUTOPLAY_CUT") == "1"     -- VS: la partida se corta porque el otro jugador pierde (#8)
 local STAR_MAX, STAR_PHRASE, STAR_MIN = 80, 20, 40       -- como en main.s
 local outdir = os.getenv("TEST_OUT") or "."
 local mem = emu.memType.nesMemory
@@ -72,6 +78,12 @@ local function field(p, name) return SAVE + (p - 1) * PSTATE_SIZE + (label(name)
 
 local A_STATE, A_SONG_FRAME, A_PAUSED = label("game_state"), label("song_frame"), label("paused")
 local A_VS_RESULT = label("vs_result")
+-- Cuadros sueltos con el instrumento sonando que se perdonan: en los cuadros más pesados el
+-- juego termina su lógica pegado al vblank y el motor de sonido puede escribir justo después
+-- de silenciar (un cuadro de 16 ms, que no se oye). Si de verdad no se silencia, son cientos.
+local UNMUTED_TOLERANCE = 3
+local A_NMI_COUNT = label("frame_counter")
+local prev_nmi, lag_frames = nil, {}
 local A_COUNTER = label("famistudio_chn_note_counter")
 local A_SFX_PTR_HI = label("famistudio_sfx_base_addr") + 2   -- no 0 mientras suena un efecto
 
@@ -111,7 +123,26 @@ add(0, "down", 1)
 -- Jugadores: 1 jugador -> 2 jugadores VS -> 2 jugadores Co-Op
 add(0, "right", coop and 2 or num_players - 1)
 add(0, "down", 1)
-add(0, "right", instruments[1])
+-- Lo que el menú hace con los instrumentos (menu.s): al entrar a VS el jugador 2 copia al 1; en
+-- Co-Op pasa al siguiente que no sea el del 1; y en VS cada instrumento que elige el 1 lo copia el 2.
+-- presses_to: pulsaciones de "derecha" para ir de un instrumento a otro, saltando la batería (3, sin
+-- chart) y el instrumento `taken` (-1 = ninguno: en VS pueden coincidir).
+local function presses_to(from, target, taken)
+  local pos, n = from, 0
+  while pos ~= target do
+    repeat pos = (pos + 1) % 4 until pos ~= 3 and pos ~= taken
+    n = n + 1
+    if n > 8 then error("instrumento inalcanzable en el menú") end
+  end
+  return n
+end
+local menu_p1, menu_p2 = 0, 2          -- lo que muestra el menú al encender
+if num_players == 2 then
+  menu_p2 = menu_p1                     -- (pasa por VS)
+  if coop then repeat menu_p2 = (menu_p2 + 1) % 4 until menu_p2 ~= 3 and menu_p2 ~= menu_p1 end
+end
+add(0, "right", presses_to(menu_p1, instruments[1], coop and menu_p2 or -1))
+if num_players == 2 and not coop then menu_p2 = instruments[1] end
 add(0, "down", 1)
 local difficulty_presses = (difficulty - 1) % 4      -- desde medio (1), dando la vuelta
 add(0, "right", difficulty_presses)
@@ -121,17 +152,11 @@ local function wants_no_fail(p) return modes[p] == "idle" or modes[p] == "smash"
 add(0, "down", 1)
 if wants_no_fail(1) then add(0, "right", 1) end
 if num_players == 2 then
-  -- Del bajo (2) al instrumento pedido: cada pulsación avanza al siguiente
-  -- instrumento válido, saltando batería (3, sin chart) y el del jugador 1
-  local pos, presses = 2, 0
-  while pos ~= instruments[2] do
-    -- (en VS pueden coincidir; en Co-Op no)
-    repeat pos = (pos + 1) % 4 until pos ~= 3 and (pos ~= instruments[1] or not coop)
-    presses = presses + 1
-  end
-  add(1, "right", presses)
+  -- Jugador 2: desde lo que dejó el menú hasta el instrumento pedido. Su dificultad solo se
+  -- elige en Co-Op: en VS sigue a la del jugador 1 (ver #9)
+  add(1, "right", presses_to(menu_p2, instruments[2], coop and instruments[1] or -1))
   add(1, "down", 1)
-  add(1, "right", (difficulty2 - 1) % 4)
+  if coop then add(1, "right", (difficulty2 - 1) % 4) end
   add(1, "down", 1)
   if wants_no_fail(2) then add(1, "right", 1) end
 end
@@ -213,6 +238,66 @@ local star_shot_frame = nil   -- cuadro de la canción en que se captura una gem
 local star_seen = {}    -- por jugador: ¿se vio el poder estelar activo en algún cuadro?
 local pause_at = PAUSE_AT   -- se recorre si cae en medio de una nota sostenida (al pausar se sueltan los botones)
 
+-- Jugador "humano" (modos human90 y human50): acierta una parte de las notas, con los errores
+-- en rachas como los de una persona (un estado "bueno" y uno "malo" con distinta precisión) y,
+-- a veces, un golpe al aire antes de la nota que se le va. Usa un generador con semilla fija:
+-- cada corrida es igual a la anterior. Perfiles: bueno, p(entrar a mala racha), p(salir), malo.
+-- (Precisión resultante: human90 ~ 90%, human50 ~ 45%; ver #7.)
+local charts = nil     -- (se llena al empezar la canción; más abajo)
+local HUMAN = { human90 = { 0.98, 0.04, 0.20, 0.50 }, human50 = { 0.70, 0.10, 0.10, 0.20 } }
+local LOOKAHEAD = 20      -- cuadros antes de la nota en que el humano "decide" (y da el golpe al aire)
+local human_seed, human_bad, human_plan, human_hit = {}, {}, {}, {}
+local function human_random(p)
+  human_seed[p] = (human_seed[p] * 1103515245 + 12345) % 2147483648
+  return (human_seed[p] // 65536) / 32768.0
+end
+for p = 1, 2 do human_seed[p], human_bad[p] = 4242 + p, false end
+
+-- Arma de una vez qué botones presiona el humano y en qué cuadro, recorriendo las notas del
+-- chart en orden. Presiona en el cuadro de cada nota que "acierta" (como una persona: toca al
+-- ritmo aunque una nota anterior se le haya ido, así que si una nota repetida en el mismo
+-- carril se le pasa, el siguiente golpe suele caerle a esa) y, en las que falla, a veces da
+-- un golpe al aire LOOKAHEAD cuadros antes. human_plan[p][cuadro] = { carril = true }.
+local function human_make_plan(p)
+  local profile = HUMAN[modes[p]]
+  local plan, hit_set = {}, {}
+  local function press(frame, lane)
+    plan[frame] = plan[frame] or {}
+    plan[frame][lane] = true
+  end
+  for _, n in ipairs(charts[p]) do
+    for lane = 0, 4 do
+      if (n.mask >> lane) & 1 == 1 then
+        if human_bad[p] then
+          if human_random(p) < profile[3] then human_bad[p] = false end
+        elseif human_random(p) < profile[2] then
+          human_bad[p] = true
+        end
+        if human_random(p) < (human_bad[p] and profile[4] or profile[1]) then
+          press(n.frame, lane)
+          hit_set[lane .. ":" .. n.frame] = true
+        elseif human_random(p) < 0.5 then
+          press(n.frame - LOOKAHEAD, lane)
+        end
+      end
+    end
+  end
+  human_plan[p], human_hit[p] = plan, hit_set
+end
+
+-- Devuelve las teclas que el humano presiona en el siguiente cuadro
+local function human_input(p, input, next_frame)
+  if not charts then return end
+  if not human_plan[p] then human_make_plan(p) end
+  for lane in pairs(human_plan[p][next_frame] or {}) do input[LANE_KEYS[lane + 1]] = true end
+  -- Notas sostenidas: las que acertó, hasta el fin de su cola
+  for _, h in ipairs(holds[p] or {}) do
+    if human_hit[p][h.lane .. ":" .. h.first] and next_frame >= h.first and next_frame < h.last then
+      input[LANE_KEYS[h.lane + 1]] = true
+    end
+  end
+end
+
 -- Mesen pide el estado de cada control justo cuando el juego lo lee: ahí lo
 -- reemplazamos por el guion del menú o por lo que decida el bot
 local function bot_input(p)
@@ -233,6 +318,8 @@ local function bot_input(p)
     resume_frame = frame
   elseif p <= num_players and modes[p] == "smash" and playing and frame % 2 == 0 then
     for _, key in ipairs(LANE_KEYS) do input[key] = true end
+  elseif p <= num_players and HUMAN[modes[p]] and playing and read8(A_PAUSED) == 0 then
+    human_input(p, input, read16(A_SONG_FRAME) + 1)
   elseif p <= num_players and modes[p] == "perfect" and playing and read8(A_PAUSED) == 0 then
     -- Tras leer el control, el juego hará song_frame + 1 y luego juzgará
     local next_frame = read16(A_SONG_FRAME) + 1
@@ -272,7 +359,6 @@ for p = 1, num_players do
   end, emu.callbackType.write, MUTE_REG[instruments[p]], MUTE_REG[instruments[p]])
 end
 
-local charts = nil
 local triggers, trigger_count, prev_counter, unmuted = {}, {}, {}, {}
 for p = 1, num_players do triggers[p], trigger_count[p], prev_counter[p], unmuted[p] = {}, 0, 0, 0 end
 local results_frames = 0
@@ -336,16 +422,20 @@ local function check_player(p)
   local failed, no_fail = read8(field(p, "failed")), read8(field(p, "no_fail"))
   -- Récord nuevo: solo un jugador perfecto con el .sav vacío (en el modo 2, ya estaba el mismo puntaje)
   local new_record = read8(field(p, "new_record"))
-  local expect_record = (modes[p] == "perfect" and rec_mode ~= "2") and 1 or 0
+  local expect_record = ((modes[p] == "perfect" or modes[p] == "human90") and rec_mode ~= "2") and 1 or 0
   if coop and p == 2 then expect_record = 0 end     -- el récord de la banda es del jugador 1
+  if cut then expect_record = 0 end                 -- una partida cortada no vale como récord
   local ok
-  if modes[p] == "fail" then
+  if modes[p] == "fail" or modes[p] == "human50" or (cut and modes[p] == "perfect") then
     -- Quien pierde deja de jugar y su canción puede terminar antes: no se exige sincronía completa
     ok = notes_total == hits
   else
     ok = off_sync == 0 and trigger_count[p] >= #chart and notes_total == hits
   end
-  if modes[p] == "perfect" then
+  if cut and modes[p] == "perfect" then
+    -- El otro jugador perdió y la partida se cortó: este no perdió y no llegó al final
+    ok = ok and failed == 0 and no_fail == 0 and notes_hit > 0 and notes_hit < notes_total
+  elseif modes[p] == "perfect" then
     ok = ok and failed == 0 and no_fail == 0     -- un jugador perfecto no pierde
     -- Sin activar el poder estelar, el puntaje es exacto y la barra termina con 25% por frase
     -- (hasta llenarse). Activándolo, el puntaje sube pero a lo más al doble (las estrellas no cambian).
@@ -361,6 +451,14 @@ local function check_player(p)
     ok = ok and score_ok and star_ok and combo == math.min(team_hits, 999) and notes_hit == hits
          and max_combo == team_hits and percent == 100 and stars == 5
     if p == 1 then ok = ok and resume_frame ~= nil end
+  elseif modes[p] == "human90" then
+    -- Un jugador que acierta ~90% (con los errores en rachas) debe terminar la canción con fallo
+    -- activado, pero sin ser perfecto (#7)
+    ok = ok and failed == 0 and no_fail == 0 and notes_hit * 100 >= notes_total * 80 and notes_hit < notes_total
+         and score > 0
+  elseif modes[p] == "human50" then
+    -- Uno que acierta menos de la mitad debe perder
+    ok = ok and failed == 1 and no_fail == 0
   elseif modes[p] == "smash" then
     -- Acierta notas de suerte, pero cada golpe al aire rompe el combo, y
     -- las estrellas (que salen del puntaje) se quedan abajo
@@ -369,11 +467,11 @@ local function check_player(p)
   elseif modes[p] == "fail" then
     -- Sin tocar nada y con fallo: la vida se acaba, el instrumento queda callado y, si es el
     -- único jugador, la canción termina antes de su última nota
-    ok = ok and failed == 1 and no_fail == 0 and score == 0 and notes_hit == 0 and unmuted[p] == 0
+    ok = ok and failed == 1 and no_fail == 0 and score == 0 and notes_hit == 0 and unmuted[p] <= UNMUTED_TOLERANCE
     if num_players == 1 then ok = ok and results_at < chart[#chart].frame end
   else
     ok = ok and score == 0 and combo == 0 and notes_hit == 0 and percent == 0 and stars == 0
-         and unmuted[p] == 0 and failed == 0 and no_fail == 1
+         and unmuted[p] <= UNMUTED_TOLERANCE and failed == 0 and no_fail == 1
   end
   local text = string.format(
     "J%d %s inst=%d notas=%d/%d puntaje=%d (esperado %s) combo_max=%d precision=%d%% estrellas=%d " ..
@@ -419,6 +517,13 @@ local function evaluate()
     end
     all_ok = all_ok and same
     lines[#lines + 1] = "banda compartida=" .. tostring(same)
+  end
+  if num_players == 2 and not coop then
+    -- En VS los dos juegan la misma dificultad: la del jugador 1 (#9)
+    local d1, d2 = read8(field(1, "cur_difficulty")), read8(field(2, "cur_difficulty"))
+    local same = d1 == difficulty and d2 == difficulty
+    all_ok = all_ok and same
+    lines[#lines + 1] = string.format("VS misma dificultad=%s (%d, %d)", tostring(same), d1, d2)
   end
   if vs_expect ~= 0 then
     local winner = read8(A_VS_RESULT)
@@ -513,6 +618,10 @@ emu.addEventCallback(function()
       mid_screenshot_frame = frame + 2000
     end
     local song_frame = read16(A_SONG_FRAME)
+    -- Diagnóstico: cuadros en que el juego se atrasó (la NMI avanzó dos veces en un cuadro de pantalla)
+    local nmi = read8(A_NMI_COUNT)
+    if prev_nmi and (nmi - prev_nmi) % 256 ~= 1 and #lag_frames < 40 then lag_frames[#lag_frames + 1] = song_frame end
+    prev_nmi = nmi
     for p = 1, num_players do
       if read8(field(p, "star_active")) == 1 then star_seen[p] = true end
       -- El contador del "ecualizador" del motor salta a 9 en cada nota nueva
@@ -531,6 +640,11 @@ emu.addEventCallback(function()
       if (modes[p] == "idle" or modes[p] == "fail") and song_frame > chart[1].frame + 7 and song_frame < chart[#chart].frame
          and read8(A_PAUSED) == 0 and last_volume[p] ~= nil and last_volume[p] ~= MUTE_VALUE[instruments[p]] then
         unmuted[p] = unmuted[p] + 1
+        if unmuted[p] == 1 then
+          write_file("sin_silenciar_J" .. p .. ".txt", string.format("primer cuadro sin silenciar: %d (primera nota %d, volumen %02X)\ncuadros con atraso: %s\nplayer_muted J1=%d J2=%d, sfx=%02X\n",
+                     song_frame, chart[1].frame, last_volume[p], table.concat(lag_frames, " "),
+                     read8(field(1, "player_muted")), read8(field(2, "player_muted")), read8(A_SFX_PTR_HI)))
+        end
       end
       last_volume[p] = nil
     end

@@ -134,7 +134,7 @@ judge_lanes:
     ; instrumento, como el "overstrum" de Guitar Hero. Si no, machacar
     ; botones sin parar acertaría todo sin perder nunca el combo.
     ; La nota pendiente sigue esperando: no se cuenta como fallada.
-    jsr note_miss
+    jsr air_hit
     jmp @next
 
 @not_pressed:
@@ -255,7 +255,7 @@ lane_advance:
     jmp lane_seek
 
 ; -----------------------------------------------------------------------------
-; note_hit / note_miss (note_miss también sirve para los golpes al aire)
+; note_hit / note_miss (una nota que se pasó sin tocarla) / air_hit (golpe al aire)
 ; -----------------------------------------------------------------------------
 note_hit:
     lda hud_dirty
@@ -277,6 +277,15 @@ note_hit:
     jmp score_add
 
 note_miss:
+    jsr combo_break
+    jmp life_down           ; y pierdes vida (según la dificultad)
+
+air_hit:
+    jsr combo_break
+    lda #LIFE_AIR           ; un golpe al aire cuesta menos que perder una nota
+    jmp life_lose
+
+combo_break:
     lda #0
     sta combo_digits
     sta combo_digits+1
@@ -289,15 +298,26 @@ note_miss:
     lda hud_dirty
     ora #HUD_SCORE | HUD_COMBO
     sta hud_dirty           ; el combo volvió a 0 y el multiplicador a x1
-    jmp life_down           ; y pierdes vida
+    rts
 
 ; -----------------------------------------------------------------------------
 ; Vida (el medidor de rendimiento)
 ;
-; Empieza a la mitad. Acertar sube un poco; fallar o dar un golpe al aire baja
-; más (más en las dificultades altas), así que hay que acertar la mayoría. Si
+; Empieza en dos tercios. Acertar sube 1; perder una nota baja 2 (1 en fácil) y un
+; golpe al aire baja 1, así que hay que acertar la mayoría (se aguanta con 2 de
+; cada 3 aciertos, pero una mala racha con poca vida sí cuesta la canción). Si
 ; llega a 0, el jugador pierde: su instrumento calla y deja de jugar. En
 ; "sin fallo" (no_fail) no pasa nada, y el medidor ni se dibuja.
+;
+; Cómo se llegó a estos números (issue #7): con 4 de penalización y empezando
+; a la mitad, en experto bastaban 6 fallos para perder. Se simuló un jugador cuyos
+; errores vienen en rachas (como los humanos) en charts de 150 a 700 notas: con
+; 90% de aciertos terminaba la canción solo 15-43% de las veces; con estos
+; valores, el 100%. Uno que acierta 70% o menos sigue perdiendo casi siempre.
+; Además, tras perder vida hay un respiro de LIFE_GRACE cuadros (life_grace) en el
+; que los fallos no cuestan más: en pasajes con notas repetidas en un carril, una
+; sola nota perdida hace que las siguientes caigan fuera de la ventana antes de
+; poder tocarlas, y sin el respiro cada una se cobraría aparte.
 ; -----------------------------------------------------------------------------
 
 ; life_up: A = puntos de vida que se ganan
@@ -311,16 +331,26 @@ life_up:
     sta life
     rts
 
-; life_down: pierde vida según la dificultad del jugador (y pierde si llega a 0)
+; life_down: pierde la vida de una nota perdida, según la dificultad del jugador
 life_down:
-    lda no_fail
-    ora failed
-    bne @done
     ldx cur_difficulty
-    lda life
+    lda life_penalty,x
+    ; sigue en life_lose
+
+; life_lose: A = puntos de vida que se pierden (y pierde si llega a 0)
+life_lose:
+    ldx no_fail
+    bne @done
+    ldx failed
+    bne @done
+    ldx life_grace          ; todavía en el respiro del fallo anterior: este no cuesta vida
+    bne @done
+    ldx #LIFE_GRACE
+    stx life_grace
+    eor #$FF                ; life - A = life + (A xor $FF) + 1
     sec
-    sbc life_penalty,x
-    bcs @store
+    adc life
+    bcs @store              ; (carry = 1: alcanzó, no hubo préstamo)
     lda #0
 @store:
     sta life
@@ -334,10 +364,10 @@ life_down:
 @done:
     rts
 
-; Lo que se pierde por fallo, por dificultad. Con +1 por acierto, la vida se
-; sostiene acertando 3 de cada 4 notas (fácil y medio) o 4 de cada 5 (difícil y experto).
+; Lo que se pierde por una nota perdida, por dificultad. Con +1 por acierto, la
+; vida se sostiene acertando 1 de cada 2 notas en fácil y 2 de cada 3 en las demás.
 ;                 fácil medio difícil experto
-life_penalty:  .byte 3,    3,    4,      4
+life_penalty:  .byte 1,    2,    2,      2
 
 ; -----------------------------------------------------------------------------
 ; start_fx: enciende la llamarada del carril `lane` del jugador actual.

@@ -80,9 +80,12 @@ instrumento (en Co-Op; en VS sí pueden, ver abajo): cada quien silencia su cana
 `2 JUGADORES COOP`.
 
 - **VS:** cada quien juega su partida, con su instrumento y dificultad. Al final, los resultados dicen
-  `GANA J1 POR 001230` (la diferencia de puntaje) o `EMPATE`. Pueden elegir **el mismo instrumento**
-  (y dificultad) para un duelo sobre las mismas notas; como comparten canal de sonido, el instrumento
-  solo se calla cuando los dos están fallando.
+  `GANA J1 POR 001230` (la diferencia de puntaje) o `EMPATE`. Los dos juegan **la misma dificultad**
+  (la elige el jugador 1 y el 2 la sigue) y, por defecto, **el mismo instrumento** (el jugador 2 copia
+  al 1, pero puede cambiarlo): un duelo sobre las mismas notas. Como comparten canal de sonido, el
+  instrumento solo se calla cuando los dos están fallando. Con fallo activado, **si un jugador pierde
+  (se le acaba la vida) la partida se corta y gana el otro**, sin importar el puntaje
+  (`GANA J2 - J1 PERDIO`); esa partida no graba récord.
 - **Co-Op (banda):** los dos son una banda. El **puntaje, el combo (y su multiplicador), la barra de
   poder estelar y la vida son de la banda**: si cualquiera falla, se rompe el combo de los dos; las
   frases estelares de ambos llenan la misma barra (Select de cualquiera la activa) y si la vida se
@@ -130,10 +133,13 @@ botón presionado mientras pasa la cola para sumar 10 puntos cada 8 cuadros. Si 
 de sumar: no rompe el combo ni calla tu instrumento. Esos puntos no cuentan para las estrellas.
 
 **Fallo y Sin fallo:** cada jugador tiene un **medidor de vida** (la columna junto a su autopista: verde,
-amarillo, y rojo parpadeando cuando falta poco). Empieza a la mitad; cada acierto la sube un poco, y
-cada fallo o golpe al aire la baja más (hay que acertar 3 de cada 4 notas en fácil y medio, 4 de cada 5
-en difícil y experto). Si llega a 0 pierdes: tu instrumento calla y la franja dice "FALLASTE". Con 2
-jugadores el otro sigue; si pierden los dos, termina la canción. En el menú, el renglón **FALLO** cambia
+amarillo, y rojo parpadeando cuando falta poco). Empieza en dos tercios; cada acierto la sube 1, perder
+una nota la baja 2 (1 en fácil) y un golpe al aire la baja 1, así que hay que acertar más o menos 2 de
+cada 3 notas (1 de cada 2 en fácil) para sostenerla; un jugador que acierta ~90% (con sus errores en
+rachas) termina la canción en experto, y uno que acierta menos de la mitad pierde. Tras perder vida hay
+un respiro de 8 cuadros en el que los fallos no cuestan más (notas repetidas en un carril que caen
+antes de poder tocarlas se cobran una sola vez). Si llega a 0 pierdes: tu instrumento calla y la franja dice "FALLASTE". Con 2
+jugadores, en VS la partida se corta y gana el otro; en Co-Op pierden los dos. En el menú, el renglón **FALLO** cambia
 a **SIN FALLO**: no se puede perder (y no se ve el medidor), pero esa partida no podrá guardar récord
 cuando exista (issue #1).
 
@@ -283,6 +289,11 @@ copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
   - 1 jugador **machacando botones**: acierta notas de suerte, pero el combo máximo no pasa de 5 y
     no saca más de 2 estrellas.
   - 1 jugador **en fácil**: la autopista más lenta.
+  - 1 jugador **"humano"**: uno que acierta ~90% (errores en rachas, notas que se le van y golpes al
+    aire, con semilla fija) debe terminar la canción en experto con fallo activado; uno que acierta
+    ~45% debe perder (balance de la vida).
+  - **VS con fallo**: si un jugador pierde, la partida se corta y gana el otro; en VS los dos juegan
+    la misma dificultad (la del jugador 1).
   - 2 jugadores **perfectos** (guitarra + bajo).
   - 2 jugadores **mixto**: uno perfecto y el otro sin tocar nada, para comprobar que cada quien lleva
     su propio juego (puntaje, silenciado, resultados). Revisa además que el VS declare ganador al

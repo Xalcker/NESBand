@@ -62,8 +62,14 @@ BOLT_SPRITE     = FX_SPRITE + FX_SLOTS * 2 ; primer sprite de los rayos (despué
 METER_SEGMENTS  = 6                    ; el medidor de vida son 6 sprites de 8 px, uno sobre otro
 METER_SPRITE    = BOLT_SPRITE + MAX_PLAYERS * BOLT_LEN ; primer sprite de los medidores (el último es el 60 de 64)
 LIFE_MAX        = METER_SEGMENTS * 8   ; vida: 1 punto = 1 pixel del medidor
-LIFE_START      = LIFE_MAX / 2         ; se empieza en la mitad
+LIFE_START      = LIFE_MAX * 2 / 3     ; se empieza con dos tercios (no hay que clavar las primeras notas)
 LIFE_HIT        = 1                    ; acertar una nota
+LIFE_GRACE      = 8                    ; tras perder vida, 8 cuadros sin perder más: una ráfaga de fallos
+                                       ; (notas repetidas en un carril que caen antes de poder tocarlas, una
+                                       ; por cuadro) se cobra una sola vez; más respiro regalaría la canción
+LIFE_AIR        = 1                   ; un golpe al aire (el botón sin nota cerca) cuesta poco: casi siempre
+                                       ; va junto a una nota que también se pierde, y no debe cobrarse doble
+                                       ; (lo que cuesta perder una nota va por dificultad: life_penalty)
 LIFE_HOLD       = 1                    ; sostener una nota (cada 16 cuadros)
 LIFE_STAR       = 6                    ; completar una frase de poder estelar
 SONG_LEAD_IN    = 128                  ; cuadros de autopista antes de que arranque la música
@@ -247,6 +253,7 @@ ini_pos:        .res 1   ; cuál de las 3 letras se está cambiando
 ini_done:       .res 1   ; 1 = ya terminó de escribir las iniciales (y se grabó el récord)
 no_fail:        .res 1   ; 1 = "sin fallo": no pierde y no puede grabar récord (lo elige el menú: no se reinicia al jugar)
 star_failed:    .res 1   ; 1 = ya fallaste una nota de la frase estelar en curso
+life_grace:     .res 1   ; cuadros que faltan para que un fallo vuelva a quitar vida (ver life_lose)
 tail_mask:      .res 1   ; carriles con una cola de nota sostenida en la parte ya dibujada de la autopista
 hold_on:        .res NUM_LANES   ; 1 = estás sosteniendo la nota de ese carril
 hold_end_lo:    .res NUM_LANES   ; cuadro en que termina su cola
