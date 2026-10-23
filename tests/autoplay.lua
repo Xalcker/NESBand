@@ -33,6 +33,9 @@
 --                        cuanto la barra llega a la mitad; 0 (default) = nunca lo activan
 --   AUTOPLAY_RECORD      0 (default); 1 = escribe iniciales y comprueba que el récord se guardó;
 --                        2 = (con el .sav de la corrida 1) el récord ya existía y no hay uno nuevo
+--   AUTOPLAY_COOP        1 = modo Co-Op (con 2 jugadores): puntaje, combo, vida y poder estelar de
+--                        la banda; el puntaje esperado es el de los dos charts mezclados por cuadro
+--   AUTOPLAY_VS          (modo VS, 2 jugadores) quién debe ganar: 1, 2 o 3 = empate; 0 (default) = no se revisa
 --   TEST_OUT             carpeta donde dejar resultado.txt y capturas .png
 --
 -- Requiere que Mesen tenga habilitado "AllowIoOsAccess" (escribir archivos) y
@@ -47,6 +50,8 @@ local instruments = { tonumber(os.getenv("AUTOPLAY_INSTRUMENT") or "0"),
 local difficulty = tonumber(os.getenv("AUTOPLAY_DIFFICULTY") or "3")   -- 0 fácil .. 3 experto
 local difficulty2 = tonumber(os.getenv("AUTOPLAY_DIFFICULTY2") or tostring(difficulty))
 local use_star = os.getenv("AUTOPLAY_STAR") == "1"
+local coop = os.getenv("AUTOPLAY_COOP") == "1" and num_players == 2
+local vs_expect = tonumber(os.getenv("AUTOPLAY_VS") or "0")
 local STAR_MAX, STAR_PHRASE, STAR_MIN = 80, 20, 40       -- como en main.s
 local outdir = os.getenv("TEST_OUT") or "."
 local mem = emu.memType.nesMemory
@@ -66,6 +71,7 @@ local PSTATE_SIZE = label("pstate_end") - PSTATE
 local function field(p, name) return SAVE + (p - 1) * PSTATE_SIZE + (label(name) - PSTATE) end
 
 local A_STATE, A_SONG_FRAME, A_PAUSED = label("game_state"), label("song_frame"), label("paused")
+local A_VS_RESULT = label("vs_result")
 local A_COUNTER = label("famistudio_chn_note_counter")
 local A_SFX_PTR_HI = label("famistudio_sfx_base_addr") + 2   -- no 0 mientras suena un efecto
 
@@ -102,7 +108,8 @@ local steps = {}
 local function add(port, button, times) for _ = 1, times do steps[#steps + 1] = { port, button } end end
 add(0, "right", song)
 add(0, "down", 1)
-add(0, "right", num_players - 1)
+-- Jugadores: 1 jugador -> 2 jugadores VS -> 2 jugadores Co-Op
+add(0, "right", coop and 2 or num_players - 1)
 add(0, "down", 1)
 add(0, "right", instruments[1])
 add(0, "down", 1)
@@ -118,7 +125,8 @@ if num_players == 2 then
   -- instrumento válido, saltando batería (3, sin chart) y el del jugador 1
   local pos, presses = 2, 0
   while pos ~= instruments[2] do
-    repeat pos = (pos + 1) % 4 until pos ~= 3 and pos ~= instruments[1]
+    -- (en VS pueden coincidir; en Co-Op no)
+    repeat pos = (pos + 1) % 4 until pos ~= 3 and (pos ~= instruments[1] or not coop)
     presses = presses + 1
   end
   add(1, "right", presses)
@@ -271,9 +279,46 @@ local results_frames = 0
 local results_at = 0     -- song_frame al llegar a los resultados (para ver si la canción terminó antes)
 local mid_screenshot_frame = nil
 
+-- Co-Op: puntaje esperado de la banda. Las notas de los dos se juzgan en el orden en que caen
+-- (cuadro, jugador, carril) y comparten un solo combo; las colas suman sus puntos aparte.
+local function team_expected()
+  local events, score, combo = {}, 0, 0
+  for p = 1, num_players do
+    for _, n in ipairs(charts[p]) do
+      for lane = 0, 4 do
+        if (n.mask >> lane) & 1 == 1 then events[#events + 1] = { frame = n.frame, p = p, lane = lane } end
+      end
+    end
+  end
+  table.sort(events, function(a, b)
+    if a.frame ~= b.frame then return a.frame < b.frame end
+    if a.p ~= b.p then return a.p < b.p end
+    return a.lane < b.lane
+  end)
+  for _ = 1, #events do
+    combo = math.min(combo + 1, 999)
+    score = score + 50 * math.min(combo // 10 + 1, 4)
+  end
+  for p = 1, num_players do
+    for _, h in ipairs(holds[p]) do
+      for f = h.first, h.last - 1 do
+        if f % HOLD_TICK == 0 then score = score + HOLD_POINTS end
+      end
+    end
+  end
+  return #events, score
+end
+
 local function check_player(p)
   local chart = charts[p]
   local hits, exp_score = expected(chart, holds[p])
+  -- En Co-Op el puntaje, el combo y la barra de poder son de la banda
+  local team_hits, team_score, team_runs = hits, exp_score, star_runs[p]
+  if coop then
+    team_hits, team_score = team_expected()
+    team_runs = 0
+    for q = 1, num_players do team_runs = team_runs + star_runs[q] end
+  end
   local score = digits(field(p, "score_digits"), 6)
   local combo = digits(field(p, "combo_digits"), 3)
   local notes_hit, notes_total = read16(field(p, "notes_hit")), read16(field(p, "notes_total"))
@@ -292,6 +337,7 @@ local function check_player(p)
   -- Récord nuevo: solo un jugador perfecto con el .sav vacío (en el modo 2, ya estaba el mismo puntaje)
   local new_record = read8(field(p, "new_record"))
   local expect_record = (modes[p] == "perfect" and rec_mode ~= "2") and 1 or 0
+  if coop and p == 2 then expect_record = 0 end     -- el récord de la banda es del jugador 1
   local ok
   if modes[p] == "fail" then
     -- Quien pierde deja de jugar y su canción puede terminar antes: no se exige sincronía completa
@@ -305,15 +351,15 @@ local function check_player(p)
     -- (hasta llenarse). Activándolo, el puntaje sube pero a lo más al doble (las estrellas no cambian).
     local score_ok, star_ok
     if use_star then
-      score_ok = score <= 2 * exp_score and (star_runs[p] < 2 or (score > exp_score and star_seen[p]))
+      score_ok = score <= 2 * team_score and (team_runs < 2 or (score > team_score and (star_seen[1] or star_seen[p])))
       star_ok = true
     else
-      score_ok = score == exp_score
-      star_ok = read8(field(p, "star_energy")) == math.min(STAR_MAX, STAR_PHRASE * star_runs[p])
+      score_ok = score == team_score
+      star_ok = read8(field(p, "star_energy")) == math.min(STAR_MAX, STAR_PHRASE * team_runs)
                 and read8(field(p, "star_active")) == 0
     end
-    ok = ok and score_ok and star_ok and combo == math.min(hits, 999) and notes_hit == hits
-         and max_combo == hits and percent == 100 and stars == 5
+    ok = ok and score_ok and star_ok and combo == math.min(team_hits, 999) and notes_hit == hits
+         and max_combo == team_hits and percent == 100 and stars == 5
     if p == 1 then ok = ok and resume_frame ~= nil end
   elseif modes[p] == "smash" then
     -- Acierta notas de suerte, pero cada golpe al aire rompe el combo, y
@@ -333,7 +379,7 @@ local function check_player(p)
     "J%d %s inst=%d notas=%d/%d puntaje=%d (esperado %s) combo_max=%d precision=%d%% estrellas=%d " ..
     "disparos=%d desfasadas=%d [%s] sin_silenciar=%d perdio=%d sin_fallo=%d record_nuevo=%d",
     p, modes[p], instruments[p], notes_hit, notes_total, score,
-    modes[p] == "perfect" and tostring(exp_score) or "0", max_combo, percent, stars,
+    modes[p] == "perfect" and tostring(team_score) or "0", max_combo, percent, stars,
     trigger_count[p], off_sync, table.concat(off_frames, " "), unmuted[p], failed, no_fail, new_record)
   return ok and new_record == expect_record, text
 end
@@ -363,6 +409,21 @@ local function evaluate()
     local ok, text = check_player(p)
     all_ok = all_ok and ok
     lines[#lines + 1] = text
+  end
+  if coop then
+    -- Lo compartido debe ser igual en la copia de los dos jugadores
+    local same = true
+    for _, name in ipairs({ "score_digits", "combo_digits", "life", "failed", "star_energy", "stars" }) do
+      local n = (name == "score_digits") and 6 or (name == "combo_digits" and 3 or 1)
+      if digits(field(1, name), n) ~= digits(field(2, name), n) then same = false end
+    end
+    all_ok = all_ok and same
+    lines[#lines + 1] = "banda compartida=" .. tostring(same)
+  end
+  if vs_expect ~= 0 then
+    local winner = read8(A_VS_RESULT)
+    all_ok = all_ok and winner == vs_expect
+    lines[#lines + 1] = string.format("VS ganador=%d (esperado %d)", winner, vs_expect)
   end
   return all_ok, lines
 end

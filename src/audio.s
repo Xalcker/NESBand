@@ -111,11 +111,32 @@ apply_mute:
     ldy player_offset,x
     lda player_save + PS_MUTED,y
     beq @next
+    stx tmp
+    lda num_players
+    cmp #2
+    bne @mute
+    ; En VS los dos pueden tocar el mismo instrumento (el mismo canal): solo se calla
+    ; si los dos están fallando; mientras el otro acierte, sigue sonando
+    txa
+    eor #1
+    tax                         ; X = el otro jugador
+    ldy player_offset,x
+    lda player_save + PS_MUTED,y
+    bne @mute                   ; también falló: se calla
+    lda player_save + PS_CHANNEL,y
+    ldx tmp
+    ldy player_offset,x
+    cmp player_save + PS_CHANNEL,y
+    beq @back                   ; mismo canal y el otro acierta: suena
+@mute:
+    ldx tmp
+    ldy player_offset,x
     lda player_save + PS_CHANNEL,y
     cmp #2
     bne @pulse_or_noise
     lda #$80                    ; triángulo: contador lineal en 0 = silencio
     sta APU_TRI_CTRL
+    ldx tmp
     jmp @next
 @pulse_or_noise:
     asl a                       ; cada canal ocupa 4 registros: $4000, $4004, $400C
@@ -123,6 +144,9 @@ apply_mute:
     tay
     lda #%00110000              ; pulso/ruido: volumen constante 0
     sta $4000,y
+    jmp @next
+@back:
+    ldx tmp
 @next:
     inx
     cpx num_players

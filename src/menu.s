@@ -26,6 +26,7 @@ MENU_REC_ROW     = 23    ; récord guardado de cada jugador (su etiqueta, en la 
 MENU_REC_WIDTH   = 13    ; "012345 ABC 5*"
 MENU_TEXT_WIDTH  = 26
 MENU_VALUE_WIDTH = 12
+MENU_PLAYERS_WIDTH = 16  ; "2 JUGADORES COOP"
 
 MENU_ITEMS       = 5     ; opciones del jugador 1: canción, jugadores, instrumento, dificultad, fallo
 ITEM_SONG        = 0
@@ -227,7 +228,9 @@ menu_change:
     jsr load_player
     pla
     cmp #ITEM_SONG
-    beq @song
+    bne @not_song
+    jmp @song               ; (muy lejos para un beq)
+@not_song:
     cmp #ITEM_PLAYERS
     beq @players
     cmp #ITEM_INSTRUMENT
@@ -270,10 +273,29 @@ menu_change:
     jmp menu_draw_player
 
 @players:
-    ; 1 <-> 2 jugadores (con izquierda o derecha da igual)
+    ; 1 jugador -> 2 jugadores VS -> 2 jugadores Co-Op -> vuelta (izquierda va al revés)
+    jsr players_mode
+    clc
+    adc menu_dir
+    bpl @mode_low
+    lda #2
+@mode_low:
+    cmp #3
+    bcc @mode_ok
+    lda #0
+@mode_ok:
+    ldx #1
+    stx num_players
+    ldx #0
+    stx game_mode
+    cmp #0
+    beq @mode_set           ; 1 jugador
+    inc num_players
+    cmp #2
+    bne @mode_set           ; 2 jugadores VS
+    inc game_mode           ; 2 jugadores Co-Op
+@mode_set:
     lda num_players
-    eor #%11                ; 1 -> 2, 2 -> 1
-    sta num_players
     cmp #2
     bne @players_done
     ldx #1                  ; el jugador 2 necesita un instrumento distinto
@@ -383,6 +405,8 @@ instrument_ok:
     lda num_players
     cmp #2
     bne @yes
+    lda game_mode           ; en VS pueden tocar el mismo instrumento (el mismo chart: duelo
+    beq @yes                ; parejo); en Co-Op no, o se tocarían las mismas notas dos veces
     lda player              ; instrumento del otro jugador, de su copia guardada
     eor #1
     tax
@@ -426,16 +450,29 @@ menu_draw_song:
     jmp vbuf_text
 
 menu_draw_players:
-    lda num_players
+    jsr players_mode
     asl a
     tax
-    lda players_names-2,x
+    lda players_names,x
     sta ptr
-    lda players_names-1,x
+    lda players_names+1,x
     sta ptr+1
     SET_ADDR MENU_VALUE_COL, MENU_PLAYERS_ROW
-    lda #MENU_VALUE_WIDTH
+    lda #MENU_PLAYERS_WIDTH
     jmp vbuf_text
+
+; players_mode: A = 0 (1 jugador), 1 (2 jugadores, VS) o 2 (2 jugadores, Co-Op)
+players_mode:
+    lda num_players
+    cmp #2
+    bne @one
+    lda game_mode
+    clc
+    adc #1
+    rts
+@one:
+    lda #0
+    rts
 
 ; Instrumento y dificultad del jugador X (en blanco si no está jugando)
 menu_draw_player:
@@ -469,6 +506,10 @@ mark_record_dirty:
     ldx player
     lda menu_rec_dirty
     ora record_bit,x
+    ldx game_mode
+    beq @store
+    ora #%11                ; Co-Op: el récord de la banda depende de la dificultad de los dos
+@store:
     sta menu_rec_dirty
     rts
 
@@ -477,12 +518,23 @@ mark_record_dirty:
 menu_draw_record:
     jsr menu_value_ptr
     bcc @write
+    lda game_mode
+    beq @solo
+    cpx #0                  ; Co-Op: un solo récord, el de la banda, bajo el jugador 1
+    beq @band
+    SET_PTR txt_empty
+    jmp @write
+@band:
+    jsr rec_team_key
+    jmp @find
+@solo:
     lda player_offset,x
     tay
     lda player_save + PS_INSTRUMENT,y
     asl a
     asl a
     ora player_save + (cur_difficulty - pstate),y
+@find:
     jsr rec_find
     bcs @found
     SET_PTR txt_no_record
@@ -655,7 +707,7 @@ menu_value_col: .byte MENU_VALUE_COL, MENU_VALUE_COL2
 
 instrument_names: .addr txt_guitar, txt_keys, txt_bass, txt_drums
 difficulty_names: .addr txt_easy, txt_medium, txt_hard, txt_expert
-players_names:    .addr txt_one_player, txt_two_players
+players_names:    .addr txt_one_player, txt_two_players, txt_two_coop
 fail_names:       .addr txt_with_fail, txt_no_fail
 record_bit:       .byte %01, %10
 
@@ -670,7 +722,9 @@ txt_with_fail:   .byte "CON FALLO", 0
 txt_no_fail:     .byte "SIN FALLO", 0
 txt_menu_help:   .byte "START: JUGAR   B: VOLVER", 0
 txt_one_player:  .byte "1 JUGADOR", 0
-txt_two_players: .byte "2 JUGADORES", 0
+txt_two_players: .byte "2 JUGADORES VS", 0
+txt_two_coop:    .byte "2 JUGADORES COOP", 0
+txt_band:        .byte "BANDA", 0
 txt_guitar:      .byte "GUITARRA", 0
 txt_keys:        .byte "TECLADO", 0
 txt_bass:        .byte "BAJO", 0

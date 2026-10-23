@@ -6,6 +6,10 @@
 ; =============================================================================
 
 PS_NEW_RECORD   = new_record - pstate   ; posición dentro del bloque de un jugador (lo usa results_update)
+PS_NOTES_TOTAL  = notes_total - pstate
+PS_SCORE        = score_digits - pstate
+PS_STARS        = stars - pstate
+RES_WINNER_ROW  = 7      ; "GANA J1 POR 001230" (VS)
 RES_RECORD_ROW  = 8      ; "NUEVO RECORD"
 RES_INST_ROW    = 9
 RES_DIFF_ROW    = 10
@@ -36,13 +40,23 @@ enter_results:
     lda #6
     jsr print_centered
     PRINT_CENTER 26, txt_continue
+    lda #0
+    sta vs_result
 
     ; Una columna por jugador
     ldx #0
 @player:
     jsr load_player
     jsr compute_stats
+    lda game_mode
+    beq @check
+    lda #0                  ; Co-Op: solo hay un récord, el de la banda, y es del jugador 1
+    sta new_record
+    lda player
+    bne @checked
+@check:
     jsr rec_check_new       ; ¿superó el récord guardado?
+@checked:
     jsr store_player        ; (percent y stars quedan guardados para las pruebas)
     jsr draw_player_results
     ldx player
@@ -50,6 +64,16 @@ enter_results:
     cpx num_players
     bne @player
 
+    lda game_mode
+    beq @versus
+    jsr team_results        ; Co-Op: lo de la banda, al centro
+    jmp @finish
+@versus:
+    lda num_players
+    cmp #2
+    bne @finish
+    jsr vs_winner           ; VS: quién ganó
+@finish:
     lda #0
     sta scroll_y
     sta scroll_nt
@@ -94,7 +118,9 @@ results_set_col:
 draw_player_results:
     jsr results_set_col
 
-    ; ¿Récord nuevo?
+    ; ¿Récord nuevo? (en Co-Op lo de la banda va al centro: team_results)
+    lda game_mode
+    bne @no_record
     lda new_record
     beq @no_record
     SET_PTR txt_new_record
@@ -112,6 +138,11 @@ draw_player_results:
     lda #RES_DIFF_ROW
     jsr res_print
 
+    lda game_mode           ; Co-Op: estado y puntaje son de la banda (team_results)
+    beq @own_score
+    jmp @notes
+@own_score:
+
     ; Cómo terminó: perdiste, o jugaste sin fallo (esa partida no puede grabar récord)
     lda failed
     beq @not_failed
@@ -127,25 +158,16 @@ draw_player_results:
     jsr res_print
 @status_done:
 
-    ; Puntaje: los 6 dígitos tal cual (score_digits son 0-9, el texto es '0'-'9')
+    ; Puntaje: los 6 dígitos tal cual
     SET_PTR txt_score
     lda #RES_SCORE_ROW
     jsr res_print
-    ldx #5
-@score:
-    lda score_digits,x
-    clc
-    adc #'0'
-    sta numstr,x
-    dex
-    bpl @score
-    lda #0
-    sta numstr+6
-    SET_PTR numstr
+    jsr score_text
     lda #RES_SCORE_ROW + 1
     jsr res_print
 
     ; Notas: acertadas/total
+@notes:
     SET_PTR txt_notes
     lda #RES_NOTES_ROW
     jsr res_print
@@ -179,6 +201,11 @@ draw_player_results:
     SET_PTR txt_percent
     jsr print_more
 
+    lda game_mode           ; Co-Op: combo máximo y estrellas son de la banda
+    beq @own_combo
+    rts
+@own_combo:
+
     ; Combo máximo
     SET_PTR txt_max_combo
     lda #RES_COMBO_ROW
@@ -191,7 +218,18 @@ draw_player_results:
     lda #RES_COMBO_ROW + 1
     jsr res_print
 
-    ; Estrellas: "* * *" (una por cada umbral de precisión alcanzado)
+    jsr stars_text
+    lda #RES_STARS_ROW
+    ; sigue en res_print
+
+; res_print: escribe el texto de ptr en la fila A, columna res_col (render apagado)
+res_print:
+    ldx res_col
+    jsr text_addr
+    jmp print_direct
+
+; stars_text: ptr = "* * *" (una por cada estrella ganada)
+stars_text:
     ldx #0
     ldy #0
 @star:
@@ -209,14 +247,163 @@ draw_player_results:
     lda #0
     sta numstr,y
     SET_PTR numstr
-    lda #RES_STARS_ROW
-    ; sigue en res_print
+    rts
 
-; res_print: escribe el texto de ptr en la fila A, columna res_col (render apagado)
-res_print:
-    ldx res_col
-    jsr text_addr
-    jmp print_direct
+; score_text: ptr = los 6 dígitos del puntaje del jugador cargado (score_digits son 0-9, el texto '0'-'9')
+score_text:
+    ldx #5
+@digit:
+    lda score_digits,x
+    clc
+    adc #'0'
+    sta numstr,x
+    dex
+    bpl @digit
+    lda #0
+    sta numstr+6
+    SET_PTR numstr
+    rts
+
+; -----------------------------------------------------------------------------
+; team_results: (Co-Op) lo de la banda, centrado: récord, estado, puntaje, combo
+; máximo y estrellas. Las estrellas salen del puntaje de la banda contra el máximo
+; posible de los dos charts juntos (el combo es uno solo: notas de uno y otro).
+; Cada jugador ya dibujó su columna (instrumento, notas y precisión).
+; -----------------------------------------------------------------------------
+team_results:
+    ldx #0
+    jsr load_player         ; lo compartido es igual en los dos; las notas, se suman
+    lda notes_total
+    sta ptr
+    lda notes_total+1
+    sta ptr+1
+    clc
+    lda notes_total
+    adc player_save + PSTATE_SIZE + PS_NOTES_TOTAL
+    sta notes_total
+    lda notes_total+1
+    adc player_save + PSTATE_SIZE + PS_NOTES_TOTAL + 1
+    sta notes_total+1
+    jsr compute_stars
+    lda ptr                 ; y el jugador 1 conserva las suyas
+    sta notes_total
+    lda ptr+1
+    sta notes_total+1
+    jsr store_player
+    lda stars               ; el jugador 2 también guarda las estrellas de la banda (para las pruebas)
+    sta player_save + PSTATE_SIZE + PS_STARS
+
+    lda new_record
+    beq @no_record
+    SET_PTR txt_new_record
+    lda #RES_RECORD_ROW
+    jsr print_centered
+@no_record:
+    lda failed
+    beq @not_failed
+    SET_PTR txt_res_failed
+    lda #RES_STATUS_ROW
+    jsr print_centered
+    jmp @status_done
+@not_failed:
+    lda no_fail
+    beq @status_done
+    SET_PTR txt_res_no_fail
+    lda #RES_STATUS_ROW
+    jsr print_centered
+@status_done:
+    SET_PTR txt_score
+    lda #RES_SCORE_ROW
+    jsr print_centered
+    jsr score_text
+    lda #RES_SCORE_ROW + 1
+    jsr print_centered
+    SET_PTR txt_max_combo
+    lda #RES_COMBO_ROW
+    jsr print_centered
+    lda max_combo
+    sta tmp
+    lda max_combo+1
+    sta tmp+1
+    jsr num_to_text
+    lda #RES_COMBO_ROW + 1
+    jsr print_centered
+    jsr stars_text
+    lda #RES_STARS_ROW
+    jmp print_centered
+
+; -----------------------------------------------------------------------------
+; vs_winner: (VS, 2 jugadores) compara los puntajes, deja en vs_result 1 (gana J1),
+; 2 (gana J2) o 3 (empate), y escribe "GANA J1 POR 001230" (o "EMPATE")
+; -----------------------------------------------------------------------------
+vs_winner:
+    ldx #0
+@compare:
+    lda player_save + PS_SCORE,x        ; de la cifra más alta a la más baja
+    cmp player_save + PSTATE_SIZE + PS_SCORE,x
+    bne @differ
+    inx
+    cpx #6
+    bne @compare
+    lda #3
+    sta vs_result
+    SET_PTR txt_tie
+    lda #RES_WINNER_ROW
+    jmp print_centered
+@differ:
+    bcc @second
+    ; Gana el jugador 1: ptr = su puntaje, addr = el del jugador 2
+    lda #1
+    sta vs_result
+    lda #<(player_save + PS_SCORE)
+    sta ptr
+    lda #>(player_save + PS_SCORE)
+    sta ptr+1
+    lda #<(player_save + PSTATE_SIZE + PS_SCORE)
+    sta addr
+    lda #>(player_save + PSTATE_SIZE + PS_SCORE)
+    sta addr+1
+    jmp @text
+@second:
+    lda #2
+    sta vs_result
+    lda #<(player_save + PSTATE_SIZE + PS_SCORE)
+    sta ptr
+    lda #>(player_save + PSTATE_SIZE + PS_SCORE)
+    sta ptr+1
+    lda #<(player_save + PS_SCORE)
+    sta addr
+    lda #>(player_save + PS_SCORE)
+    sta addr+1
+@text:
+    ; "GANA J? POR " y, detrás, la diferencia (ptr - addr, dígito por dígito con préstamo)
+    ldx #11
+@prefix:
+    lda txt_wins,x
+    sta numstr,x
+    dex
+    bpl @prefix
+    lda vs_result
+    ora #'0'
+    sta numstr + 6
+    ldy #5
+    sec
+@subtract:
+    lda (ptr),y
+    sbc (addr),y
+    bcs @digit
+    adc #10                 ; préstamo (carry = 0): +10, y el siguiente dígito resta 1 más
+    clc
+@digit:
+    ora #'0'                ; (no toca el carry)
+    sta numstr + 12,y
+    dey
+    bpl @subtract
+    lda #0
+    sta numstr + 18
+    SET_PTR numstr
+    lda #RES_WINNER_ROW
+    jmp print_centered
 
 ; -----------------------------------------------------------------------------
 ; compute_stats: percent = notes_hit * 100 / notes_total, y las estrellas
@@ -237,7 +424,10 @@ compute_stats:
     sta ratio_den+1
     jsr ratio100
     sta percent
+    ; sigue en compute_stars
 
+; compute_stars: las estrellas, a partir del puntaje y de notes_total
+compute_stars:
     ; Las estrellas salen del PUNTAJE, como en Rock Band, y no de la
     ; precisión: machacando botones se aciertan notas de suerte, pero los
     ; golpes al aire rompen el combo y el puntaje se queda muy abajo.
@@ -384,6 +574,8 @@ txt_score:      .byte "PUNTAJE", 0
 txt_notes:      .byte "NOTAS", 0
 txt_accuracy:   .byte "PRECISION", 0
 txt_max_combo:  .byte "COMBO MAXIMO", 0
+txt_wins:       .byte "GANA J? POR "       ; 12 caracteres: después va la diferencia de puntaje
+txt_tie:        .byte "EMPATE", 0
 txt_slash:      .byte "/", 0
 txt_percent:    .byte "%", 0
 txt_continue:   .byte "START: CONTINUAR", 0
