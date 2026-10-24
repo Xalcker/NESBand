@@ -18,11 +18,15 @@ Uso: define las listas de compases de cada canal, arma un `Cancion` y llama a `e
 
 from __future__ import annotations
 
+import math
+import random
 from dataclasses import dataclass, field
 from pathlib import Path
 
 NOMBRES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 FILAS_POR_COMPAS = 16
+TONO_DPCM = 12  # indice de velocidad del DMC: 12 = ~16.9 kHz (15 seria 33 kHz y ocuparia el doble)
+FRECUENCIA_DPCM = 1789773 / 106
 
 # Cada golpe de bateria usa una altura distinta del canal de ruido y su propio instrumento.
 GOLPES = {
@@ -84,13 +88,20 @@ def parsear(compas: str, instrumento: str) -> tuple[list[tuple[int, str | None, 
     return notas, instrumento
 
 
-def bateria(compas: str) -> str:
+# Percusion con samples DPCM: cada golpe es una nota que dispara un sample (ver bombo_dpcm y tarola_dpcm)
+PERCUSION = {
+    "K": ("C1", "Percusion"),
+    "S": ("C#1", "Percusion"),
+}
+
+
+def bateria(compas: str, golpes: dict[str, tuple[str, str]] = GOLPES) -> str:
     """'K.H.S.H.K.H.S.H.' -> fichas de nota:filas para parsear (cada golpe dura una fila)."""
     if len(compas) != FILAS_POR_COMPAS:
         raise ValueError(f"el compas de bateria '{compas}' no tiene {FILAS_POR_COMPAS} caracteres")
     fichas = []
     for c in compas:
-        fichas.append(f"@{GOLPES[c][1]} {GOLPES[c][0]}:1" if c in GOLPES else "r:1")
+        fichas.append(f"@{golpes[c][1]} {golpes[c][0]}:1" if c in golpes else "r:1")
     return " ".join(fichas)
 
 
@@ -98,6 +109,7 @@ def bateria(compas: str) -> str:
 class Instrumento:
     volumen: list[int] | None = None
     duty: list[int] | None = None  # 0 = 12.5%, 1 = 25%, 2 = 50%, 3 = 75%
+    mapeo: list[tuple[str, str]] | None = None  # instrumento DPCM: (nota, nombre del sample)
 
 
 @dataclass
@@ -107,6 +119,7 @@ class Cancion:
     instrumentos: dict[str, Instrumento]
     canales: dict[str, list[str]] = field(default_factory=dict)  # canal -> compases
     inicial: dict[str, str] = field(default_factory=dict)  # canal -> instrumento inicial
+    muestras: dict[str, str] = field(default_factory=dict)  # nombre del sample -> datos DPCM en hexadecimal
 
     @property
     def compases(self) -> int:
@@ -126,8 +139,14 @@ def escribir(c: Cancion, ruta: Path) -> None:
         f'Project Version="4.5.3" TempoMode="FamiStudio" Name="{c.titulo}" Author="NESBand" '
         f'Copyright="NESBand (GPL-2.0-or-later)"\n'
     ]
+    for nom, datos in c.muestras.items():
+        out.append(f'\tDPCMSample Name="{nom}" Data="{datos}"\n')
     for n, ins in c.instrumentos.items():
         out.append(f'\tInstrument Name="{n}"\n')
+        for nota, muestra in ins.mapeo or []:
+            out.append(
+                f'\t\tDPCMMapping Note="{nota}" Sample="{muestra}" Pitch="{TONO_DPCM}" Loop="False" Bank="0"\n'
+            )
         if ins.volumen:
             out.append(_env("Volume", ins.volumen))
         if ins.duty:
@@ -136,7 +155,7 @@ def escribir(c: Cancion, ruta: Path) -> None:
         f'\tSong Name="{c.titulo}" Length="{c.compases}" LoopPoint="0" PatternLength="{FILAS_POR_COMPAS}" '
         f'BeatLength="4" NoteLength="{f}" Groove="{f}" GroovePaddingMode="Middle"\n'
     )
-    tipos = [("Square1", "pulso1"), ("Square2", "pulso2"), ("Triangle", "triangulo"), ("Noise", "ruido")]
+    tipos = [("Square1", "pulso1"), ("Square2", "pulso2"), ("Triangle", "triangulo"), ("Noise", "ruido"), ("DPCM", "dpcm")]
     for tipo, clave in tipos:
         if clave not in c.canales:
             continue
@@ -145,12 +164,18 @@ def escribir(c: Cancion, ruta: Path) -> None:
         instancias = []
         instrumento = c.inicial.get(clave, next(iter(c.instrumentos)))
         for i, compas in enumerate(c.canales[clave]):
-            notas, instrumento = parsear(bateria(compas) if clave == "ruido" else compas, instrumento)
+            if clave == "ruido":
+                compas = bateria(compas)
+            elif clave == "dpcm":
+                compas = bateria(compas, PERCUSION)
+            notas, instrumento = parsear(compas, instrumento)
             lineas = []
+            extra = ' DeltaCounter="32"' if clave == "dpcm" else ""  # cada golpe arranca desde el centro
             for fila, n, filas, ins in notas:
                 if n is not None:
                     lineas.append(
-                        f'\t\t\t\t\tNote Time="{fila * f}" Value="{n}" Duration="{filas * f - 1}" Instrument="{ins}"\n'
+                        f'\t\t\t\t\tNote Time="{fila * f}" Value="{n}" Duration="{filas * f - 1}" '
+                        f'Instrument="{ins}"{extra}\n'
                     )
             cuerpo = "".join(lineas)
             if cuerpo not in patrones:
@@ -158,7 +183,8 @@ def escribir(c: Cancion, ruta: Path) -> None:
                 out.append(f'\t\t\tPattern Name="{patrones[cuerpo]}"\n{cuerpo}')
             instancias.append(f'\t\t\tPatternInstance Time="{i}" Pattern="{patrones[cuerpo]}"\n')
         out.extend(instancias)
-    out.append('\t\tChannel Type="DPCM"\n')
+    if "dpcm" not in c.canales:
+        out.append('\t\tChannel Type="DPCM"\n')
     ruta.write_text("".join(out), encoding="utf-8", newline="\n")
     print(f"{ruta}: {c.compases} compases, {c.compases * FILAS_POR_COMPAS * f / 60:.0f} s")
 
@@ -184,3 +210,44 @@ def arpegio(raiz: str, escala: Escala, orden: list[int], filas: int = 2, octava:
     if total != FILAS_POR_COMPAS:
         raise ValueError("el arpegio no llena el compas")
     return " ".join(fichas)
+
+
+def _modular(onda: list[float]) -> str:
+    """Codifica una onda (-1..1) como modulacion delta de 1 bit: el contador del DMC (0..63, empieza
+    en 32) sube un escalon con un 1 y baja uno con un 0. Los bits salen del menos significativo al mas."""
+    nivel, bits = 32, []
+    for x in onda:
+        objetivo = 32 + 30 * x
+        if nivel < objetivo:
+            bits.append(1)
+            nivel = min(63, nivel + 1)
+        else:
+            bits.append(0)
+            nivel = max(0, nivel - 1)
+    while len(bits) % 128:  # el sample mide un multiplo de 16 bytes
+        bits.append(1 if len(bits) % 2 else 0)
+    datos = bytearray()
+    for i in range(0, len(bits), 8):
+        datos.append(sum(b << k for k, b in enumerate(bits[i : i + 8])))
+    return datos.hex()
+
+
+def bombo_dpcm() -> str:
+    """Bombo: un seno que cae de 105 a 42 Hz mientras se apaga."""
+    n, fase, onda = int(0.17 * FRECUENCIA_DPCM), 0.0, []
+    for i in range(n):
+        t = i / n
+        fase += 2 * math.pi * (42 + 63 * math.exp(-9 * t)) / FRECUENCIA_DPCM
+        onda.append(0.8 * math.exp(-4.5 * t) * math.sin(fase))
+    return _modular(onda)
+
+
+def tarola_dpcm() -> str:
+    """Tarola: ruido que se apaga rapido sobre un tono de unos 190 Hz."""
+    azar, n, onda = random.Random(7), int(0.15 * FRECUENCIA_DPCM), []
+    for i in range(n):
+        t = i / n
+        tono = math.sin(2 * math.pi * 190 * i / FRECUENCIA_DPCM) * math.exp(-10 * t)
+        ruido = azar.uniform(-1, 1) * math.exp(-5 * t)
+        onda.append(0.35 * tono + 0.65 * ruido)
+    return _modular(onda)

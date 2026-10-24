@@ -16,6 +16,8 @@ src/songs/*
 !src/songs/salto/
 !src/songs/marcha/
 !src/songs/noche/
+!src/songs/carrera/
+!src/songs/brisa/
 
 # Referencias visuales con marcas de terceros (logos de Nintendo, etc.)
 docs/referencias/
