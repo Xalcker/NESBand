@@ -397,7 +397,29 @@ life_penalty:  .byte 1,    2,    2,      2
 ; Los sprites se ponen en pantalla en update_fx (play.s).
 ; -----------------------------------------------------------------------------
 start_fx:
+    lda drum_look
+    beq @one_flame
+    lda lane
+    cmp #4
+    beq @kick_flames        ; batería: el bombo no tiene carril propio (es la barra de los 4 pads)
+@one_flame:
     lda #FX_FRAMES
+    jmp set_fx
+
+    ; Un bombo acertado enciende la llamarada en los 4 carriles a la vez. set_fx lee `lane`, así que
+    ; se recorre con él y al final vuelve a valer 4.
+@kick_flames:
+    lda #0
+    sta lane
+@flame_lane:
+    lda #FX_FRAMES
+    jsr set_fx
+    inc lane
+    lda lane
+    cmp #4
+    bne @flame_lane
+    rts                     ; (lane = 4 otra vez)
+
 set_fx:                     ; A = cuadros que durará la llamarada
     sta tmp
     jsr lane_column         ; columna del carril (deja X = jugador)
@@ -849,7 +871,7 @@ erase_gem:
 @bar_lane:
     ldx lane
     cpx #4
-    beq @bar_erase          ; el carril del bombo: siempre
+    beq @bar_next           ; el bombo no tiene columna (la barra cruza las de los 4 pads)
     lda lane_bit,x
     and tmp
     beq @bar_erase          ; este pad no está en la entrada: ahí solo había barra

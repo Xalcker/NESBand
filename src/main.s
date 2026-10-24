@@ -353,8 +353,8 @@ drum_look:      .res 1   ; 1 = la autopista se ve como batería: columnas rojo-a
 .segment "CODE2"
 .include "results.s"
 .include "options.s"
+.include "records.s"            ; (también en CODE2: el modo batería agrandó el código de la autopista y el banco de $8000 se llenó)
 .segment "CODE"
-.include "records.s"
 .include "initials.s"
 
 ; =============================================================================

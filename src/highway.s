@@ -355,6 +355,13 @@ draw_player_lanes:
     lda #0
     sta lane
 @lane:
+    lda drum_look           ; batería: la autopista tiene 4 columnas (los pads); el bombo (carril 4) no tiene
+    beq @has_column         ; columna, es la barra que cruza las de los pads
+    lda lane
+    cmp #4
+    bne @has_column
+    jmp @next_lane
+@has_column:
     jsr lane_column
     tax                     ; X = columna donde empieza el carril
     lda edge_tile
@@ -404,17 +411,10 @@ draw_player_lanes:
     ; (TILE_KICK, color 3 de cada paleta = el mismo naranja en todas: ver palettes). Si el bombo
     ; cae junto con un pad (un acorde), la gema del pad queda encima de la barra.
 @drum_lane:
-    cpy #4
-    beq @kick_lane          ; el carril del bombo: solo tiene la barra
     lda row_mask
     and lane_bit,y
     bne @drum_gem           ; un pad con nota: su gema
     lda row_mask            ; sin gema: ¿hay bombo en esta fila?
-    and #%10000
-    beq @next_lane
-    bne @bar                ; (siempre)
-@kick_lane:
-    lda row_mask
     and #%10000
     beq @next_lane
 @bar:
@@ -444,6 +444,11 @@ draw_player_lanes:
     lda player_base,x
     clc
     adc #HIGHWAY_TILES
+    ldy drum_look
+    beq @right_edge
+    sec
+    sbc #LANE_TILES         ; batería: un carril menos (4 columnas)
+@right_edge:
     tax
     lda edge_tile
     sta row_buf,x
@@ -541,6 +546,12 @@ write_attributes:
     lda #0
     sta lane
 @lane:
+    lda drum_look           ; batería: el bombo (carril 4) no tiene columna
+    beq @attr_column
+    lda lane
+    cmp #4
+    beq @attr_next
+@attr_column:
     jsr lane_column         ; columna del carril / 2 = su columna de 16 px
     lsr a
     tax
@@ -553,6 +564,7 @@ write_attributes:
     lda lane_palette,y
 @palette_set:
     sta attr_cols,x
+@attr_next:
     inc lane
     lda lane
     cmp #NUM_LANES

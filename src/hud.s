@@ -167,6 +167,15 @@ hud_room:
 queue_rings:
     ldx #0
 @lane:
+    ldy drum_look
+    beq @has_ring
+    cpx #4
+    bne @has_ring
+    lda #' '                ; batería: el bombo no tiene aro (es una barra: su respuesta es la llamarada
+    sta strip_buf+8         ; en los 4 carriles), y esos dos tiles de la franja quedan vacíos
+    sta strip_buf+9
+    jmp @next_ring
+@has_ring:
     lda lane_ring_tile,x    ; aro vacío, mitad izquierda
     ldy drum_look
     beq @ring_tile
@@ -193,6 +202,7 @@ queue_rings:
     clc
     adc #1                  ; mitad derecha
     sta strip_buf+1,y
+@next_ring:
     inx
     cpx #NUM_LANES
     bne @lane
