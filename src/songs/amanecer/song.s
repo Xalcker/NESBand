@@ -16,13 +16,13 @@ song_amanecer:
     .byte 28              ; cuadros por tiempo (129 BPM)
     .word 128             ; cuadro del primer tiempo
     .addr song_amanecer_title, song_amanecer_game
-    .byte %00000111        ; instrumentos con chart (bit 0 = guitarra)
+    .byte %00001111        ; instrumentos con chart (bit 0 = guitarra)
     .byte SONG_SLOT_NUMBER
     ; charts: un renglón por instrumento, una columna por dificultad
     .addr chart_amanecer_guitarra_facil, chart_amanecer_guitarra_medio, chart_amanecer_guitarra_dificil, chart_amanecer_guitarra_experto  ; guitarra
     .addr chart_amanecer_teclado_facil, chart_amanecer_teclado_medio, chart_amanecer_teclado_dificil, chart_amanecer_teclado_experto  ; teclado
     .addr chart_amanecer_bajo_facil, chart_amanecer_bajo_medio, chart_amanecer_bajo_dificil, chart_amanecer_bajo_experto  ; bajo
-    .addr 0, 0, 0, 0  ; bateria
+    .addr chart_amanecer_bateria_facil, chart_amanecer_bateria_medio, chart_amanecer_bateria_dificil, chart_amanecer_bateria_experto  ; bateria
 
 song_amanecer_title: .byte "AMANECER DIGITAL", 0
 song_amanecer_game:  .byte "NESBAND", 0

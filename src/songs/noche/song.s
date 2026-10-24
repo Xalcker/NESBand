@@ -16,13 +16,13 @@ song_noche:
     .byte 24              ; cuadros por tiempo (150 BPM)
     .word 128             ; cuadro del primer tiempo
     .addr song_noche_title, song_noche_game
-    .byte %00000111        ; instrumentos con chart (bit 0 = guitarra)
+    .byte %00001111        ; instrumentos con chart (bit 0 = guitarra)
     .byte SONG_SLOT_NUMBER
     ; charts: un renglón por instrumento, una columna por dificultad
     .addr chart_noche_guitarra_facil, chart_noche_guitarra_medio, chart_noche_guitarra_dificil, chart_noche_guitarra_experto  ; guitarra
     .addr chart_noche_teclado_facil, chart_noche_teclado_medio, chart_noche_teclado_dificil, chart_noche_teclado_experto  ; teclado
     .addr chart_noche_bajo_facil, chart_noche_bajo_medio, chart_noche_bajo_dificil, chart_noche_bajo_experto  ; bajo
-    .addr 0, 0, 0, 0  ; bateria
+    .addr chart_noche_bateria_facil, chart_noche_bateria_medio, chart_noche_bateria_dificil, chart_noche_bateria_experto  ; bateria
 
 song_noche_title: .byte "NOCHE SIN ESTRELLAS", 0
 song_noche_game:  .byte "NESBAND", 0

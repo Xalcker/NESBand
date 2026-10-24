@@ -443,11 +443,7 @@ Al cambiar un papel se rehacen al momento los charts de batería de las 4 dificu
 
 La asignación se guarda en `src/songs/<nombre>/drums.json` y las ediciones de los charts de batería en
 `edits.json`; las dos sobreviven a `reimport`, que con `drums.json` genera los charts de batería y enciende el instrumento
-en la ficha de la canción (*Exportar chart.s* del editor también ajusta `chart.s` y `song.s`). **En el juego (primera versión)** la
-batería se toca con los mismos botones: el bombo es una gema normal del carril naranja (la barra horizontal y el rombo del
-platillo, aún no: el bit `$40` se lee como platillo pero se dibuja como un tom), ESPEJO se ignora si alguien toca la batería
-y al fallar se callan el ruido y el DPCM. Pendiente: la barra del bombo, el rombo de los platillos y el orden de columnas de
-Rock Band (rojo, amarillo, azul, verde).
+en la ficha de la canción (*Exportar chart.s* del editor también ajusta `chart.s` y `song.s`). **En el juego** la batería se toca con los mismos botones. Con **un jugador** la autopista se ve como batería: 4 columnas en el orden de Rock Band (rojo, amarillo, azul, verde, centradas), y el **bombo es una barra naranja** que cruza todas, con la llamarada en los 4 carriles al acertarlo; cada pad tiene su paleta (el escenario se ve verde y naranja en este modo). Con dos jugadores se ve como el resto (el bombo es una gema del carril naranja, porque las paletas son de toda la pantalla). Los platillos se marcan en el chart (bit `$40`, solo en experto) pero en pantalla aún se dibujan como toms (el rombo está pendiente). ESPEJO se ignora si alguien toca la batería y al fallar se callan el ruido y el DPCM. Las diez canciones originales traen batería.
 
 
 Aún no tiene escuchar un solo grupo de golpes (el motor mezcla todo en cada canal; con M/S puedes aislar
@@ -608,7 +604,7 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 1. ~~Prototipo: autopista, notas, aciertos, puntaje~~ ✅
 2. ~~Música de verdad: NSF → FamiStudio → motor de sonido, sincronizada al cuadro~~ ✅
 3. ~~Generador automático de charts por canal y dificultad~~ ✅ (primera versión)
-4. ~~Charts de bajo y teclado~~ ✅ · ~~batería~~ ✅ primera versión (bombo como gema; barra y platillos pendientes)
+4. ~~Charts de bajo y teclado~~ ✅ · ~~batería~~ ✅ (4 pads y barra del bombo; el rombo de los platillos, pendiente)
 5. ~~Menús: título, selección de canción/instrumento/dificultad, pausa, resultados~~ ✅
    · ~~llamarada al acertar, notas sostenidas y poder estelar~~ ✅
 6. ~~Mapper con más espacio (MMC3) para muchas canciones~~ ✅ · pantalla de título ilustrada pendiente

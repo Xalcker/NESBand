@@ -16,13 +16,13 @@ song_salto:
     .byte 32              ; cuadros por tiempo (112 BPM)
     .word 128             ; cuadro del primer tiempo
     .addr song_salto_title, song_salto_game
-    .byte %00000111        ; instrumentos con chart (bit 0 = guitarra)
+    .byte %00001111        ; instrumentos con chart (bit 0 = guitarra)
     .byte SONG_SLOT_NUMBER
     ; charts: un renglón por instrumento, una columna por dificultad
     .addr chart_salto_guitarra_facil, chart_salto_guitarra_medio, chart_salto_guitarra_dificil, chart_salto_guitarra_experto  ; guitarra
     .addr chart_salto_teclado_facil, chart_salto_teclado_medio, chart_salto_teclado_dificil, chart_salto_teclado_experto  ; teclado
     .addr chart_salto_bajo_facil, chart_salto_bajo_medio, chart_salto_bajo_dificil, chart_salto_bajo_experto  ; bajo
-    .addr 0, 0, 0, 0  ; bateria
+    .addr chart_salto_bateria_facil, chart_salto_bateria_medio, chart_salto_bateria_dificil, chart_salto_bateria_experto  ; bateria
 
 song_salto_title: .byte "SALTO MORTAL", 0
 song_salto_game:  .byte "NESBAND", 0

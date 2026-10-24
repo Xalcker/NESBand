@@ -16,13 +16,13 @@ song_nesband_demo:
     .byte 24              ; cuadros por tiempo (150 BPM)
     .word 128             ; cuadro del primer tiempo
     .addr song_nesband_demo_title, song_nesband_demo_game
-    .byte %00000111        ; instrumentos con chart (bit 0 = guitarra)
+    .byte %00001111        ; instrumentos con chart (bit 0 = guitarra)
     .byte SONG_SLOT_NUMBER
     ; charts: un renglón por instrumento, una columna por dificultad
     .addr chart_nesband_demo_guitarra_facil, chart_nesband_demo_guitarra_medio, chart_nesband_demo_guitarra_dificil, chart_nesband_demo_guitarra_experto  ; guitarra
     .addr chart_nesband_demo_teclado_facil, chart_nesband_demo_teclado_medio, chart_nesband_demo_teclado_dificil, chart_nesband_demo_teclado_experto  ; teclado
     .addr chart_nesband_demo_bajo_facil, chart_nesband_demo_bajo_medio, chart_nesband_demo_bajo_dificil, chart_nesband_demo_bajo_experto  ; bajo
-    .addr 0, 0, 0, 0  ; bateria
+    .addr chart_nesband_demo_bateria_facil, chart_nesband_demo_bateria_medio, chart_nesband_demo_bateria_dificil, chart_nesband_demo_bateria_experto  ; bateria
 
 song_nesband_demo_title: .byte "PRIMER ENSAYO", 0
 song_nesband_demo_game:  .byte "NESBAND", 0

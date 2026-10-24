@@ -16,13 +16,13 @@ song_luna:
     .byte 32              ; cuadros por tiempo (112 BPM)
     .word 128             ; cuadro del primer tiempo
     .addr song_luna_title, song_luna_game
-    .byte %00000111        ; instrumentos con chart (bit 0 = guitarra)
+    .byte %00001111        ; instrumentos con chart (bit 0 = guitarra)
     .byte SONG_SLOT_NUMBER
     ; charts: un renglón por instrumento, una columna por dificultad
     .addr chart_luna_guitarra_facil, chart_luna_guitarra_medio, chart_luna_guitarra_dificil, chart_luna_guitarra_experto  ; guitarra
     .addr chart_luna_teclado_facil, chart_luna_teclado_medio, chart_luna_teclado_dificil, chart_luna_teclado_experto  ; teclado
     .addr chart_luna_bajo_facil, chart_luna_bajo_medio, chart_luna_bajo_dificil, chart_luna_bajo_experto  ; bajo
-    .addr 0, 0, 0, 0  ; bateria
+    .addr chart_luna_bateria_facil, chart_luna_bateria_medio, chart_luna_bateria_dificil, chart_luna_bateria_experto  ; bateria
 
 song_luna_title: .byte "LUZ DE LUNA", 0
 song_luna_game:  .byte "NESBAND", 0

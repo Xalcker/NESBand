@@ -16,13 +16,13 @@ song_marcha:
     .byte 28              ; cuadros por tiempo (129 BPM)
     .word 128             ; cuadro del primer tiempo
     .addr song_marcha_title, song_marcha_game
-    .byte %00000111        ; instrumentos con chart (bit 0 = guitarra)
+    .byte %00001111        ; instrumentos con chart (bit 0 = guitarra)
     .byte SONG_SLOT_NUMBER
     ; charts: un renglón por instrumento, una columna por dificultad
     .addr chart_marcha_guitarra_facil, chart_marcha_guitarra_medio, chart_marcha_guitarra_dificil, chart_marcha_guitarra_experto  ; guitarra
     .addr chart_marcha_teclado_facil, chart_marcha_teclado_medio, chart_marcha_teclado_dificil, chart_marcha_teclado_experto  ; teclado
     .addr chart_marcha_bajo_facil, chart_marcha_bajo_medio, chart_marcha_bajo_dificil, chart_marcha_bajo_experto  ; bajo
-    .addr 0, 0, 0, 0  ; bateria
+    .addr chart_marcha_bateria_facil, chart_marcha_bateria_medio, chart_marcha_bateria_dificil, chart_marcha_bateria_experto  ; bateria
 
 song_marcha_title: .byte "MARCHA DEL CARTUCHO", 0
 song_marcha_game:  .byte "NESBAND", 0

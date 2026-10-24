@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "groups": {
+    "Noise:A#2:Bombo": {"lane": "kick", "cymbal": false},
+    "Noise:D#3:Tarola": {"lane": "snare", "cymbal": false}
+  }
+}
