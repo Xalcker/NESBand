@@ -620,6 +620,9 @@ pruebas y la música y efectos originales de `audio/`. **No** cubre:
 - **El motor de sonido de FamiStudio** (`src/famistudio/`): es de BleuBleu, con licencia MIT (ver
   [src/famistudio/LICENSE.txt](src/famistudio/LICENSE.txt)). La MIT es compatible con la GPL, así que
   pueden ir juntos.
+- **La fuente de las letras** (`assets/fonts/Bongo-8_Mono.ttf` y los tiles de `src/font.s` que salen de ella):
+  *Bongo-8 Mono* de Caffinate (Nathan Scott), de dominio público (CC0 1.0). No exige crédito, pero se
+  agradece. Se regenera con `uv run --with pillow nesband build-font` (Pillow solo hace falta para eso).
 - **Las canciones convertidas de juegos comerciales** (`src/songs/`): la música es de sus compañías
   (Capcom, Konami, Sunsoft, Technos Japan…). Están aquí para un proyecto fan; la licencia de NESBand no
   te da ningún derecho sobre ellas.

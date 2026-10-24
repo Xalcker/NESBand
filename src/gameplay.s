@@ -422,7 +422,7 @@ start_fx:
 
 set_fx:                     ; A = cuadros que durará la llamarada
     sta tmp
-    jsr lane_column         ; columna del carril (deja X = jugador)
+    jsr mode_lane_column        ; columna del carril (deja X = jugador)
     asl a
     asl a
     asl a                   ; x 8 = pixel donde empieza el carril
@@ -811,7 +811,7 @@ erase_gem:
     beq @erase_bar          ; batería: el bombo es una barra de lado a lado, no una gema
 
 @one_gem:
-    jsr lane_column         ; la gema ocupa las 2 columnas del carril
+    jsr mode_lane_column        ; la gema ocupa las 2 columnas del carril
     clc
     adc addr
     ldy erase_count
@@ -885,7 +885,7 @@ erase_gem:
     ldy erase_count
     cpy #MAX_ERASE
     bcs @bar_next
-    jsr lane_column
+    jsr mode_lane_column
     clc
     adc addr
     ldy erase_count

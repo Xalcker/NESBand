@@ -350,18 +350,16 @@ player_row_mask:
 ; -----------------------------------------------------------------------------
 ; draw_player_lanes: dibuja en row_buf los carriles del jugador actual:
 ; borde + interior, y la gema donde row_mask lo diga
+; (con la batería, draw_drum_lanes: así el código de siempre queda tal cual y no cuesta ciclos extra)
 ; -----------------------------------------------------------------------------
 draw_player_lanes:
+    lda drum_look
+    beq @normal
+    jmp draw_drum_lanes
+@normal:
     lda #0
     sta lane
 @lane:
-    lda drum_look           ; batería: la autopista tiene 4 columnas (los pads); el bombo (carril 4) no tiene
-    beq @has_column         ; columna, es la barra que cruza las de los pads
-    lda lane
-    cmp #4
-    bne @has_column
-    jmp @next_lane
-@has_column:
     jsr lane_column
     tax                     ; X = columna donde empieza el carril
     lda edge_tile
@@ -369,8 +367,6 @@ draw_player_lanes:
     lda inner_tile
     sta row_buf+1,x
     ldy lane
-    lda drum_look
-    bne @drum_lane          ; batería: pads, y la barra del bombo (más abajo)
     lda row_mask
     and lane_bit,y
     bne @gem
@@ -402,53 +398,74 @@ draw_player_lanes:
     clc
     adc #1                  ; la mitad derecha es el tile siguiente
     sta row_buf+1,x
-    jmp @next_lane
-
-    ; --- Batería --------------------------------------------------------------------------------
-    ; Los 4 pads (rojo, amarillo, azul, verde) son gemas como las de siempre, todas del color 2 de su
-    ; paleta. El bombo (carril 4) no es una gema sino una barra naranja que cruza la autopista entera:
-    ; en la fila de un bombo, cada carril que no tenga la gema de un pad lleva un tramo de barra
-    ; (TILE_KICK, color 3 de cada paleta = el mismo naranja en todas: ver palettes). Si el bombo
-    ; cae junto con un pad (un acorde), la gema del pad queda encima de la barra.
-@drum_lane:
-    lda row_mask
-    and lane_bit,y
-    bne @drum_gem           ; un pad con nota: su gema
-    lda row_mask            ; sin gema: ¿hay bombo en esta fila?
-    and #%10000
-    beq @next_lane
-@bar:
-    lda #TILE_KICK          ; mitad izquierda (con el borde del carril)
-    sta row_buf,x
-    lda #TILE_KICK - 1      ; y la derecha es el tile anterior (como en las colas)
-    sta row_buf+1,x
-    jmp @next_lane
-@drum_gem:
-    lda row_star
-    and lane_bit,y
-    bne @drum_star
-    lda #TILE_GEM_A
-    jmp @gem_tiles
-@drum_star:
-    lda #TILE_STAR_A
-    jmp @gem_tiles
 @next_lane:
     inc lane
     lda lane
     cmp #NUM_LANES
-    beq @lanes_done
-    jmp @lane               ; (el bloque de la batería alargó el lazo: ya no alcanza un salto corto)
-@lanes_done:
+    bne @lane
 
     ldx player              ; borde derecho del último carril
     lda player_base,x
     clc
     adc #HIGHWAY_TILES
-    ldy drum_look
-    beq @right_edge
-    sec
-    sbc #LANE_TILES         ; batería: un carril menos (4 columnas)
-@right_edge:
+    tax
+    lda edge_tile
+    sta row_buf,x
+    rts
+
+; -----------------------------------------------------------------------------
+; draw_drum_lanes: lo mismo con la batería (drum_look). La autopista tiene 4 columnas, una por pad
+; (rojo, amarillo, azul, verde, en el orden de Rock Band: ver drum_slot). Las gemas son las de
+; siempre, todas del color 2 de su paleta. El bombo (carril 4) no es una gema ni tiene columna:
+; es una barra naranja que cruza los 4 carriles. En la fila de un bombo, cada carril que no tenga la
+; gema de un pad lleva un tramo de barra (TILE_KICK, color 3 de cada paleta = el mismo naranja en
+; todas: ver palettes). Si el bombo cae junto con un pad (un acorde), la gema queda encima de la barra.
+; -----------------------------------------------------------------------------
+draw_drum_lanes:
+    lda #0
+    sta lane
+@lane:
+    jsr drum_lane_column
+    tax                     ; X = columna donde empieza el carril
+    lda edge_tile
+    sta row_buf,x
+    lda inner_tile
+    sta row_buf+1,x
+    ldy lane
+    lda row_mask
+    and lane_bit,y
+    bne @gem                ; un pad con nota: su gema
+    lda row_mask            ; sin gema: ¿hay bombo en esta fila?
+    and #%10000
+    beq @next_lane
+    lda #TILE_KICK          ; mitad izquierda (con el borde del carril)
+    sta row_buf,x
+    lda #TILE_KICK - 1      ; y la derecha es el tile anterior (como en las colas)
+    sta row_buf+1,x
+    jmp @next_lane
+@gem:
+    lda row_star
+    and lane_bit,y
+    bne @star_gem
+    lda #TILE_GEM_A
+    jmp @gem_tiles
+@star_gem:
+    lda #TILE_STAR_A
+@gem_tiles:
+    sta row_buf,x
+    clc
+    adc #1                  ; la mitad derecha es el tile siguiente
+    sta row_buf+1,x
+@next_lane:
+    inc lane
+    lda lane
+    cmp #4                  ; solo los 4 pads
+    bne @lane
+
+    ldx player              ; borde derecho del último carril
+    lda player_base,x
+    clc
+    adc #HIGHWAY_TILES - LANE_TILES
     tax
     lda edge_tile
     sta row_buf,x
@@ -457,18 +474,29 @@ draw_player_lanes:
 ; lane_column: A = columna donde empieza el carril `lane` del jugador actual
 ;              = player_base + lane * 2
 lane_column:
-    ldy lane
-    lda drum_look
-    beq @plain
-    lda drum_slot,y         ; batería: la columna de cada carril, en el orden de Rock Band
-    tay
-@plain:
     ldx player
-    tya
+    lda lane
     asl a
     clc
     adc player_base,x
     rts
+
+; drum_lane_column: lo mismo con la batería: la columna de cada carril en el orden de Rock Band (drum_slot)
+drum_lane_column:
+    ldy lane
+    lda drum_slot,y
+    asl a
+    ldx player
+    clc
+    adc player_base,x
+    rts
+
+; mode_lane_column: la columna del carril `lane` según el modo: la de siempre o, con la batería, la de drum_slot.
+; Solo la usan las rutinas que corren una vez por acierto o al empezar; el dibujo de cada fila usa la suya.
+mode_lane_column:
+    lda drum_look
+    bne drum_lane_column
+    jmp lane_column
 
 ; -----------------------------------------------------------------------------
 ; set_layout: dónde va la autopista de cada jugador, según num_players.
@@ -558,7 +586,7 @@ write_attributes:
     cmp #4
     beq @attr_next
 @attr_column:
-    jsr lane_column         ; columna del carril / 2 = su columna de 16 px
+    jsr mode_lane_column    ; columna del carril / 2 = su columna de 16 px
     lsr a
     tax
     ldy lane
