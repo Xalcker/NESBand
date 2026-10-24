@@ -566,7 +566,420 @@ function init() {
   redraw();
 }
 window.addEventListener("resize", redraw);
-init();
+window.addEventListener("DOMContentLoaded", init);
+</script>
+<script>
+"use strict";
+// --- Edición (solo si la página la sirve `nesband edit-chart`; la versión --html es de lectura) ---
+if (DATA.editable) (function () {
+  const MIN_TAIL = 8;       // cuadros mínimos de cola
+  const SUSTAIN_GAP = 3;    // cuadros libres entre el fin de una cola y la siguiente nota del mismo carril
+  const BLOCKED = [[0, 2], [2, 4]];   // verde+amarillo y amarillo+naranja: izquierda+derecha de la cruz
+  const ED = { sel: null, undo: [], redo: [], saved: JSON.stringify(state.charts), snap: 4, drag: null, hover: null, preview: null, seq: 0, timer: 0 };
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const chart = () => state.charts[chartKey()];
+  const lanesAllowed = () => DATA.difficulties.find((d) => d.name === state.diff).lanes;
+  const selNote = () => (ED.sel === null ? null : chart().find((n) => n.frame === ED.sel) || null);
+  const bit = (lane) => 1 << lane;
+  const count = (mask) => lanesOf(mask).length;
+
+  function blockedPair(mask) {
+    const l = lanesOf(mask);
+    return BLOCKED.some(([a, b]) => l.includes(a) && l.includes(b));
+  }
+  function clash(a, b) {
+    // Mismo carril, o una pareja bloqueada entre un botón de una y uno de la otra (ver chart.lanes_clash)
+    if (a & b) return true;
+    return BLOCKED.some(([x, y]) => (a >> x & 1 && b >> y & 1) || (a >> y & 1 && b >> x & 1));
+  }
+  function say(text, kind) {
+    const el = $("msg");
+    el.textContent = text;
+    el.style.color = kind === "error" ? css("--err") : kind === "ok" ? "#6be88a" : css("--muted");
+  }
+  const snapFrame = (f) => {
+    if (!ED.snap) return Math.round(f);
+    const step = DATA.framesPerBeat / ED.snap;
+    return Math.round(DATA.firstBeat + Math.round((f - DATA.firstBeat) / step) * step);
+  };
+  const clampFrame = (f) => Math.max(LEAD_IN, Math.min(SONG_END, f));
+
+  // --- Deshacer ---
+  function pushUndo() {
+    ED.undo.push({ key: chartKey(), chart: clone(chart()) });
+    if (ED.undo.length > 300) ED.undo.shift();
+    ED.redo.length = 0;
+  }
+  function restore(from, to) {
+    const entry = from.pop();
+    if (!entry) return;
+    to.push({ key: entry.key, chart: clone(state.charts[entry.key]) });
+    state.charts[entry.key] = entry.chart;
+    const [inst, diff] = entry.key.split("/");
+    state.inst = inst; state.diff = diff;
+    $("inst").value = inst; $("diff").value = diff;
+    ED.sel = null;
+    afterEdit();
+  }
+
+  // --- Cambios al chart ---
+  function sortChart() { chart().sort((a, b) => a.frame - b.frame); }
+  function afterEdit() {
+    sortChart();
+    refreshButtons();
+    redraw();
+    clearTimeout(ED.timer);
+    ED.timer = setTimeout(validate, 120);
+  }
+  function edit(fn) {
+    pushUndo();
+    fn(chart());
+    afterEdit();
+  }
+  async function validate() {
+    const key = chartKey(), seq = ++ED.seq;
+    try {
+      const res = await fetch("/api/validate", { method: "POST", body: JSON.stringify({ key, chart: state.charts[key] }) });
+      const data = await res.json();
+      if (seq === ED.seq && data.problems) { state.problems[key] = data.problems; redraw(); }
+    } catch (e) { say("No pude validar: ¿sigue abierto el servidor?", "error"); }
+  }
+  function limitEnd(note) {
+    const list = chart();
+    for (let j = list.indexOf(note) + 1; j < list.length; j++) if (clash(list[j].mask, note.mask)) return list[j].frame - SUSTAIN_GAP;
+    return Infinity;
+  }
+  function trimTails(note) {
+    // Una nota nueva corta las colas anteriores que la pisarían, como hace el generador
+    for (const n of chart()) {
+      if (n.frame < note.frame && n.end !== null && n.end > note.frame - SUSTAIN_GAP && clash(n.mask, note.mask)) {
+        n.end = note.frame - SUSTAIN_GAP;
+        if (n.end - n.frame < MIN_TAIL) n.end = null;
+      }
+    }
+    if (note.end !== null) {
+      note.end = Math.min(note.end, limitEnd(note));
+      if (note.end - note.frame < MIN_TAIL) note.end = null;
+    }
+  }
+  function placeLane(list, frame, lane, extra) {
+    // Pone un botón en `frame`: se une a la nota que ya esté ahí (acorde) o crea una nota. Devuelve la nota o null si no se puede
+    const near = list.find((n) => n.frame === frame);
+    if (near) {
+      const mask = near.mask | bit(lane);
+      if (blockedPair(mask)) { say("Verde + amarillo y amarillo + naranja no se pueden tocar juntos (izquierda + derecha).", "error"); return null; }
+      near.mask = mask;
+      near.star = false;
+      trimTails(near);
+      return near;
+    }
+    const note = { frame, mask: bit(lane), end: null, star: false, ...extra };
+    list.push(note);
+    trimTails(note);
+    return note;
+  }
+
+  // --- Acciones ---
+  function deleteSel() {
+    const note = selNote();
+    if (!note) return;
+    edit((list) => list.splice(list.indexOf(note), 1));
+    ED.sel = null;
+    refreshButtons();
+  }
+  function moveLane(delta) {
+    const note = selNote();
+    if (!note) return;
+    const lanes = lanesOf(note.mask).map((l) => l + delta);
+    if (lanes.some((l) => l < 0 || l >= lanesAllowed())) return;
+    const mask = lanes.reduce((m, l) => m | bit(l), 0);
+    if (blockedPair(mask)) { say("Ese carril forma una pareja imposible (izquierda + derecha).", "error"); return; }
+    edit(() => { note.mask = mask; trimTails(note); });
+  }
+  function moveFrame(sign) {
+    const note = selNote();
+    if (!note) return;
+    const step = ED.snap ? DATA.framesPerBeat / ED.snap : 1;
+    const frame = clampFrame(snapFrame(note.frame + sign * step + sign * 0.01));
+    if (frame === note.frame || chart().some((n) => n.frame === frame)) return;
+    edit(() => { if (note.end !== null) note.end += frame - note.frame; note.frame = frame; trimTails(note); });
+    ED.sel = frame;
+  }
+  function toggleStar() {
+    const note = selNote();
+    if (!note) return;
+    if (count(note.mask) > 1) { say("Un acorde no entra en una frase estelar.", "error"); return; }
+    edit(() => { note.star = !note.star; });
+  }
+  function starPhrase() {
+    const note = selNote();
+    if (!note) return;
+    const list = chart(), from = list.indexOf(note);
+    const picked = list.slice(from).filter((n) => count(n.mask) === 1).slice(0, 4);
+    if (count(note.mask) > 1 || picked.length < 4) { say("No hay 4 notas sueltas desde aquí para una frase.", "error"); return; }
+    edit(() => picked.forEach((n) => { n.star = true; }));
+  }
+  function unstarPhrase() {
+    const note = selNote();
+    if (!note || !note.star) return;
+    const list = chart();
+    let a = list.indexOf(note), b = a;
+    while (a > 0 && list[a - 1].star) a--;
+    while (b < list.length - 1 && list[b + 1].star) b++;
+    edit(() => { for (let i = a; i <= b; i++) list[i].star = false; });
+  }
+  function toggleTail() {
+    const note = selNote();
+    if (!note) return;
+    edit(() => {
+      if (note.end !== null) { note.end = null; return; }
+      note.end = Math.min(note.frame + DATA.framesPerBeat, limitEnd(note));
+      if (note.end - note.frame < MIN_TAIL) { note.end = null; say("No cabe una cola: la siguiente nota del carril está muy cerca.", "error"); }
+    });
+  }
+  function joinNext() {
+    const note = selNote();
+    if (!note) return;
+    const list = chart(), next = list[list.indexOf(note) + 1];
+    if (!next) return;
+    const mask = note.mask | next.mask;
+    if (blockedPair(mask)) { say("Esas dos notas juntas serían una pareja imposible (izquierda + derecha).", "error"); return; }
+    edit(() => {
+      note.mask = mask;
+      note.star = false;
+      list.splice(list.indexOf(next), 1);
+      trimTails(note);
+    });
+  }
+  function resetChart() {
+    if (!confirm(`¿Descartar todas las ediciones de ${chartKey()} y volver al chart automático?`)) return;
+    pushUndo();
+    state.charts[chartKey()] = clone(DATA.auto[chartKey()]);
+    ED.sel = null;
+    afterEdit();
+  }
+
+  // --- Ratón sobre el chart ---
+  const canvas = $("highway");
+  const geom = () => ({ w: canvas.clientWidth, h: HW_HEIGHT });
+  const pointer = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  function laneAt(x) {
+    const { w } = geom();
+    const lane = Math.floor((x - HW.padX) / ((w - 2 * HW.padX) / 5));
+    return lane < 0 || lane > 4 ? -1 : lane;
+  }
+  function hitNote(p) {
+    const { w, h } = geom();
+    let best = null, bestDist = 1e9;
+    for (const n of chart()) {
+      const y = hwY(n.frame, h);
+      if (Math.abs(y - p.y) > 11) continue;
+      for (const lane of lanesOf(n.mask)) {
+        const dx = Math.abs(laneX(lane, w) - p.x);
+        if (dx <= 18 && dx + Math.abs(y - p.y) < bestDist) { best = { note: n, lane }; bestDist = dx + Math.abs(y - p.y); }
+      }
+    }
+    return best;
+  }
+  const handlePos = (note) => {
+    const { w, h } = geom();
+    return { x: laneX(lanesOf(note.mask)[0], w) + 0, y: hwY(note.end !== null ? note.end : note.frame + MIN_TAIL * 2, h) };
+  };
+
+  canvas.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    const p = pointer(e), { h } = geom();
+    const sel = selNote();
+    if (sel) {
+      const hp = handlePos(sel);
+      if (Math.abs(hp.x - p.x) <= 10 && Math.abs(hp.y - p.y) <= 9) {
+        pushUndo();
+        ED.drag = { type: "tail", note: sel, before: JSON.stringify(sel) };
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+    const hit = hitNote(p);
+    if (hit) {
+      if (e.shiftKey) {
+        edit((list) => {
+          if (count(hit.note.mask) > 1) hit.note.mask &= ~bit(hit.lane);
+          else list.splice(list.indexOf(hit.note), 1);
+        });
+        if (!chart().includes(hit.note)) ED.sel = null;
+        refreshButtons();
+        return;
+      }
+      ED.sel = hit.note.frame;
+      ED.drag = { type: "move", note: hit.note, lane: hit.lane, x0: p.x, y0: p.y, moved: false };
+      canvas.setPointerCapture(e.pointerId);
+      refreshButtons();
+      redraw();
+      return;
+    }
+    const lane = laneAt(p.x);
+    if (lane < 0) return;
+    if (lane >= lanesAllowed()) { say(`La dificultad ${state.diff} solo usa ${lanesAllowed()} carriles.`, "error"); return; }
+    const frame = clampFrame(snapFrame(hwFrame(p.y, h)));
+    pushUndo();
+    const note = placeLane(chart(), frame, lane);
+    if (!note) { ED.undo.pop(); return; }
+    ED.sel = note.frame;
+    afterEdit();
+  });
+
+  canvas.addEventListener("pointermove", (e) => {
+    const p = pointer(e), { h } = geom();
+    const drag = ED.drag;
+    if (drag && drag.type === "tail") {
+      const f = snapFrame(hwFrame(p.y, h));
+      let end = f - drag.note.frame < MIN_TAIL ? null : Math.min(f, limitEnd(drag.note));
+      if (end !== null && end - drag.note.frame < MIN_TAIL) end = null;
+      drag.note.end = end;
+      redraw();
+    } else if (drag && drag.type === "move") {
+      if (Math.abs(p.x - drag.x0) + Math.abs(p.y - drag.y0) > 5) drag.moved = true;
+      if (drag.moved) {
+        const lane = Math.max(0, Math.min(lanesAllowed() - 1, laneAt(p.x) < 0 ? drag.lane : laneAt(p.x)));
+        ED.preview = { lane, frame: clampFrame(snapFrame(hwFrame(p.y, h))) };
+        redraw();
+      }
+    } else {
+      const lane = laneAt(p.x);
+      ED.hover = lane >= 0 && lane < lanesAllowed() && !hitNote(p) ? { lane, frame: clampFrame(snapFrame(hwFrame(p.y, h))) } : null;
+      redraw();
+    }
+  });
+  canvas.addEventListener("pointerleave", () => { if (!ED.drag) { ED.hover = null; redraw(); } });
+
+  canvas.addEventListener("pointerup", () => {
+    const drag = ED.drag;
+    ED.drag = null;
+    const target = ED.preview;
+    ED.preview = null;
+    if (!drag) return;
+    if (drag.type === "tail") {
+      if (JSON.stringify(drag.note) === drag.before) ED.undo.pop(); else afterEdit();
+      return;
+    }
+    if (!drag.moved || !target || (target.frame === drag.note.frame && target.lane === drag.lane)) { redraw(); return; }
+    const note = drag.note, delta = target.frame - note.frame;
+    const other = chart().find((n) => n.frame === target.frame && n !== note);
+    const joined = other ? other.mask | bit(target.lane) : 0;
+    if (other && blockedPair(joined)) { say("Esas notas juntas serían una pareja imposible (izquierda + derecha).", "error"); redraw(); return; }
+    pushUndo();
+    const list = chart();
+    const wholeNote = count(note.mask) === 1;
+    const extra = wholeNote ? { end: note.end === null ? null : note.end + delta, star: note.star } : {};
+    if (wholeNote) list.splice(list.indexOf(note), 1); else note.mask &= ~bit(drag.lane);
+    const placed = placeLane(list, target.frame, target.lane, extra);
+    ED.sel = placed ? placed.frame : null;
+    afterEdit();
+  });
+
+  // --- Teclado ---
+  document.addEventListener("keydown", (e) => {
+    if (e.target.closest("input, select, textarea")) return;
+    const key = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && key === "z" && !e.shiftKey) { e.preventDefault(); restore(ED.undo, ED.redo); return; }
+    if ((e.ctrlKey || e.metaKey) && (key === "y" || (key === "z" && e.shiftKey))) { e.preventDefault(); restore(ED.redo, ED.undo); return; }
+    if ((e.ctrlKey || e.metaKey) && key === "s") { e.preventDefault(); save(false); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const actions = {
+      delete: deleteSel, backspace: deleteSel, s: toggleStar, t: toggleTail, j: joinNext,
+      arrowleft: () => moveLane(-1), arrowright: () => moveLane(1), arrowup: () => moveFrame(1), arrowdown: () => moveFrame(-1),
+      escape: () => { ED.sel = null; refreshButtons(); redraw(); },
+    };
+    if (actions[key] && (selNote() || key === "escape")) { e.preventDefault(); actions[key](); }
+  });
+
+  // --- Guardar y exportar ---
+  const isDirty = () => JSON.stringify(state.charts) !== ED.saved;
+  async function post(url) {
+    const res = await fetch(url, { method: "POST", body: JSON.stringify({ charts: state.charts }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data.message;
+  }
+  async function save(exportAsm) {
+    try {
+      const message = await post(exportAsm ? "/api/export" : "/api/save");
+      ED.saved = JSON.stringify(state.charts);
+      say(message, "ok");
+    } catch (e) { say(`No se guardó: ${e.message}`, "error"); }
+    refreshButtons();
+  }
+  window.addEventListener("beforeunload", (e) => { if (isDirty()) { e.preventDefault(); e.returnValue = ""; } });
+
+  // --- Botones ---
+  const buttons = {};
+  function button(parent, label, title, onclick) {
+    const b = document.createElement("button");
+    b.textContent = label; b.title = title; b.onclick = onclick;
+    parent.append(b);
+    return b;
+  }
+  function refreshButtons() {
+    const note = selNote();
+    for (const id of ["del", "join", "tail", "star", "phrase", "unphrase"]) buttons[id].disabled = !note;
+    buttons.undo.disabled = !ED.undo.length;
+    buttons.redo.disabled = !ED.redo.length;
+    buttons.save.disabled = !isDirty();
+    $("dirty").textContent = isDirty() ? "cambios sin guardar" : "";
+  }
+  window.editorHooks = {
+    init() {
+      const actions = $("actions");
+      actions.innerHTML = '<span id="dirty" style="color:var(--warn);margin-right:8px"></span>';
+      buttons.save = button(actions, "Guardar", "Guarda las ediciones en edits.json (Ctrl+S)", () => save(false));
+      button(actions, "Exportar chart.s", "Guarda y reescribe chart.s con el formato de siempre", () => save(true));
+      const tools = $("editTools");
+      tools.innerHTML = "<h3>Edición</h3>";
+      const row = document.createElement("div");
+      row.className = "tools";
+      tools.append(row);
+      buttons.undo = button(row, "Deshacer", "Ctrl+Z", () => restore(ED.undo, ED.redo));
+      buttons.redo = button(row, "Rehacer", "Ctrl+Y", () => restore(ED.redo, ED.undo));
+      buttons.del = button(row, "Borrar nota", "Supr", deleteSel);
+      buttons.join = button(row, "Juntar con la siguiente", "J: las dos notas pasan a ser un acorde", joinNext);
+      buttons.tail = button(row, "Cola", "T: poner o quitar la cola", toggleTail);
+      buttons.star = button(row, "★ Nota", "S: marcar o desmarcar la nota como estelar", toggleStar);
+      buttons.phrase = button(row, "★ Frase de 4", "Marca esta nota y las 3 sueltas siguientes", starPhrase);
+      buttons.unphrase = button(row, "Quitar frase", "Desmarca toda la frase estelar de la nota", unstarPhrase);
+      button(row, "Restaurar chart", "Descarta las ediciones de este instrumento y dificultad", resetChart);
+      const grid = document.createElement("label");
+      grid.innerHTML = 'Rejilla <select id="snap"><option value="1">tiempo</option><option value="2">1/2</option><option value="4" selected>1/4</option><option value="8">1/8</option><option value="0">cuadro</option></select>';
+      tools.append(grid);
+      $("snap").onchange = (e) => { ED.snap = Number(e.target.value); };
+      $("help").innerHTML = `<p><b>Clic</b> en un carril vacío: agrega una nota (en el cuadro de otra nota: la vuelve acorde). <b>Clic</b> en una nota: la selecciona; arrástrala para moverla de carril o de tiempo.</p>
+        <p><b>Mayús+clic</b>: quita esa nota (o ese botón de un acorde). El cuadrito blanco sobre la nota elegida alarga o acorta su cola.</p>
+        <p><kbd>←</kbd><kbd>→</kbd> carril · <kbd>↑</kbd><kbd>↓</kbd> tiempo · <kbd>Supr</kbd> borra · <kbd>J</kbd> juntar · <kbd>T</kbd> cola · <kbd>S</kbd> estrella · <kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> · <kbd>Ctrl+S</kbd> guarda</p>
+        <p><kbd>rueda</kbd>: avanza · <kbd>Ctrl</kbd>+<kbd>rueda</kbd>: zoom. En la línea de tiempo: rueda = zoom, arrastrar = recorrer.</p>`;
+      if (DATA.warnings.length) say("Avisos al aplicar edits.json: " + DATA.warnings.join("; "), "error");
+      refreshButtons();
+      $("inst").addEventListener("change", () => { ED.sel = null; refreshButtons(); });
+      $("diff").addEventListener("change", () => { ED.sel = null; refreshButtons(); });
+    },
+    afterDraw() {
+      const { ctx, w, h } = fit($("highway"), HW_HEIGHT);
+      const note = selNote();
+      if (note) {
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+        for (const lane of lanesOf(note.mask)) { roundRect(ctx, laneX(lane, w) - 20, hwY(note.frame, h) - 11, 40, 22, 8); ctx.stroke(); }
+        const hp = handlePos(note);
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(hp.x - 7, hp.y - 4, 14, 8);
+        ctx.lineWidth = 1;
+      }
+      for (const [spot, alpha] of [[ED.hover, 0.35], [ED.preview, 0.7]]) {
+        if (!spot) continue;
+        ctx.globalAlpha = alpha;
+        drawGem(ctx, laneX(spot.lane, w), hwY(spot.frame, h), spot.lane, false, null);
+        ctx.globalAlpha = 1;
+      }
+    },
+  };
+})();
 </script>
 </body>
 </html>

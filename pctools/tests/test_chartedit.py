@@ -12,6 +12,8 @@ from nesband_tools.chart import (
 )
 from nesband_tools.chartedit import (
     apply_edits,
+    chart_file_text,
+    chart_from_json,
     chart_problems,
     diff_charts,
     dump_edits,
@@ -135,6 +137,31 @@ def test_problems_star_rules():
     assert not chart_problems(run)
 
 
+def test_chart_file_text_matches_committed_files():
+    """Escribir lo que se leyó de un chart.s da el mismo archivo (así el export del editor no cambia nada)."""
+    for chart_s in sorted(SONGS.glob("*/chart.s")):
+        text = chart_s.read_text(encoding="utf-8")
+        header = text.split("\n", 1)[0]
+        source = header.split(" desde ")[1].removesuffix(" - no editar a mano")
+        blocks = [chart_to_asm(label, entries_to_chart(entries)) for label, entries in parse_chart_asm(text).items()]
+        assert chart_file_text(source, blocks) == text, chart_s.parent.name
+
+
+def test_chart_from_json_checks_input():
+    notes = chart_from_json([{"frame": 20, "mask": 2}, {"frame": 10, "mask": 1, "end": 30, "star": True}])
+    assert notes == [ChartNote(10, 1, 30, True), ChartNote(20, 2)]
+    for bad in ({"frame": -1, "mask": 1}, {"frame": 1, "mask": 64}, {"frame": 1.5, "mask": 1}):
+        with pytest.raises(ValueError):
+            chart_from_json([bad])
+    with pytest.raises(ValueError):
+        chart_from_json([{"frame": 5, "mask": 1}, {"frame": 5, "mask": 2}])
+
+
+def test_lanes_allowed_warning():
+    assert any("fuera de los 3" in p["text"] for p in chart_problems([ChartNote(10, 0b01000)], 3))
+    assert not chart_problems([ChartNote(10, 0b00100)], 3)
+
+
 def make_source(tmp_path):
     notes = [Note(i * 10, 60 + (i % 5), 8) for i in range(60)]
     song = Song("Prueba", {"BeatLength": "4", "NoteLength": "5"}, [300, 300], {"Square1": notes, "Square2": notes[::2]})
@@ -163,3 +190,60 @@ def test_edits_change_payload_but_not_auto(tmp_path):
     assert not warnings
     assert len(charts["guitarra/facil"]) == len(auto["guitarra/facil"]) - 1
     assert charts["teclado/facil"] == auto["teclado/facil"]
+
+
+def test_save_and_export_through_the_server(tmp_path):
+    import threading
+    import urllib.error
+    import urllib.request
+
+    from nesband_tools.chartedit import parse_chart_asm
+
+    src = make_source(tmp_path)
+    src.options = {"source": "audio/prueba.txt"}
+    handler = type("Bound", (editor.Handler,), {"src": src})
+    server = editor.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+
+    def call(path, body=None):
+        request = urllib.request.Request(base + path, json.dumps(body).encode() if body is not None else None)
+        try:
+            with urllib.request.urlopen(request) as response:
+                return response.status, response.read()
+        except urllib.error.HTTPError as error:
+            return error.code, error.read()
+
+    try:
+        status, page = call("/")
+        assert status == 200 and b'"editable":true' in page
+        payload = editor.build_payload(src)
+        charts = {k: v for k, v in payload["charts"].items()}
+
+        # Mover la primera nota a otro carril y guardar
+        first = charts["guitarra/facil"][0]
+        first["mask"] = 0b00010 if first["mask"] != 0b00010 else 0b00001
+        assert call("/api/save", {"charts": charts})[0] == 200
+        edits = load_edits(tmp_path)
+        assert set(edits) == {"guitarra/facil"} and edits["guitarra/facil"][0]["op"] == "set"
+
+        # Exportar: el chart.s tiene todos los charts, con la edición
+        status, _ = call("/api/export", {"charts": charts})
+        assert status == 200
+        exported = parse_chart_asm((tmp_path / "chart.s").read_text(encoding="utf-8"))
+        assert len(exported) == len(charts)
+        assert entries_to_chart(exported["chart_prueba_guitarra_facil"])[0].mask == first["mask"]
+
+        # Un chart imposible o incompleto se rechaza y no toca los archivos
+        before = (tmp_path / "edits.json").read_text(encoding="utf-8")
+        bad = {k: list(v) for k, v in charts.items()}
+        bad["guitarra/facil"] = [{"frame": 200, "mask": 0b00101, "end": None, "star": False}]
+        assert call("/api/save", {"charts": bad})[0] == 400
+        assert call("/api/export", {"charts": {}})[0] == 400
+        assert (tmp_path / "edits.json").read_text(encoding="utf-8") == before
+
+        status, body = call("/api/validate", {"key": "guitarra/facil", "chart": bad["guitarra/facil"]})
+        assert status == 200 and json.loads(body)["problems"][0]["kind"] == "error"
+    finally:
+        server.shutdown()
+        server.server_close()

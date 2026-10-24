@@ -17,8 +17,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import famistudio
-from .chart import DIFFICULTIES, BeatGrid, ChartNote, build_chart
-from .chartedit import apply_edits, chart_problems, load_edits
+from .chart import DIFFICULTIES, BeatGrid, ChartNote, build_chart, chart_size, chart_to_asm
+from .chartedit import (
+    apply_edits,
+    chart_file_text,
+    chart_from_json,
+    chart_problems,
+    diff_charts,
+    load_edits,
+    save_edits,
+    validate_chart,
+)
 
 HTML_PATH = Path(__file__).with_name("editor.html")
 
@@ -128,10 +137,49 @@ def build_payload(src: SongSource) -> dict:
                         if any(k.startswith(name + "/") for k in charts)],
         "difficulties": [{"name": d.name, "lanes": d.lanes} for d in DIFFICULTIES],
         "charts": {key: chart_json(chart) for key, chart in charts.items()},
-        "problems": {key: chart_problems(chart) for key, chart in charts.items()},
+        "auto": {key: chart_json(chart) for key, chart in auto.items()},
+        "problems": {key: chart_problems(chart, lanes_for(key)) for key, chart in charts.items()},
         "warnings": warnings,
+        "chartBytes": sum(chart_size(chart) for chart in charts.values()),
         "editable": False,
     }
+
+
+def lanes_for(key: str) -> int:
+    """Carriles de la dificultad de un chart ("guitarra/facil" -> 3)."""
+    difficulty = key.split("/")[1]
+    return next(d.lanes for d in DIFFICULTIES if d.name == difficulty)
+
+
+def save_edits_from_page(src: SongSource, charts: dict[str, list[ChartNote]]) -> dict[str, list[dict]]:
+    """Guarda en edits.json lo que difiere de los charts automáticos. Falla si algún chart no se puede tocar."""
+    auto = auto_charts(src)
+    if set(charts) != set(auto):
+        raise ValueError(f"faltan o sobran charts: se esperaban {sorted(auto)}")
+    edits = {}
+    for key, chart in charts.items():
+        if key not in auto:
+            raise ValueError(f"chart desconocido: {key}")
+        validate_chart(key, chart)
+        edits[key] = diff_charts(auto[key], chart)
+    save_edits(src.song_dir, edits)
+    return edits
+
+
+def export_chart_s(src: SongSource, charts: dict[str, list[ChartNote]]) -> str:
+    """Guarda las ediciones y reescribe chart.s con el mismo formato y orden que `import-song`."""
+    from . import cli
+
+    save_edits_from_page(src, charts)
+    blocks = []
+    for instrument, _ in cli.INSTRUMENTS:
+        for difficulty in DIFFICULTIES:
+            key = f"{instrument}/{difficulty.name}"
+            if key in charts:
+                blocks.append(chart_to_asm(f"chart_{src.name}_{instrument}_{difficulty.name}", charts[key]))
+    source_name = Path(src.options["source"]).name
+    cli.write_lf(src.song_dir / "chart.s", chart_file_text(source_name, blocks))
+    return f"chart.s escrito ({sum(chart_size(c) for c in charts.values())} bytes de charts)"
 
 
 def render_page(payload: dict) -> str:
@@ -155,10 +203,36 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path.split("?")[0] == "/":
-            page = render_page(build_payload(self.src))
+            page = render_page({**build_payload(self.src), "editable": True})
             self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         else:
             self._send(404, b"no encontrado", "text/plain; charset=utf-8")
+
+    def _json(self, status: int, data: dict) -> None:
+        self._send(status, json.dumps(data).encode("utf-8"), "application/json")
+
+    def do_POST(self) -> None:
+        # Solo la propia página: otro origen (una web cualquiera) no puede escribir en el proyecto
+        if self.headers.get("Origin") not in (None, f"http://{self.headers.get('Host')}"):
+            self._json(403, {"error": "origen no permitido"})
+            return
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+            if self.path == "/api/validate":
+                chart = chart_from_json(body["chart"])
+                self._json(200, {"problems": chart_problems(chart, lanes_for(body["key"]))})
+            elif self.path in ("/api/save", "/api/export"):
+                charts = {key: chart_from_json(items) for key, items in body["charts"].items()}
+                if self.path == "/api/save":
+                    edits = save_edits_from_page(self.src, charts)
+                    count = sum(len(ops) for ops in edits.values())
+                    self._json(200, {"message": f"edits.json guardado ({count} ediciones)"})
+                else:
+                    self._json(200, {"message": export_chart_s(self.src, charts)})
+            else:
+                self._json(404, {"error": "no encontrado"})
+        except (ValueError, KeyError, TypeError) as error:
+            self._json(400, {"error": str(error)})
 
 
 def serve(name: str, port: int, open_browser: bool) -> None:

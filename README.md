@@ -354,9 +354,32 @@ Abre en el navegador una página local (HTML + Canvas, sin dependencias; el serv
   notas de frase estelar, como se ven en el juego. Rueda para avanzar, `Ctrl`+rueda para el zoom. Las
   notas con problemas (ver `check_playable`) salen con borde rojo y en la lista de avisos.
 
+**Editar** (solo cuando la página la sirve `edit-chart`): clic en un carril vacío agrega una nota (en el
+cuadro de otra nota, la vuelve acorde); clic en una nota la selecciona y arrastrarla la mueve de carril o
+de tiempo (con la rejilla de 1/4 de tiempo, o la que elijas); `Mayús`+clic la quita; el cuadrito blanco
+sobre la nota elegida alarga o acorta su cola. Teclas: `←` `→` carril, `↑` `↓` tiempo, `Supr` borra, `J`
+junta con la siguiente en un acorde, `T` pone o quita la cola, `S` marca la nota como estelar (o el botón
+«Frase de 4»), `Ctrl+Z`/`Ctrl+Y` deshacen y rehacen. Al editar, el panel avisa en vivo con las mismas
+reglas que `check_playable` (nunca verde + amarillo ni amarillo + naranja a la vez, ni una nota que cae
+mientras se sostiene otra del mismo carril) y marca en rojo las notas con error; sin errores no se puede
+guardar. Una nota nueva corta las colas anteriores que la pisarían, igual que el generador.
+
+- **Guardar** (`Ctrl+S`) escribe solo la diferencia con el chart automático en
+  `src/songs/<nombre>/edits.json` (notas agregadas, borradas o cambiadas, por cuadro). `import-song` y
+  `reimport` generan el chart automático y luego le aplican `edits.json`, así que mejorar el generador no
+  pierde las correcciones; si una edición ya no encuentra su nota (porque el generador cambió), la
+  importación avisa y la omite. `edits.json` va a git junto con la canción.
+- **Exportar chart.s** guarda y reescribe `chart.s` con el mismo formato de siempre (es byte por byte lo
+  mismo que dejaría un `reimport`; la ROM no cambia salvo por los charts editados). Si la canción deja de
+  caber en su slot de 16 KB, el ensamblador lo dirá al compilar.
+- **Restaurar chart** descarta las ediciones de ese instrumento y dificultad.
+
 Las notas salen de `build/songs/<nombre>/song.txt` (lo deja `import-song`); si falta y la canción no es
 un NSF, se vuelve a pedir a FamiStudio. `--no-open` no abre el navegador, `--port` cambia el puerto y
-`--html ruta.html` escribe una página de solo lectura en vez de servir.
+`--html ruta.html` escribe una página de solo lectura en vez de servir (sin edición).
+
+Aún no tiene: escuchar la canción con las notas pasando ni la vista de batería (asignar carril a cada
+golpe de ruido y DPCM); siguen pendientes en el [issue #15](https://github.com/Xalcker/NESBand/issues/15).
 
 ## Música del título y efectos de sonido
 
@@ -463,7 +486,7 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 | `src/chr.s` | Los gráficos (tiles) dibujados como texto; la fuente usa el código ASCII como número de tile. Incluye los 3 bancos del escenario (CHR de 16 KB) |
 | `src/nes.inc` | Direcciones de los registros del hardware |
 | `nes.cfg` | Mapa de memoria del cartucho MMC3 para el linker: dos bancos fijos con el código y 31 slots de canción |
-| `pctools/` | Herramientas de PC en Python (`nesband import-song`) |
+| `pctools/` | Herramientas de PC en Python (`nesband import-song`, el editor de charts `nesband edit-chart`) |
 
 ## Conceptos clave (para ir aprendiendo)
 

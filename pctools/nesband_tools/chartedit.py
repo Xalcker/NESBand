@@ -189,11 +189,11 @@ def diff_charts(auto: list[ChartNote], edited: list[ChartNote]) -> list[dict]:
 # --- Validación ---------------------------------------------------------------------
 
 
-def chart_problems(chart: list[ChartNote]) -> list[dict]:
+def chart_problems(chart: list[ChartNote], lanes_allowed: int = 5) -> list[dict]:
     """Todo lo que el editor debe avisar de un chart: [{"frame", "kind", "text"}, ...].
 
     Errores (los que check_playable rechaza): "error". Avisos que el juego acepta pero que no
-    son lo habitual: "warn"."""
+    son lo habitual: "warn". `lanes_allowed` son los carriles de la dificultad (fácil usa 3)."""
     problems: list[dict] = []
 
     def add(frame: int, kind: str, text: str) -> None:
@@ -203,6 +203,8 @@ def chart_problems(chart: list[ChartNote]) -> list[dict]:
     for i, (note, lanes) in enumerate(zip(chart, sets)):
         if not lanes:
             add(note.frame, "error", "nota sin carril")
+        if any(lane >= lanes_allowed for lane in lanes):
+            add(note.frame, "warn", f"carril fuera de los {lanes_allowed} de esta dificultad")
         if any({x, y} in BLOCKED_PAIRS for x in lanes for y in lanes):
             add(note.frame, "error", "acorde imposible (izquierda + derecha de la cruz)")
         if note.end is not None:
@@ -222,6 +224,26 @@ def chart_problems(chart: list[ChartNote]) -> list[dict]:
         if run and (i + 1 == len(chart) or not chart[i + 1].star) and run != STAR_PHRASE_LEN:
             add(chart[i - run + 1].frame, "warn", f"frase estelar de {run} notas (lo normal son {STAR_PHRASE_LEN})")
     return problems
+
+
+def chart_from_json(items: list[dict]) -> list[ChartNote]:
+    """Las notas que manda la página (frame, mask, end, star), revisadas y ordenadas por cuadro."""
+    notes: dict[int, ChartNote] = {}
+    for item in items:
+        frame, mask, end = item["frame"], item["mask"], item.get("end")
+        if not (isinstance(frame, int) and isinstance(mask, int) and 0 <= frame < 1 << 20 and 0 <= mask <= LANE_MASK):
+            raise ValueError(f"nota inválida: {item}")
+        if end is not None and not (isinstance(end, int) and end < 1 << 20):
+            raise ValueError(f"cola inválida: {item}")
+        if frame in notes:
+            raise ValueError(f"dos notas en el cuadro {frame}")
+        notes[frame] = ChartNote(frame, mask, end, bool(item.get("star", False)))
+    return sorted(notes.values(), key=lambda n: n.frame)
+
+
+def chart_file_text(source_name: str, blocks: list[str]) -> str:
+    """El chart.s completo: el encabezado y el ensamblador de cada chart (chart.chart_to_asm), en orden."""
+    return "\n".join([f"; Generado por `nesband import-song` desde {source_name} - no editar a mano\n", *blocks])
 
 
 def validate_chart(key: str, chart: list[ChartNote]) -> None:

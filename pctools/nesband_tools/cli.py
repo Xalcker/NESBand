@@ -37,7 +37,7 @@ from .chart import (
     estimate_beat,
     merge_attacks,
 )
-from .chartedit import EDITS_FILE, apply_edits, load_edits, validate_chart
+from .chartedit import EDITS_FILE, apply_edits, chart_file_text, load_edits, validate_chart
 from .m3u import find_playlist
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -166,9 +166,7 @@ def import_song(args: argparse.Namespace) -> None:
     charts, chart_labels, instrument_mask = result.charts, result.chart_labels, result.instrument_mask
     summary = result.summary
 
-    chart_asm = [f"; Generado por `nesband import-song` desde {source.name} - no editar a mano\n"]
-    chart_asm += [asm for _, asm, _ in charts]
-    write_lf(out_dir / "chart.s", "\n".join(chart_asm))
+    write_lf(out_dir / "chart.s", chart_file_text(source.name, [asm for _, asm, _ in charts]))
 
     # Samples DPCM: al final del slot. Los datos de la música dicen dónde están
     # con FAMISTUDIO_DPCM_PTR, que es el mismo para todas las canciones; lo
