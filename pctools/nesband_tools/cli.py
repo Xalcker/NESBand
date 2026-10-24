@@ -31,6 +31,7 @@ from .chart import (
     DIFFICULTIES,
     BeatGrid,
     build_chart,
+    check_playable,
     chart_size,
     chart_to_asm,
     estimate_beat,
@@ -58,6 +59,12 @@ INSTRUMENTS = [
     ("bajo", "Triangle"),
     ("bateria", None),
 ]
+# Papel de cada instrumento en el generador (ver chart.py) y el canal que le da la armonía a sus acordes
+ROLE_OF = {
+    "guitarra": ("lead", "Square2"),
+    "teclado": ("keys", "Square1"),
+    "bajo": ("bass", None),
+}
 
 # Banderas que activa src/audio.s. Si una canción pide otra, hay que agregarla allá.
 SUPPORTED_FLAGS = {
@@ -307,7 +314,9 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
         counts = []
         for difficulty in DIFFICULTIES:
             label = f"chart_{name}_{instrument}_{difficulty.name}"
-            chart = build_chart(notes, difficulty, grid, LEAD_IN)
+            role, partner_channel = ROLE_OF[instrument]
+            chart = build_chart(notes, difficulty, grid, LEAD_IN, role, song.notes.get(partner_channel, []))
+            check_playable(chart)
             charts.append((label, chart_to_asm(label, chart), chart_size(chart)))
             chart_labels.append(label)
             counts.append(f"{difficulty.name} {len(chart)}")

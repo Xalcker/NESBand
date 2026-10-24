@@ -273,6 +273,7 @@ init_player:
     sta tail_mask           ; sin colas dibujadas ni notas sostenidas
     sta failed              ; (no_fail no se toca: lo eligió el menú)
     sta life_grace
+    sta life_hit_frame      ; (0: el primer acierto cae después del cuadro 128 de la autopista)
     sta star_energy         ; ni poder estelar
     sta star_active
     sta star_timer

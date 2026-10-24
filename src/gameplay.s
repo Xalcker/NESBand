@@ -263,8 +263,13 @@ note_hit:
     sta hud_dirty           ; puntaje y combo cambiaron
     lda #0
     sta player_muted        ; acertaste: tu instrumento vuelve a sonar
+    lda song_frame          ; un acorde (varias notas en el mismo cuadro) da la vida de una sola nota:
+    cmp life_hit_frame      ; sus fallos cuestan una vez por el respiro (life_grace), y si cada nota
+    beq @no_life            ; sumara, quien acierta la mitad del chart sobreviviría con acordes
+    sta life_hit_frame
     lda #LIFE_HIT
     jsr life_up
+@no_life:
     jsr star_note_hit       ; (antes que hold_start, que mueve ptr)
     jsr hold_start          ; si la nota tiene cola, empieza a sostenerse
     jsr start_fx            ; llamarada sobre el aro
@@ -656,9 +661,13 @@ update_holds:
     and #HOLD_TICK
     bne @flame
     jsr score_add_hold      ; cada 8 cuadros
-    lda song_frame          ; y cada 16, un poco de vida
-    and #%00001111
+    lda song_frame          ; y cada 32, un poco de vida
+    and #%00011111
     bne @flame
+    lda song_frame          ; (una sola vez por cuadro: con un acorde sostenido no se duplica)
+    cmp life_hit_frame
+    beq @flame
+    sta life_hit_frame
     lda #LIFE_HOLD
     jsr life_up
 @flame:

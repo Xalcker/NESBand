@@ -153,7 +153,9 @@ una nota la baja 2 (1 en fácil) y un golpe al aire la baja 1, así que hay que 
 cada 3 notas (1 de cada 2 en fácil) para sostenerla; un jugador que acierta ~90% (con sus errores en
 rachas) termina la canción en experto, y uno que acierta menos de la mitad pierde. Tras perder vida hay
 un respiro de 8 cuadros en el que los fallos no cuestan más (notas repetidas en un carril que caen
-antes de poder tocarlas se cobran una sola vez). Si llega a 0 pierdes: tu instrumento calla y la franja dice "FALLASTE". Con 2
+antes de poder tocarlas se cobran una sola vez). Sostener una nota larga también da vida (1 cada 32
+cuadros), y un acorde suma la vida de una sola nota aunque lleves dos botones (si no, con acordes y
+colas la vida se regalaría). Si llega a 0 pierdes: tu instrumento calla y la franja dice "FALLASTE". Con 2
 jugadores, en VS la partida se corta y gana el otro; en Co-Op pierden los dos. En el menú, el renglón **FALLO** cambia
 a **SIN FALLO**: no se puede perder (y no se ve el medidor), pero esa partida no podrá guardar récord
 cuando exista (issue #1).
@@ -264,7 +266,22 @@ Qué hace, paso a paso:
    - las notas que duran al menos ~0.27 s se vuelven **notas sostenidas**: la entrada de la nota lleva la
      marca `$40` y otra entrada posterior, con la marca `$80` y el carril, dice en qué cuadro termina la
      cola (siempre antes de la siguiente nota del mismo carril). El formato sigue siendo de 2 bytes por
-     entrada.
+     entrada;
+   - **cada instrumento tiene su papel** para que sus charts no sean el mismo con otro nombre: la
+     **guitarra** sigue la melodía (contorno y tiempos fuertes); el **teclado** conserva lo que cae
+     *entre* los tiempos y usa un **carril fijo por nota** (como las teclas de un piano: la misma nota
+     cae siempre en el mismo carril); el **bajo** prefiere los tiempos fuertes y las notas largas;
+   - **acordes** (dos botones a la vez) en medio, difícil y experto, nunca en fácil ni en el bajo: una
+     nota se vuelve acorde si su gesto era un arpegio (un acorde "roto" a 30 o 60 notas por segundo) o
+     si el otro canal de pulso toca otra altura al mismo tiempo (la armonía). Solo en tiempos fuertes,
+     con aire antes de la siguiente nota y separados (150, 72 y 42 cuadros como mínimo en medio,
+     difícil y experto). Un acorde no entra en una frase de poder estelar. En el juego cada botón de
+     un acorde cuenta como una nota (combo, puntaje y precisión);
+   - **lo que un control de NES sí permite:** la cruz no deja apretar ← y → a la vez, y los carriles son
+     verde = ←, rojo = ↓, amarillo = →, azul = B y naranja = A. Por eso ningún chart pide **verde +
+     amarillo** juntos, ni **amarillo + naranja** (con ESPEJO pasaría a ser verde + amarillo), ya sea en
+     un acorde o con una nota que cae mientras sostienes la otra (la cola se corta antes).
+     `check_playable` revisa todos los charts al importar.
 4. Se escribe `src/songs/<nombre>/song.s`, la ficha que lee el juego (título, fin, tempo, charts), y
    se regenera la lista de canciones.
 
@@ -347,7 +364,8 @@ copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
     solo se anima (brazos arriba y saltos) cuando alguien lleva combo, las luces cambian con el poder
     estelar y al salir del juego el fondo vuelve a su banco de gráficos de siempre.
   - Las capturas de cada pantalla quedan en `build/test-<canción>-<caso>/`.
-- `pytest` prueba el generador de charts (lectura de FamiStudio, tempo, reducción, carriles).
+- `pytest` prueba el generador de charts (lectura de FamiStudio, tempo, reducción, carriles, acordes y
+  el papel de cada instrumento).
 
 Requisitos del `settings.json` del Mesen de pruebas: `AllowIoOsAccess: true` (el script de Lua escribe
 archivos), `Nes.Port2.Type: "NesController"` (control 2 conectado) y `Nes.AutoConfigureInput: false`.

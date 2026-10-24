@@ -71,7 +71,7 @@ LIFE_GRACE      = 8                    ; tras perder vida, 8 cuadros sin perder 
 LIFE_AIR        = 1                   ; un golpe al aire (el botón sin nota cerca) cuesta poco: casi siempre
                                        ; va junto a una nota que también se pierde, y no debe cobrarse doble
                                        ; (lo que cuesta perder una nota va por dificultad: life_penalty)
-LIFE_HOLD       = 1                    ; sostener una nota (cada 16 cuadros)
+LIFE_HOLD       = 1                    ; sostener una nota (cada 32 cuadros, y una sola vez aunque sea un acorde)
 LIFE_STAR       = 6                    ; completar una frase de poder estelar
 SONG_LEAD_IN    = 128                  ; cuadros de autopista antes de que arranque la música
 RESULTS_DELAY   = 60                   ; cuadros entre el fin de la música y los resultados
@@ -258,6 +258,7 @@ ini_done:       .res 1   ; 1 = ya terminó de escribir las iniciales (y se grab�
 no_fail:        .res 1   ; 1 = "sin fallo": no pierde y no puede grabar récord (lo elige el menú: no se reinicia al jugar)
 star_failed:    .res 1   ; 1 = ya fallaste una nota de la frase estelar en curso
 life_grace:     .res 1   ; cuadros que faltan para que un fallo vuelva a quitar vida (ver life_lose)
+life_hit_frame: .res 1   ; byte bajo del cuadro en que un acierto sumó vida por última vez (los acordes suman una vez)
 tail_mask:      .res 1   ; carriles con una cola de nota sostenida en la parte ya dibujada de la autopista
 hold_on:        .res NUM_LANES   ; 1 = estás sosteniendo la nota de ese carril
 hold_end_lo:    .res NUM_LANES   ; cuadro en que termina su cola

@@ -6,6 +6,15 @@ Pasos:
   2. Carriles: la nota más aguda de su vecindario va a la derecha y la más grave
      a la izquierda. Además se respeta el contorno: si la melodía sube, el carril
      sube; si repite nota, repite carril.
+  3. Acordes (medio, difícil y experto): una nota se vuelve acorde de 2 carriles si
+     en su gesto había un arpegio (varias alturas muy seguidas) o si el otro canal
+     de pulso toca otra altura al mismo tiempo (la armonía).
+
+Cada instrumento tiene su papel (ROLES) para que sus charts no sean el mismo con otro nombre:
+  guitarra (lead): la melodía, que va con el contorno y los tiempos fuertes
+  teclado  (keys): lo que ocurre entre los tiempos, con el carril fijo por nota (como las teclas
+                   de un piano: la misma nota cae siempre en el mismo carril) y más acordes
+  bajo     (bass): las notas largas y de los tiempos fuertes; sin acordes
 """
 
 from __future__ import annotations
@@ -14,6 +23,7 @@ from dataclasses import dataclass
 
 from .famistudio import Note
 
+ROLES = ("lead", "keys", "bass")
 
 
 @dataclass(frozen=True)
@@ -21,13 +31,14 @@ class Difficulty:
     name: str
     lanes: int  # cuántos carriles usa (desde el verde)
     min_gap: int  # cuadros mínimos entre dos notas
+    chord_gap: int = 0  # cuadros mínimos entre dos acordes (0 = sin acordes)
 
 
 DIFFICULTIES = [
     Difficulty("facil", lanes=3, min_gap=24),
-    Difficulty("medio", lanes=4, min_gap=14),
-    Difficulty("dificil", lanes=5, min_gap=9),
-    Difficulty("experto", lanes=5, min_gap=5),
+    Difficulty("medio", lanes=4, min_gap=14, chord_gap=150),
+    Difficulty("dificil", lanes=5, min_gap=9, chord_gap=72),
+    Difficulty("experto", lanes=5, min_gap=5, chord_gap=42),
 ]
 
 
@@ -96,13 +107,38 @@ def merge_attacks(notes: list[Note], max_gap: int = 2) -> list[Note]:
     for group in groups:
         first, last = group[0], group[-1]
         main = max(group, key=lambda n: n.duration)
-        merged.append(Note(first.frame, main.pitch, last.frame + last.duration - first.frame))
+        merged.append(Note(first.frame, main.pitch, last.frame + last.duration - first.frame, arpeggio_pitch(group, main)))
     return merged
 
 
-def reduce_notes(notes: list[Note], difficulty: Difficulty, grid: BeatGrid) -> list[Note]:
-    """Quita notas hasta que ninguna quede a menos de min_gap cuadros de otra."""
-    by_priority = sorted(notes, key=lambda n: (-grid.strength(n.frame), n.frame))
+def arpeggio_pitch(group: list[Note], main: Note) -> int | None:
+    """La otra altura de un arpegio (un acorde "roto"), o None si el grupo no lo es.
+
+    Es un arpegio si el gesto tiene 3 o más notas con al menos 2 alturas y no sube o baja siempre
+    (eso es un barrido de tono). Se toma la altura más lejana a la principal, si está a entre 3 y
+    12 semitonos (una tercera a una octava): cerca sería ruido y lejos no se oye como acorde."""
+    if len(group) < 3:
+        return None
+    pitches = [n.pitch for n in group]
+    if len(set(pitches)) < 2 or pitches == sorted(pitches) or pitches == sorted(pitches, reverse=True):
+        return None
+    far = max(set(pitches), key=lambda p: (abs(p - main.pitch), p))
+    return far if 3 <= abs(far - main.pitch) <= 12 else None
+
+
+def reduce_notes(notes: list[Note], difficulty: Difficulty, grid: BeatGrid, role: str = "lead") -> list[Note]:
+    """Quita notas hasta que ninguna quede a menos de min_gap cuadros de otra.
+
+    Se conservan primero las de más prioridad: la guitarra prefiere los tiempos fuertes; el teclado,
+    lo que cae entre los tiempos (completa a la guitarra en vez de repetirla); el bajo, los tiempos
+    fuertes y las notas largas."""
+    if role == "keys":
+        weight = {3: 1, 2: 3, 1: 2, 0: 0}  # medios tiempos primero, y los tiempos al final
+        by_priority = sorted(notes, key=lambda n: (-weight[grid.strength(n.frame)], n.frame))
+    elif role == "bass":
+        by_priority = sorted(notes, key=lambda n: (-grid.strength(n.frame), -n.duration, n.frame))
+    else:
+        by_priority = sorted(notes, key=lambda n: (-grid.strength(n.frame), n.frame))
     kept: list[Note] = []
     for note in by_priority:
         if all(abs(note.frame - other.frame) >= difficulty.min_gap for other in kept):
@@ -152,17 +188,19 @@ class ChartNote:
     star: bool = False  # nota de una frase de poder estelar
 
 
-def sustain_ends(notes: list[Note], lanes: list[int]) -> list[int | None]:
+def sustain_ends(notes: list[Note], lanes: list[int | tuple[int, ...]]) -> list[int | None]:
     """Fin de la cola de cada nota, o None si dura muy poco.
 
-    La cola dura lo que la nota, pero termina antes de la siguiente nota del
-    mismo carril (con SUSTAIN_GAP cuadros libres) para poder soltar y volver a tocar.
+    La cola dura lo que la nota, pero termina antes de la siguiente nota que comparta un
+    carril con ella (con SUSTAIN_GAP cuadros libres) para poder soltar y volver a tocar.
+    Cada elemento de `lanes` es un carril o, en un acorde, la tupla de sus carriles.
     """
+    sets = [set(lane) if isinstance(lane, tuple) else {lane} for lane in lanes]
     ends: list[int | None] = []
-    for i, (note, lane) in enumerate(zip(notes, lanes)):
+    for i, note in enumerate(notes):
         limit = note.frame + note.duration
-        for other, other_lane in zip(notes[i + 1 :], lanes[i + 1 :]):
-            if other_lane == lane:
+        for other, other_lanes in zip(notes[i + 1 :], sets[i + 1 :]):
+            if lanes_clash(other_lanes, sets[i]):
                 limit = min(limit, other.frame - SUSTAIN_GAP)
                 break
         length = limit - note.frame - SUSTAIN_TRIM
@@ -170,27 +208,128 @@ def sustain_ends(notes: list[Note], lanes: list[int]) -> list[int | None]:
     return ends
 
 
-def build_chart(notes: list[Note], difficulty: Difficulty, grid: BeatGrid, lead_in: int) -> list[ChartNote]:
+def keys_lane(pitch: int, lanes: int) -> int:
+    """Carril fijo por nota (el teclado): las 12 notas de la octava se reparten entre los carriles,
+    así la misma nota cae siempre en el mismo carril, sin importar lo que suene alrededor."""
+    return (pitch % 12) * lanes // 12
+
+
+# El control de NES tiene una cruz: no se pueden apretar izquierda y derecha a la vez. Los carriles son
+# verde = izquierda, rojo = abajo, amarillo = derecha, azul = B y naranja = A, así que verde + amarillo
+# (carriles 0 y 2) es imposible en un control de verdad. Con la opción ESPEJO los carriles se invierten
+# (0 con 4, 1 con 3): amarillo + naranja (2 y 4) pasaría a ser verde + amarillo. Por eso ningún chart
+# pide esas dos parejas a la vez, ni un acorde ni una nota mientras se sostiene la otra.
+BLOCKED_PAIRS = ({0, 2}, {2, 4})
+
+
+def lanes_clash(a: set[int], b: set[int]) -> bool:
+    """¿Dos notas con estos carriles no pueden estar activas al mismo tiempo? (mismo carril, o una pareja bloqueada)"""
+    return bool(a & b) or any({x, y} in BLOCKED_PAIRS for x in a for y in b)
+
+
+def second_lane(lane: int, lanes: int, delta: int) -> int | None:
+    """Carril del segundo botón de un acorde, a 1 carril (terceras) o 2 (más lejos) del primero y del
+    lado de la otra altura; si no cabe de ese lado, del otro, o con la otra distancia. Nunca una pareja
+    bloqueada (BLOCKED_PAIRS). None si no cabe en ninguno."""
+    step = 1 if abs(delta) < 5 else 2
+    sign = 1 if delta > 0 else -1
+    for distance in (step, 3 - step):
+        for direction in (sign, -sign):
+            candidate = lane + direction * distance
+            if 0 <= candidate < lanes and {lane, candidate} not in BLOCKED_PAIRS:
+                return candidate
+    return None
+
+
+def chord_masks(
+    notes: list[Note], lanes: list[int], difficulty: Difficulty, grid: BeatGrid, role: str, partner: list[Note]
+) -> list[int]:
+    """La máscara de carriles de cada nota: un bit, o dos si la nota se vuelve acorde.
+
+    Una nota es candidata si el chart lo permite (medio en adelante, sin bajo), cae en un tiempo
+    fuerte (la guitarra pide medio tiempo o más; el teclado, cualquier subdivisión), hay aire antes
+    de la siguiente nota (no se pide un acorde en medio de una carrera) y pasó chord_gap cuadros
+    desde el último acorde. Su segunda altura sale de su arpegio fusionado o, si no hay, de la nota
+    que el otro canal de pulso toca al mismo tiempo (±2 cuadros) a 3 o más semitonos."""
+    masks = [1 << lane for lane in lanes]
+    if not difficulty.chord_gap or role == "bass":
+        return masks
+    min_strength = 2 if role == "lead" else 1
+    by_frame = {n.frame: n for n in partner}
+    last_chord = -(10**9)
+    for i, (note, lane) in enumerate(zip(notes, lanes)):
+        next_gap = notes[i + 1].frame - note.frame if i + 1 < len(notes) else 10**9
+        if (
+            i < 2
+            or note.frame - last_chord < difficulty.chord_gap
+            or next_gap < difficulty.min_gap * 2
+            or grid.strength(note.frame) < min_strength
+        ):
+            continue
+        other = note.extra
+        if other is None:
+            for d in range(-2, 3):
+                near = by_frame.get(note.frame + d)
+                if near and abs(near.pitch - note.pitch) >= 3:
+                    other = near.pitch
+                    break
+        if other is None:
+            continue
+        if role == "keys":
+            lane2 = keys_lane(other, difficulty.lanes)
+            if lane2 == lane or {lane, lane2} in BLOCKED_PAIRS:
+                lane2 = second_lane(lane, difficulty.lanes, other - note.pitch)
+        else:
+            lane2 = second_lane(lane, difficulty.lanes, other - note.pitch)
+        if lane2 is not None and lane2 != lane:
+            masks[i] |= 1 << lane2
+            last_chord = note.frame
+    return masks
+
+
+def build_chart(
+    notes: list[Note],
+    difficulty: Difficulty,
+    grid: BeatGrid,
+    lead_in: int,
+    role: str = "lead",
+    partner: list[Note] | None = None,
+) -> list[ChartNote]:
     """El chart guarda cuadros, no filas: así sirve para cualquier velocidad de
-    la autopista (el juego calcula en qué fila se dibuja cada nota)."""
-    reduced = reduce_notes(merge_attacks(notes), difficulty, grid)
-    lanes = assign_lanes(reduced, difficulty.lanes)
-    ends = sustain_ends(reduced, lanes)
-    stars = star_notes(len(reduced))
+    la autopista (el juego calcula en qué fila se dibuja cada nota).
+
+    role es el papel del instrumento (ver ROLES) y partner las notas del otro canal de pulso,
+    de donde sale la armonía de los acordes."""
+    reduced = reduce_notes(merge_attacks(notes), difficulty, grid, role)
+    if role == "keys":
+        lanes = [keys_lane(n.pitch, difficulty.lanes) for n in reduced]
+    else:
+        lanes = assign_lanes(reduced, difficulty.lanes)
+    masks = chord_masks(reduced, lanes, difficulty, grid, role, merge_attacks(partner or []))
+    ends = sustain_ends(reduced, [tuple(b for b in range(5) if mask >> b & 1) for mask in masks])
+    stars = star_notes(len(reduced), [mask & (mask - 1) != 0 for mask in masks])
     return [
-        ChartNote(lead_in + note.frame, 1 << lane, None if end is None else lead_in + end, star)
-        for note, lane, end, star in zip(reduced, lanes, ends, stars)
+        ChartNote(lead_in + note.frame, mask, None if end is None else lead_in + end, star)
+        for note, mask, end, star in zip(reduced, masks, ends, stars)
     ]
 
 
-def star_notes(count: int) -> list[bool]:
+def star_notes(count: int, chords: list[bool] | None = None) -> list[bool]:
     """Qué notas forman frases de poder estelar: grupos de STAR_PHRASE_LEN notas
     seguidas, separados por STAR_SPACING notas. El juego reconoce el final de una
-    frase porque la nota que sigue ya no es estelar."""
+    frase porque la nota que sigue ya no es estelar.
+
+    Un acorde no entra en una frase (el juego cuenta cada botón de un acorde como una nota y
+    premiaría la frase dos veces): si cae en una, la frase se recorre hasta que haya
+    STAR_PHRASE_LEN notas sueltas seguidas."""
+    chords = chords or [False] * count
     stars = [False] * count
     for start in range(STAR_FIRST, count - STAR_PHRASE_LEN, STAR_SPACING):
-        for i in range(start, start + STAR_PHRASE_LEN):
-            stars[i] = True
+        for begin in range(start, min(start + STAR_SPACING - STAR_PHRASE_LEN - 1, count - STAR_PHRASE_LEN)):
+            if not any(chords[begin : begin + STAR_PHRASE_LEN]):
+                for i in range(begin, begin + STAR_PHRASE_LEN):
+                    stars[i] = True
+                break
     return stars
 
 
@@ -242,3 +381,19 @@ def chart_to_asm(label: str, chart: list[ChartNote]) -> str:
         comment = "  ; fin" if mask == CHART_END else ""
         lines.append(f"    .byte {delta}, ${mask:02X}{comment}")
     return "\n".join(lines) + "\n"
+
+
+def check_playable(chart: list[ChartNote]) -> None:
+    """Falla si el chart pide algo imposible con un control de NES: dos carriles de una pareja
+    bloqueada (BLOCKED_PAIRS) a la vez, ya sea en un acorde o tocando una nota mientras se sostiene otra."""
+    sets = [{b for b in range(5) if n.mask >> b & 1} for n in chart]
+    for i, (note, lanes) in enumerate(zip(chart, sets)):
+        if any({x, y} in BLOCKED_PAIRS for x in lanes for y in lanes):
+            raise ValueError(f"acorde imposible en el cuadro {note.frame}: carriles {sorted(lanes)}")
+        if note.end is None:
+            continue
+        for other, other_lanes in zip(chart[i + 1 :], sets[i + 1 :]):
+            if other.frame >= note.end:
+                break
+            if lanes_clash(other_lanes, lanes):
+                raise ValueError(f"la nota del cuadro {other.frame} cae mientras se sostiene la del {note.frame}")

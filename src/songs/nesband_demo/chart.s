@@ -84,8 +84,8 @@ chart_nesband_demo_guitarra_facil:
     .byte 5, $42
     .byte 19, $82
     .byte 5, $41
-    .byte 19, $81
-    .byte 5, $04
+    .byte 17, $81
+    .byte 7, $04
     .byte 24, $41
     .byte 19, $81
     .byte 5, $42
@@ -104,8 +104,8 @@ chart_nesband_demo_guitarra_facil:
     .byte 24, $61
     .byte 17, $81
     .byte 7, $61
-    .byte 19, $81
-    .byte 5, $64
+    .byte 17, $81
+    .byte 7, $64
     .byte 17, $84
     .byte 7, $44
     .byte 19, $84
@@ -201,34 +201,34 @@ chart_nesband_demo_guitarra_facil:
 
 chart_nesband_demo_guitarra_medio:
     .byte 128, $41
-    .byte 19, $81
-    .byte 5, $04
+    .byte 17, $81
+    .byte 7, $04
     .byte 24, $48
     .byte 19, $88
     .byte 5, $04
-    .byte 24, $42
-    .byte 31, $82
+    .byte 24, $4A
+    .byte 31, $8A
     .byte 17, $41
     .byte 17, $81
     .byte 7, $41
-    .byte 19, $81
-    .byte 5, $04
+    .byte 17, $81
+    .byte 7, $04
     .byte 24, $41
     .byte 19, $81
     .byte 5, $02
-    .byte 24, $68
-    .byte 19, $88
-    .byte 5, $64
-    .byte 19, $84
-    .byte 5, $22
-    .byte 24, $61
-    .byte 43, $81
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $04
     .byte 24, $48
     .byte 19, $88
-    .byte 5, $04
+    .byte 5, $44
+    .byte 19, $84
+    .byte 5, $02
+    .byte 24, $43
+    .byte 41, $83
+    .byte 7, $62
+    .byte 19, $82
+    .byte 5, $24
+    .byte 24, $68
+    .byte 19, $88
+    .byte 5, $24
     .byte 24, $44
     .byte 19, $84
     .byte 5, $42
@@ -246,31 +246,31 @@ chart_nesband_demo_guitarra_medio:
     .byte 7, $01
     .byte 24, $44
     .byte 19, $84
-    .byte 5, $42
-    .byte 43, $82
+    .byte 5, $4A
+    .byte 43, $8A
     .byte 5, $41
-    .byte 19, $81
-    .byte 5, $44
+    .byte 17, $81
+    .byte 7, $44
     .byte 19, $84
     .byte 5, $48
     .byte 31, $88
     .byte 17, $44
     .byte 19, $84
     .byte 5, $02
-    .byte 24, $61
-    .byte 43, $81
-    .byte 5, $62
+    .byte 24, $43
+    .byte 41, $83
+    .byte 7, $62
     .byte 19, $82
     .byte 5, $64
     .byte 19, $84
     .byte 5, $68
     .byte 19, $88
-    .byte 5, $44
+    .byte 5, $64
     .byte 19, $84
     .byte 5, $42
     .byte 31, $82
-    .byte 17, $41
-    .byte 41, $81
+    .byte 17, $43
+    .byte 41, $83
     .byte 7, $01
     .byte 24, $04
     .byte 24, $48
@@ -291,8 +291,8 @@ chart_nesband_demo_guitarra_medio:
     .byte 19, $82
     .byte 5, $44
     .byte 19, $84
-    .byte 5, $42
-    .byte 67, $82
+    .byte 5, $4A
+    .byte 67, $8A
     .byte 29, $04
     .byte 24, $42
     .byte 19, $82
@@ -303,8 +303,8 @@ chart_nesband_demo_guitarra_medio:
     .byte 24, $62
     .byte 19, $82
     .byte 5, $61
-    .byte 19, $81
-    .byte 5, $64
+    .byte 17, $81
+    .byte 7, $64
     .byte 19, $84
     .byte 5, $48
     .byte 19, $88
@@ -318,9 +318,9 @@ chart_nesband_demo_guitarra_medio:
     .byte 19, $82
     .byte 5, $41
     .byte 17, $81
-    .byte 7, $41
-    .byte 43, $81
-    .byte 5, $02
+    .byte 7, $43
+    .byte 41, $83
+    .byte 7, $02
     .byte 24, $44
     .byte 19, $84
     .byte 5, $02
@@ -354,13 +354,13 @@ chart_nesband_demo_guitarra_medio:
     .byte 24, $48
     .byte 19, $88
     .byte 5, $04
-    .byte 24, $42
-    .byte 31, $82
+    .byte 24, $4A
+    .byte 31, $8A
     .byte 17, $41
     .byte 17, $81
     .byte 7, $41
-    .byte 19, $81
-    .byte 5, $04
+    .byte 17, $81
+    .byte 7, $04
     .byte 24, $41
     .byte 19, $81
     .byte 5, $02
@@ -369,9 +369,9 @@ chart_nesband_demo_guitarra_medio:
     .byte 5, $44
     .byte 19, $84
     .byte 5, $02
-    .byte 24, $41
-    .byte 43, $81
-    .byte 5, $42
+    .byte 24, $43
+    .byte 41, $83
+    .byte 7, $42
     .byte 19, $82
     .byte 5, $04
     .byte 24, $48
@@ -394,823 +394,751 @@ chart_nesband_demo_guitarra_medio:
     .byte 7, $01
     .byte 24, $44
     .byte 19, $84
-    .byte 5, $42
-    .byte 43, $82
+    .byte 5, $4A
+    .byte 43, $8A
     .byte 0, $FF  ; fin
 
 chart_nesband_demo_guitarra_dificil:
     .byte 128, $41
-    .byte 19, $81
-    .byte 5, $04
+    .byte 17, $81
+    .byte 7, $04
     .byte 12, $10
-    .byte 12, $48
-    .byte 19, $88
+    .byte 12, $4A
+    .byte 19, $8A
     .byte 5, $04
     .byte 12, $02
     .byte 12, $41
     .byte 29, $81
     .byte 7, $01
-    .byte 12, $41
-    .byte 17, $81
+    .byte 12, $43
+    .byte 17, $83
     .byte 7, $41
     .byte 19, $81
-    .byte 5, $28
-    .byte 12, $22
-    .byte 12, $61
-    .byte 19, $81
-    .byte 5, $22
+    .byte 5, $08
+    .byte 12, $02
+    .byte 12, $43
+    .byte 17, $83
+    .byte 7, $02
     .byte 12, $04
     .byte 12, $50
     .byte 19, $90
-    .byte 5, $48
-    .byte 19, $88
+    .byte 5, $4A
+    .byte 19, $8A
     .byte 5, $04
     .byte 12, $02
     .byte 12, $41
     .byte 43, $81
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $08
-    .byte 12, $10
-    .byte 12, $48
-    .byte 19, $88
-    .byte 5, $04
-    .byte 12, $02
-    .byte 12, $44
-    .byte 19, $84
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $01
-    .byte 12, $02
-    .byte 12, $44
-    .byte 19, $84
-    .byte 5, $50
-    .byte 19, $90
-    .byte 5, $08
-    .byte 12, $04
-    .byte 12, $62
-    .byte 19, $82
-    .byte 5, $61
-    .byte 17, $81
-    .byte 7, $21
-    .byte 12, $24
-    .byte 12, $48
-    .byte 19, $88
-    .byte 5, $44
-    .byte 43, $84
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $44
-    .byte 19, $84
-    .byte 5, $50
-    .byte 31, $90
-    .byte 5, $08
-    .byte 12, $48
-    .byte 19, $88
-    .byte 5, $04
-    .byte 12, $02
-    .byte 12, $41
-    .byte 43, $81
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $44
-    .byte 19, $84
-    .byte 5, $50
-    .byte 19, $90
-    .byte 5, $48
-    .byte 19, $88
-    .byte 5, $44
-    .byte 31, $84
-    .byte 5, $02
-    .byte 12, $41
-    .byte 41, $81
-    .byte 7, $01
-    .byte 12, $02
-    .byte 12, $04
+    .byte 5, $4A
+    .byte 17, $8A
+    .byte 7, $28
     .byte 12, $30
     .byte 12, $68
     .byte 19, $88
-    .byte 5, $64
-    .byte 19, $84
-    .byte 5, $21
+    .byte 5, $24
     .byte 12, $02
-    .byte 12, $50
-    .byte 19, $90
-    .byte 5, $48
-    .byte 19, $88
-    .byte 5, $44
-    .byte 19, $84
-    .byte 5, $08
-    .byte 12, $02
-    .byte 12, $41
-    .byte 19, $81
-    .byte 5, $42
+    .byte 12, $46
+    .byte 17, $86
+    .byte 7, $42
     .byte 19, $82
-    .byte 5, $48
-    .byte 19, $88
-    .byte 5, $44
-    .byte 67, $84
-    .byte 29, $08
-    .byte 12, $08
-    .byte 12, $41
-    .byte 19, $81
-    .byte 5, $02
-    .byte 12, $08
-    .byte 12, $50
+    .byte 5, $01
+    .byte 12, $02
+    .byte 12, $46
+    .byte 17, $86
+    .byte 7, $50
     .byte 19, $90
     .byte 5, $08
-    .byte 12, $08
-    .byte 12, $42
-    .byte 19, $82
+    .byte 12, $04
+    .byte 12, $4A
+    .byte 19, $8A
     .byte 5, $41
-    .byte 19, $81
-    .byte 5, $68
-    .byte 19, $88
-    .byte 5, $70
-    .byte 19, $90
-    .byte 5, $64
-    .byte 19, $84
-    .byte 5, $62
-    .byte 19, $82
-    .byte 5, $48
-    .byte 19, $88
+    .byte 17, $81
+    .byte 7, $01
+    .byte 12, $04
+    .byte 12, $4A
+    .byte 19, $8A
     .byte 5, $44
-    .byte 19, $84
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $41
+    .byte 43, $84
+    .byte 5, $4A
+    .byte 19, $8A
+    .byte 5, $44
+    .byte 17, $84
+    .byte 7, $50
+    .byte 31, $90
+    .byte 5, $08
+    .byte 12, $4A
+    .byte 19, $8A
+    .byte 5, $04
+    .byte 12, $02
+    .byte 12, $41
     .byte 43, $81
+    .byte 5, $4A
+    .byte 19, $8A
+    .byte 5, $44
+    .byte 17, $84
+    .byte 7, $50
+    .byte 19, $90
+    .byte 5, $4A
+    .byte 19, $8A
+    .byte 5, $44
+    .byte 31, $84
     .byte 5, $02
-    .byte 12, $08
-    .byte 12, $50
-    .byte 19, $90
-    .byte 5, $08
+    .byte 12, $43
+    .byte 41, $83
+    .byte 7, $01
+    .byte 12, $02
     .byte 12, $04
-    .byte 12, $41
-    .byte 19, $81
-    .byte 5, $02
-    .byte 12, $04
-    .byte 12, $50
-    .byte 19, $90
-    .byte 5, $08
-    .byte 12, $04
-    .byte 12, $42
-    .byte 19, $82
-    .byte 5, $41
-    .byte 19, $81
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $50
-    .byte 19, $90
-    .byte 5, $48
-    .byte 17, $88
+    .byte 12, $10
+    .byte 12, $4A
+    .byte 19, $8A
+    .byte 5, $44
+    .byte 17, $84
+    .byte 7, $01
+    .byte 12, $02
+    .byte 12, $58
+    .byte 17, $98
     .byte 7, $68
     .byte 19, $88
     .byte 5, $64
     .byte 19, $84
-    .byte 5, $62
+    .byte 5, $28
+    .byte 12, $22
+    .byte 12, $43
+    .byte 17, $83
+    .byte 7, $42
     .byte 19, $82
+    .byte 5, $48
+    .byte 19, $88
+    .byte 5, $46
+    .byte 67, $86
+    .byte 29, $08
+    .byte 12, $08
+    .byte 12, $43
+    .byte 17, $83
+    .byte 7, $02
+    .byte 12, $08
+    .byte 12, $50
+    .byte 19, $90
+    .byte 5, $08
+    .byte 12, $08
+    .byte 12, $4A
+    .byte 19, $8A
+    .byte 5, $41
+    .byte 19, $81
+    .byte 5, $48
+    .byte 17, $88
+    .byte 7, $58
+    .byte 17, $98
+    .byte 7, $44
+    .byte 19, $84
+    .byte 5, $42
+    .byte 17, $82
+    .byte 7, $4A
+    .byte 19, $8A
+    .byte 5, $44
+    .byte 19, $84
+    .byte 5, $42
+    .byte 17, $82
+    .byte 7, $43
+    .byte 41, $83
+    .byte 7, $02
+    .byte 12, $08
+    .byte 12, $58
+    .byte 17, $98
+    .byte 7, $28
+    .byte 12, $24
+    .byte 12, $61
+    .byte 19, $81
+    .byte 5, $22
+    .byte 12, $04
+    .byte 12, $58
+    .byte 17, $98
+    .byte 7, $08
+    .byte 12, $04
+    .byte 12, $42
+    .byte 17, $82
+    .byte 7, $43
+    .byte 17, $83
+    .byte 7, $42
+    .byte 19, $82
+    .byte 5, $50
+    .byte 19, $90
+    .byte 5, $4A
+    .byte 17, $8A
+    .byte 7, $48
+    .byte 19, $88
+    .byte 5, $44
+    .byte 19, $84
+    .byte 5, $4A
+    .byte 19, $8A
     .byte 5, $61
     .byte 19, $81
-    .byte 5, $42
+    .byte 5, $62
     .byte 19, $82
-    .byte 5, $04
-    .byte 12, $10
-    .byte 12, $48
-    .byte 19, $88
+    .byte 5, $24
+    .byte 12, $30
+    .byte 12, $4A
+    .byte 19, $8A
     .byte 5, $04
     .byte 12, $02
     .byte 12, $41
     .byte 29, $81
     .byte 7, $01
-    .byte 12, $41
-    .byte 17, $81
+    .byte 12, $43
+    .byte 17, $83
     .byte 7, $41
     .byte 19, $81
     .byte 5, $08
     .byte 12, $02
-    .byte 12, $41
-    .byte 19, $81
-    .byte 5, $02
+    .byte 12, $43
+    .byte 17, $83
+    .byte 7, $02
     .byte 12, $04
     .byte 12, $50
     .byte 19, $90
-    .byte 5, $48
-    .byte 19, $88
+    .byte 5, $4A
+    .byte 19, $8A
     .byte 5, $04
     .byte 12, $02
     .byte 12, $41
     .byte 43, $81
-    .byte 5, $62
-    .byte 19, $82
-    .byte 5, $28
+    .byte 5, $4A
+    .byte 17, $8A
+    .byte 7, $28
     .byte 12, $30
     .byte 12, $68
     .byte 19, $88
-    .byte 5, $04
+    .byte 5, $24
     .byte 12, $02
-    .byte 12, $44
-    .byte 19, $84
-    .byte 5, $42
+    .byte 12, $46
+    .byte 17, $86
+    .byte 7, $42
     .byte 19, $82
     .byte 5, $01
     .byte 12, $02
-    .byte 12, $44
-    .byte 19, $84
-    .byte 5, $50
+    .byte 12, $46
+    .byte 17, $86
+    .byte 7, $50
     .byte 19, $90
     .byte 5, $08
     .byte 12, $04
-    .byte 12, $42
-    .byte 19, $82
+    .byte 12, $4A
+    .byte 19, $8A
     .byte 5, $41
     .byte 17, $81
     .byte 7, $01
     .byte 12, $04
-    .byte 12, $50
-    .byte 19, $90
-    .byte 5, $48
+    .byte 12, $58
+    .byte 17, $98
+    .byte 7, $48
     .byte 43, $88
     .byte 0, $FF  ; fin
 
 chart_nesband_demo_guitarra_experto:
     .byte 128, $41
-    .byte 19, $81
-    .byte 5, $04
-    .byte 12, $10
+    .byte 17, $81
+    .byte 7, $04
+    .byte 12, $18
     .byte 12, $48
     .byte 19, $88
     .byte 5, $04
-    .byte 12, $02
+    .byte 12, $0A
     .byte 12, $41
     .byte 29, $81
-    .byte 7, $01
+    .byte 7, $03
     .byte 12, $41
     .byte 17, $81
     .byte 7, $41
     .byte 19, $81
-    .byte 5, $28
-    .byte 12, $22
-    .byte 12, $61
+    .byte 5, $0A
+    .byte 12, $02
+    .byte 12, $41
     .byte 19, $81
-    .byte 5, $22
+    .byte 5, $0A
     .byte 12, $04
     .byte 12, $50
     .byte 19, $90
-    .byte 5, $48
-    .byte 19, $88
+    .byte 5, $4A
+    .byte 19, $8A
     .byte 5, $04
     .byte 12, $02
-    .byte 12, $41
-    .byte 43, $81
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $08
+    .byte 12, $43
+    .byte 41, $83
+    .byte 7, $4A
+    .byte 17, $8A
+    .byte 7, $08
     .byte 12, $10
-    .byte 12, $48
-    .byte 19, $88
+    .byte 12, $4A
+    .byte 19, $8A
     .byte 5, $04
     .byte 12, $02
-    .byte 12, $44
-    .byte 19, $84
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $01
+    .byte 12, $46
+    .byte 17, $86
+    .byte 7, $42
+    .byte 17, $82
+    .byte 7, $03
     .byte 12, $02
     .byte 12, $44
-    .byte 19, $84
-    .byte 5, $50
-    .byte 19, $90
-    .byte 5, $08
+    .byte 17, $84
+    .byte 7, $58
+    .byte 17, $98
+    .byte 7, $08
     .byte 12, $04
-    .byte 12, $62
-    .byte 19, $82
-    .byte 5, $61
+    .byte 12, $4A
+    .byte 19, $8A
+    .byte 5, $41
     .byte 17, $81
-    .byte 7, $21
-    .byte 12, $24
+    .byte 7, $03
+    .byte 12, $04
     .byte 12, $48
     .byte 19, $88
+    .byte 5, $46
+    .byte 41, $86
+    .byte 7, $4A
+    .byte 19, $8A
     .byte 5, $44
-    .byte 43, $84
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $44
-    .byte 19, $84
-    .byte 5, $50
-    .byte 31, $90
-    .byte 5, $08
-    .byte 12, $48
-    .byte 19, $88
+    .byte 17, $84
+    .byte 7, $58
+    .byte 29, $98
+    .byte 7, $08
+    .byte 12, $4A
+    .byte 19, $8A
     .byte 5, $04
     .byte 12, $02
-    .byte 12, $41
-    .byte 43, $81
-    .byte 5, $42
-    .byte 19, $82
+    .byte 12, $43
+    .byte 41, $83
+    .byte 7, $4A
+    .byte 19, $8A
     .byte 5, $44
-    .byte 19, $84
-    .byte 5, $50
-    .byte 19, $90
-    .byte 5, $48
+    .byte 17, $84
+    .byte 7, $58
+    .byte 17, $98
+    .byte 7, $48
     .byte 19, $88
-    .byte 5, $44
-    .byte 31, $84
-    .byte 5, $02
-    .byte 12, $41
-    .byte 41, $81
-    .byte 7, $01
+    .byte 5, $46
+    .byte 29, $86
+    .byte 7, $02
+    .byte 12, $43
+    .byte 41, $83
+    .byte 7, $03
     .byte 12, $02
     .byte 12, $04
-    .byte 12, $30
-    .byte 12, $68
-    .byte 19, $88
-    .byte 5, $64
-    .byte 19, $84
-    .byte 5, $21
+    .byte 12, $10
+    .byte 12, $4A
+    .byte 19, $8A
+    .byte 5, $44
+    .byte 17, $84
+    .byte 7, $03
     .byte 12, $02
     .byte 12, $50
     .byte 19, $90
-    .byte 5, $48
-    .byte 19, $88
+    .byte 5, $4A
+    .byte 19, $8A
     .byte 5, $44
     .byte 19, $84
-    .byte 5, $08
+    .byte 5, $0A
     .byte 12, $02
     .byte 12, $41
     .byte 19, $81
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $48
+    .byte 5, $4A
+    .byte 17, $8A
+    .byte 7, $48
     .byte 19, $88
-    .byte 5, $44
-    .byte 67, $84
-    .byte 29, $08
+    .byte 5, $46
+    .byte 67, $86
+    .byte 29, $0A
     .byte 12, $08
     .byte 12, $41
     .byte 19, $81
-    .byte 5, $02
+    .byte 5, $0A
     .byte 12, $08
     .byte 12, $50
     .byte 19, $90
-    .byte 5, $08
+    .byte 5, $0A
     .byte 12, $08
     .byte 12, $42
-    .byte 19, $82
-    .byte 5, $41
-    .byte 19, $81
-    .byte 5, $68
-    .byte 19, $88
-    .byte 5, $70
-    .byte 19, $90
-    .byte 5, $64
-    .byte 19, $84
-    .byte 5, $62
-    .byte 19, $82
-    .byte 5, $48
-    .byte 19, $88
-    .byte 5, $44
-    .byte 19, $84
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $41
-    .byte 43, $81
-    .byte 5, $02
-    .byte 12, $08
-    .byte 12, $50
-    .byte 19, $90
-    .byte 5, $08
-    .byte 12, $04
-    .byte 12, $41
-    .byte 19, $81
-    .byte 5, $02
-    .byte 12, $04
-    .byte 12, $50
-    .byte 19, $90
-    .byte 5, $08
-    .byte 12, $04
-    .byte 12, $42
-    .byte 19, $82
-    .byte 5, $41
-    .byte 19, $81
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $50
-    .byte 19, $90
+    .byte 17, $82
+    .byte 7, $43
+    .byte 19, $83
     .byte 5, $48
     .byte 17, $88
-    .byte 7, $68
-    .byte 19, $88
-    .byte 5, $64
+    .byte 7, $58
+    .byte 17, $98
+    .byte 7, $44
     .byte 19, $84
-    .byte 5, $62
-    .byte 19, $82
-    .byte 5, $61
-    .byte 19, $81
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $04
-    .byte 12, $10
-    .byte 12, $48
+    .byte 5, $4A
+    .byte 17, $8A
+    .byte 7, $48
     .byte 19, $88
-    .byte 5, $04
-    .byte 12, $02
+    .byte 5, $46
+    .byte 17, $86
+    .byte 7, $42
+    .byte 17, $82
+    .byte 7, $43
+    .byte 41, $83
+    .byte 7, $0A
+    .byte 12, $08
+    .byte 12, $50
+    .byte 19, $90
+    .byte 5, $0A
+    .byte 12, $04
     .byte 12, $41
-    .byte 29, $81
-    .byte 7, $01
-    .byte 12, $41
-    .byte 17, $81
-    .byte 7, $41
     .byte 19, $81
-    .byte 5, $08
-    .byte 12, $02
-    .byte 12, $41
-    .byte 19, $81
-    .byte 5, $02
+    .byte 5, $0A
     .byte 12, $04
     .byte 12, $50
     .byte 19, $90
-    .byte 5, $48
-    .byte 19, $88
-    .byte 5, $04
-    .byte 12, $02
-    .byte 12, $41
-    .byte 43, $81
-    .byte 5, $62
-    .byte 19, $82
-    .byte 5, $28
-    .byte 12, $30
-    .byte 12, $68
-    .byte 19, $88
-    .byte 5, $04
-    .byte 12, $02
-    .byte 12, $44
-    .byte 19, $84
-    .byte 5, $42
-    .byte 19, $82
-    .byte 5, $01
-    .byte 12, $02
-    .byte 12, $44
-    .byte 19, $84
-    .byte 5, $50
-    .byte 19, $90
-    .byte 5, $08
+    .byte 5, $0A
     .byte 12, $04
     .byte 12, $42
+    .byte 17, $82
+    .byte 7, $43
+    .byte 17, $83
+    .byte 7, $42
     .byte 19, $82
+    .byte 5, $58
+    .byte 17, $98
+    .byte 7, $48
+    .byte 17, $88
+    .byte 7, $4A
+    .byte 19, $8A
+    .byte 5, $44
+    .byte 19, $84
+    .byte 5, $4A
+    .byte 19, $8A
     .byte 5, $41
-    .byte 17, $81
+    .byte 19, $81
+    .byte 5, $4A
+    .byte 19, $8A
+    .byte 5, $04
+    .byte 12, $10
+    .byte 12, $4A
+    .byte 19, $8A
+    .byte 5, $04
+    .byte 12, $02
+    .byte 12, $43
+    .byte 29, $83
     .byte 7, $01
+    .byte 12, $43
+    .byte 17, $83
+    .byte 7, $41
+    .byte 19, $81
+    .byte 5, $0A
+    .byte 12, $02
+    .byte 12, $41
+    .byte 19, $81
+    .byte 5, $0A
     .byte 12, $04
     .byte 12, $50
     .byte 19, $90
-    .byte 5, $48
-    .byte 43, $88
+    .byte 5, $4A
+    .byte 19, $8A
+    .byte 5, $04
+    .byte 12, $02
+    .byte 12, $43
+    .byte 41, $83
+    .byte 7, $4A
+    .byte 17, $8A
+    .byte 7, $08
+    .byte 12, $10
+    .byte 12, $4A
+    .byte 19, $8A
+    .byte 5, $04
+    .byte 12, $02
+    .byte 12, $46
+    .byte 17, $86
+    .byte 7, $42
+    .byte 17, $82
+    .byte 7, $03
+    .byte 12, $02
+    .byte 12, $44
+    .byte 17, $84
+    .byte 7, $58
+    .byte 17, $98
+    .byte 7, $08
+    .byte 12, $04
+    .byte 12, $4A
+    .byte 19, $8A
+    .byte 5, $41
+    .byte 17, $81
+    .byte 7, $03
+    .byte 12, $04
+    .byte 12, $50
+    .byte 19, $90
+    .byte 5, $4A
+    .byte 43, $8A
     .byte 0, $FF  ; fin
 
 chart_nesband_demo_teclado_facil:
-    .byte 128, $02
-    .byte 24, $04
+    .byte 140, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
     .byte 24, $02
     .byte 24, $04
-    .byte 24, $01
     .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $21
-    .byte 24, $22
-    .byte 24, $22
     .byte 24, $24
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $21
-    .byte 24, $22
-    .byte 24, $22
     .byte 24, $24
+    .byte 24, $22
+    .byte 24, $22
     .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
     .byte 24, $02
-    .byte 24, $01
     .byte 24, $02
-    .byte 24, $01
-    .byte 24, $04
     .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
     .byte 24, $02
-    .byte 24, $01
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
     .byte 24, $02
     .byte 24, $02
     .byte 24, $04
-    .byte 24, $02
     .byte 24, $04
-    .byte 24, $01
+    .byte 24, $04
+    .byte 24, $04
     .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $21
     .byte 24, $21
     .byte 24, $22
+    .byte 24, $22
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $01
+    .byte 24, $01
     .byte 24, $21
+    .byte 24, $21
+    .byte 24, $22
+    .byte 24, $22
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $04
+    .byte 24, $04
     .byte 24, $24
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $21
-    .byte 24, $22
-    .byte 24, $22
     .byte 24, $24
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $21
     .byte 24, $22
     .byte 24, $22
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $04
+    .byte 24, $04
     .byte 24, $24
-    .byte 24, $01
+    .byte 24, $24
+    .byte 24, $22
+    .byte 24, $22
     .byte 24, $02
-    .byte 24, $01
-    .byte 24, $04
     .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
     .byte 24, $02
-    .byte 24, $01
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
     .byte 24, $02
     .byte 24, $02
     .byte 24, $04
-    .byte 24, $02
     .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
     .byte 0, $FF  ; fin
 
 chart_nesband_demo_teclado_medio:
-    .byte 128, $04
-    .byte 24, $08
-    .byte 24, $02
-    .byte 24, $08
-    .byte 24, $02
+    .byte 140, $04
+    .byte 24, $04
+    .byte 24, $04
     .byte 24, $04
     .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $08
+    .byte 24, $08
+    .byte 24, $28
+    .byte 24, $28
+    .byte 24, $24
+    .byte 24, $24
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $08
+    .byte 24, $08
+    .byte 24, $08
+    .byte 24, $08
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
     .byte 24, $04
     .byte 24, $01
-    .byte 24, $04
+    .byte 24, $01
     .byte 24, $21
+    .byte 24, $21
+    .byte 24, $24
+    .byte 24, $24
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $01
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $02
+    .byte 24, $02
     .byte 24, $22
     .byte 24, $22
     .byte 24, $24
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $08
-    .byte 24, $02
-    .byte 24, $08
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $02
-    .byte 24, $08
-    .byte 24, $04
-    .byte 24, $08
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $21
-    .byte 24, $22
-    .byte 24, $22
-    .byte 24, $28
-    .byte 24, $04
-    .byte 24, $08
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $08
-    .byte 24, $04
-    .byte 24, $08
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $04
-    .byte 24, $08
-    .byte 24, $04
-    .byte 24, $08
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $21
     .byte 24, $24
-    .byte 24, $22
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $08
+    .byte 24, $08
     .byte 24, $28
-    .byte 24, $02
-    .byte 24, $08
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $08
-    .byte 24, $02
-    .byte 24, $08
-    .byte 24, $04
-    .byte 24, $08
-    .byte 24, $04
-    .byte 24, $08
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $21
-    .byte 24, $22
-    .byte 24, $22
     .byte 24, $28
-    .byte 24, $04
-    .byte 24, $08
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $08
-    .byte 24, $02
-    .byte 24, $08
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $21
-    .byte 24, $22
-    .byte 24, $22
     .byte 24, $24
+    .byte 24, $24
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
     .byte 24, $02
     .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
     .byte 24, $02
     .byte 24, $08
+    .byte 24, $08
+    .byte 24, $28
+    .byte 24, $28
+    .byte 24, $24
+    .byte 24, $24
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $02
+    .byte 24, $02
+    .byte 24, $02
     .byte 24, $02
     .byte 24, $08
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $02
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $04
-    .byte 24, $01
-    .byte 24, $02
-    .byte 24, $02
+    .byte 24, $08
+    .byte 24, $08
     .byte 24, $08
     .byte 24, $04
-    .byte 24, $08
+    .byte 24, $04
+    .byte 24, $04
+    .byte 24, $04
     .byte 0, $FF  ; fin
 
 chart_nesband_demo_teclado_dificil:
-    .byte 128, $01
+    .byte 128, $02
     .byte 12, $04
     .byte 12, $10
     .byte 12, $04
     .byte 12, $02
-    .byte 12, $08
+    .byte 12, $04
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $28
-    .byte 12, $24
-    .byte 12, $22
-    .byte 12, $28
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
     .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $30
-    .byte 12, $28
-    .byte 12, $22
-    .byte 12, $28
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $30
-    .byte 12, $28
-    .byte 12, $22
-    .byte 12, $28
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
     .byte 12, $01
     .byte 12, $02
     .byte 12, $24
@@ -1220,29 +1148,29 @@ chart_nesband_demo_teclado_dificil:
     .byte 12, $04
     .byte 12, $02
     .byte 12, $04
-    .byte 12, $08
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $02
-    .byte 12, $08
+    .byte 12, $01
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
     .byte 12, $04
-    .byte 12, $02
+    .byte 12, $10
     .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
+    .byte 12, $10
+    .byte 12, $01
     .byte 12, $04
     .byte 12, $08
+    .byte 12, $04
+    .byte 12, $01
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $04
     .byte 12, $30
-    .byte 12, $28
+    .byte 12, $24
     .byte 12, $22
-    .byte 12, $28
+    .byte 12, $24
     .byte 12, $10
-    .byte 12, $08
+    .byte 12, $04
     .byte 12, $01
     .byte 12, $02
     .byte 12, $04
@@ -1252,399 +1180,471 @@ chart_nesband_demo_teclado_dificil:
     .byte 12, $04
     .byte 12, $02
     .byte 12, $04
-    .byte 12, $08
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
     .byte 12, $01
-    .byte 12, $02
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $04
     .byte 12, $28
     .byte 12, $24
     .byte 12, $21
     .byte 12, $24
     .byte 12, $08
     .byte 12, $04
+    .byte 12, $08
+    .byte 12, $01
+    .byte 12, $02
+    .byte 12, $01
+    .byte 12, $08
+    .byte 12, $01
+    .byte 12, $02
+    .byte 12, $01
     .byte 12, $02
     .byte 12, $04
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $04
-    .byte 12, $08
     .byte 12, $04
     .byte 12, $02
     .byte 12, $04
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $02
+    .byte 12, $24
+    .byte 12, $22
+    .byte 12, $30
+    .byte 12, $22
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $02
     .byte 12, $04
     .byte 12, $10
     .byte 12, $04
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $08
     .byte 12, $01
+    .byte 12, $02
+    .byte 12, $01
+    .byte 12, $08
+    .byte 12, $01
+    .byte 12, $02
+    .byte 12, $01
+    .byte 12, $02
     .byte 12, $04
     .byte 12, $30
     .byte 12, $24
     .byte 12, $22
-    .byte 12, $28
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $02
-    .byte 12, $08
+    .byte 12, $24
     .byte 12, $10
     .byte 12, $04
+    .byte 12, $10
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $10
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
     .byte 12, $01
     .byte 12, $02
-    .byte 12, $28
+    .byte 12, $24
     .byte 12, $22
     .byte 12, $21
-    .byte 12, $28
-    .byte 12, $10
-    .byte 12, $04
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
+    .byte 12, $22
     .byte 12, $04
     .byte 12, $02
+    .byte 12, $01
     .byte 12, $04
     .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
+    .byte 12, $04
     .byte 12, $01
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
     .byte 12, $02
-    .byte 12, $28
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $30
     .byte 12, $24
     .byte 12, $22
-    .byte 12, $28
+    .byte 12, $24
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
     .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
     .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
     .byte 12, $10
-    .byte 12, $08
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
     .byte 12, $01
     .byte 12, $04
     .byte 12, $08
     .byte 12, $04
-    .byte 12, $02
+    .byte 12, $01
     .byte 12, $04
-    .byte 12, $30
-    .byte 12, $28
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $01
+    .byte 12, $02
+    .byte 12, $24
     .byte 12, $22
-    .byte 12, $28
+    .byte 12, $21
+    .byte 12, $22
+    .byte 12, $04
+    .byte 12, $02
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
     .byte 12, $02
-    .byte 12, $08
     .byte 12, $04
     .byte 12, $02
-    .byte 12, $08
     .byte 12, $10
-    .byte 12, $08
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
     .byte 12, $01
     .byte 12, $02
+    .byte 12, $24
+    .byte 12, $22
+    .byte 12, $21
+    .byte 12, $22
     .byte 12, $04
     .byte 12, $02
+    .byte 12, $04
+    .byte 12, $10
     .byte 12, $01
-    .byte 12, $02
+    .byte 12, $10
     .byte 12, $04
-    .byte 12, $02
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $01
     .byte 12, $04
     .byte 12, $08
+    .byte 12, $04
+    .byte 12, $01
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $04
     .byte 12, $30
+    .byte 12, $24
+    .byte 12, $22
+    .byte 12, $24
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $01
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $01
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $04
     .byte 12, $28
+    .byte 12, $24
     .byte 12, $21
     .byte 12, $24
-    .byte 12, $10
+    .byte 12, $08
     .byte 12, $04
     .byte 0, $FF  ; fin
 
 chart_nesband_demo_teclado_experto:
-    .byte 128, $01
+    .byte 128, $02
     .byte 12, $04
-    .byte 12, $10
+    .byte 12, $18
     .byte 12, $04
     .byte 12, $02
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $28
-    .byte 12, $24
-    .byte 12, $22
-    .byte 12, $28
-    .byte 12, $10
-    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $18
+    .byte 12, $04
     .byte 12, $01
     .byte 12, $02
     .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $30
-    .byte 12, $28
-    .byte 12, $22
-    .byte 12, $28
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $30
-    .byte 12, $28
-    .byte 12, $22
-    .byte 12, $28
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $24
-    .byte 12, $22
+    .byte 12, $03
     .byte 12, $21
     .byte 12, $22
+    .byte 12, $24
+    .byte 12, $22
+    .byte 12, $0C
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $0C
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $03
     .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $09
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $0A
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $0A
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $03
     .byte 12, $02
     .byte 12, $04
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
     .byte 12, $02
-    .byte 12, $08
+    .byte 12, $03
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $0C
     .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $0C
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $09
+    .byte 12, $04
     .byte 12, $08
+    .byte 12, $04
+    .byte 12, $03
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $09
     .byte 12, $01
     .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
+    .byte 12, $01
+    .byte 12, $0A
     .byte 12, $01
     .byte 12, $02
+    .byte 12, $01
+    .byte 12, $06
     .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $12
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $12
     .byte 12, $02
     .byte 12, $04
-    .byte 12, $08
+    .byte 12, $02
+    .byte 12, $18
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $06
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $0A
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $0A
+    .byte 12, $01
+    .byte 12, $02
+    .byte 12, $01
+    .byte 12, $0C
+    .byte 12, $01
+    .byte 12, $02
+    .byte 12, $01
+    .byte 12, $12
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $06
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $18
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $12
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $0A
+    .byte 12, $24
     .byte 12, $30
-    .byte 12, $28
-    .byte 12, $22
-    .byte 12, $28
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $28
-    .byte 12, $24
-    .byte 12, $21
-    .byte 12, $24
-    .byte 12, $08
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $04
-    .byte 12, $10
-    .byte 12, $04
-    .byte 12, $01
-    .byte 12, $04
-    .byte 12, $30
     .byte 12, $24
     .byte 12, $22
-    .byte 12, $28
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
     .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $10
-    .byte 12, $08
-    .byte 12, $02
-    .byte 12, $08
     .byte 12, $10
     .byte 12, $04
-    .byte 12, $01
+    .byte 12, $03
     .byte 12, $02
-    .byte 12, $28
-    .byte 12, $22
-    .byte 12, $21
-    .byte 12, $28
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $03
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $09
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $03
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $12
+    .byte 12, $04
     .byte 12, $10
     .byte 12, $04
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
+    .byte 12, $0A
     .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $02
-    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $06
+    .byte 12, $04
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $28
-    .byte 12, $24
-    .byte 12, $22
-    .byte 12, $28
+    .byte 12, $04
+    .byte 12, $12
+    .byte 12, $04
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
     .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
+    .byte 12, $0C
     .byte 12, $10
-    .byte 12, $08
     .byte 12, $01
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $30
-    .byte 12, $28
-    .byte 12, $22
-    .byte 12, $28
     .byte 12, $10
-    .byte 12, $08
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $08
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $08
+    .byte 12, $0C
     .byte 12, $10
-    .byte 12, $08
     .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $01
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $02
-    .byte 12, $04
-    .byte 12, $08
-    .byte 12, $30
-    .byte 12, $28
-    .byte 12, $21
-    .byte 12, $24
     .byte 12, $10
+    .byte 12, $03
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $03
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $03
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $03
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $18
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $18
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $0A
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $0A
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $03
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $03
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $0C
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $0C
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $03
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $09
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $0A
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $0A
+    .byte 12, $04
+    .byte 12, $10
+    .byte 12, $04
+    .byte 12, $03
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $03
+    .byte 12, $02
+    .byte 12, $04
+    .byte 12, $02
+    .byte 12, $0C
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $0C
+    .byte 12, $10
+    .byte 12, $01
+    .byte 12, $10
+    .byte 12, $09
+    .byte 12, $04
+    .byte 12, $08
+    .byte 12, $04
+    .byte 12, $03
+    .byte 12, $04
+    .byte 12, $08
     .byte 12, $04
     .byte 0, $FF  ; fin
 

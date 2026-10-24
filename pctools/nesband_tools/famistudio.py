@@ -59,6 +59,7 @@ class Note:
     frame: int  # cuadro desde que empieza la canción
     pitch: int  # número MIDI (solo importa para comparar alturas)
     duration: int
+    extra: int | None = None  # otra altura del mismo gesto (un arpegio fusionado: un acorde "roto"); ver merge_attacks
 
 
 @dataclass

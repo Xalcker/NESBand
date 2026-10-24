@@ -96,7 +96,7 @@ local A_VS_RESULT = label("vs_result")
 -- Cuadros sueltos con el instrumento sonando que se perdonan: en los cuadros más pesados el
 -- juego termina su lógica pegado al vblank y el motor de sonido puede escribir justo después
 -- de silenciar (un cuadro de 16 ms, que no se oye). Si de verdad no se silencia, son cientos.
-local UNMUTED_TOLERANCE = 3
+local UNMUTED_TOLERANCE = 8   -- (con acordes los cuadros pesados son más; ver #13: 4 cuadros en cv3_aquarius)
 local A_NMI_COUNT = label("frame_counter")
 local A_SCENE_BANK, A_SCENE_COLOR = label("scene_bank"), label("scene_color")   -- escenario (#4)
 local A_SCENE_PHASE, A_SCENE_ON = label("scene_phase"), label("scene_on")
@@ -774,7 +774,7 @@ emu.addEventCallback(function()
     -- (en práctica, al llegar a practice_end el juego está reiniciando la canción: enter_play puede quedar a medias)
     if beat > 0 and not (opt_practice > 0 and song_frame >= read16(label("practice_end"))) then
       local expected = (song_frame - read16(song_ptr + SONG_FIRST_BEAT)) % beat
-      local phase = read8(A_SCENE_PHASE)
+      local phase = read8(A_SCENE_PHASE) % beat   -- (a media vuelta de scene_update vale beat, que es 0 del tiempo siguiente)
       if phase == expected then
         scene_behind = false
       elseif scene_behind or phase ~= (expected - 1) % beat then
