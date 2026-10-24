@@ -37,6 +37,7 @@ from .chart import (
     estimate_beat,
     merge_attacks,
 )
+from .chartedit import EDITS_FILE, apply_edits, load_edits, validate_chart
 from .m3u import find_playlist
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -135,13 +136,24 @@ def import_song(args: argparse.Namespace) -> None:
     out_dir = SONGS_DIR / name
     work_dir = WORK_DIR / name
 
+    # Las ediciones manuales (edits.json) sobreviven a la importación: se leen antes de que convert
+    # borre la carpeta, se aplican a los charts automáticos y el archivo se vuelve a escribir
+    edits_file = out_dir / EDITS_FILE
+    edits_text = edits_file.read_text(encoding="utf-8") if edits_file.exists() else None
+    edits = load_edits(out_dir)
+
     # Convertir; si no cabe en el slot y es un NSF, grabar menos segundos y reintentar
     for _ in range(6):
-        result = convert(fs, source, name, song_index, duration, args.beat_frames, is_nsf, out_dir, work_dir)
+        result = convert(fs, source, name, song_index, duration, args.beat_frames, is_nsf, out_dir, work_dir, edits)
+        if edits_text is not None:
+            write_lf(edits_file, edits_text)
         if result.fits:
             break
         shutil.rmtree(out_dir)
         if not is_nsf:
+            if edits_text is not None:
+                out_dir.mkdir(parents=True)
+                write_lf(edits_file, edits_text)
             sys.exit(f"La canción no cabe en su slot de 16 KB ({result.total} bytes): hay que acortarla en FamiStudio.")
         new_duration = min(duration - 1, int(duration * SLOT_SIZE * 0.96 / result.total))
         print(f"No cabe con {duration} s ({result.total} de {SLOT_SIZE} bytes): pruebo con {new_duration} s")
@@ -255,7 +267,7 @@ class Converted:
 
 
 def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, beat_frames: int | None,
-            is_nsf: bool, out_dir: Path, work_dir: Path) -> Converted:
+            is_nsf: bool, out_dir: Path, work_dir: Path, edits: dict | None = None) -> Converted:
     """Pasa la canción por FamiStudio, genera los charts y ve si todo cabe en un slot."""
     for d in (out_dir, work_dir):
         if d.exists():
@@ -295,12 +307,8 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
     project = famistudio.parse_text(text_path.read_text(encoding="utf-8"))
     song = project.songs[0] if len(project.songs) == 1 else project.songs[song_index]
 
-    # 3) Tempo: el de FamiStudio es confiable en sus proyectos, no en un NSF importado
-    if beat_frames or is_nsf:
-        all_onsets = [n.frame for ch in song.notes.values() for n in merge_attacks(ch)]
-        grid = estimate_beat(all_onsets, beat_frames)
-    else:
-        grid = estimate_beat([0], song.frames_per_beat)
+    # 3) Tempo
+    grid = song_grid(song, beat_frames, is_nsf)
 
     # 4) Charts por instrumento y dificultad
     charts: list[tuple[str, str, int]] = []  # (etiqueta, ensamblador, bytes)
@@ -319,7 +327,10 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
             label = f"chart_{name}_{instrument}_{difficulty.name}"
             role, partner_channel = ROLE_OF[instrument]
             chart = build_chart(notes, difficulty, grid, LEAD_IN, role, song.notes.get(partner_channel, []))
-            check_playable(chart)
+            key = f"{instrument}/{difficulty.name}"
+            if edits and edits.get(key):
+                chart = apply_edits(chart, edits[key], warn=lambda text, key=key: print(f"  AVISO edits.json ({key}): {text}"))
+            validate_chart(key, chart)
             charts.append((label, chart_to_asm(label, chart), chart_size(chart)))
             chart_labels.append(label)
             counts.append(f"{difficulty.name} {len(chart)}")
@@ -335,6 +346,14 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
     total = data_size + dpcm_room(dmc_size)
     return Converted(total <= SLOT_SIZE, total, music_label, music_size, dmc_files, dmc_size, project, song, grid,
                      charts, chart_labels, instrument_mask, summary)
+
+
+def song_grid(song: famistudio.Song, beat_frames: int | None, is_nsf: bool) -> BeatGrid:
+    """La rejilla de tiempos: la de FamiStudio es confiable en sus proyectos, no en un NSF importado."""
+    if beat_frames or is_nsf:
+        all_onsets = [n.frame for ch in song.notes.values() for n in merge_attacks(ch)]
+        return estimate_beat(all_onsets, beat_frames)
+    return estimate_beat([0], song.frames_per_beat)
 
 
 def dpcm_room(dmc_size: int) -> int:
@@ -454,6 +473,17 @@ def reimport(args: argparse.Namespace) -> None:
         ))
 
 
+def edit_chart(args: argparse.Namespace) -> None:
+    from . import editor
+
+    if args.html:
+        payload = editor.build_payload(editor.load_song_source(args.name))
+        args.html.write_text(editor.render_page(payload), encoding="utf-8", newline="\n")
+        print(f"Página de solo lectura: {args.html}")
+    else:
+        editor.serve(args.name, args.port, not args.no_open)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="nesband", description="Herramientas de PC para NESBand")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -488,6 +518,13 @@ def main() -> None:
     p = sub.add_parser("reimport", help="Vuelve a importar canciones con las opciones que se usaron la primera vez")
     p.add_argument("names", nargs="*", help="canciones (default: todas)")
     p.set_defaults(func=reimport)
+
+    p = sub.add_parser("edit-chart", help="Abre el editor visual de charts de una canción (página local en el navegador)")
+    p.add_argument("name", help="canción de src/songs/")
+    p.add_argument("--port", type=int, default=8765, help="puerto local (0 = cualquiera libre)")
+    p.add_argument("--no-open", action="store_true", help="no abrir el navegador")
+    p.add_argument("--html", type=Path, help="en vez de servir, escribe una página HTML de solo lectura en esta ruta")
+    p.set_defaults(func=edit_chart)
 
     args = parser.parse_args()
     args.func(args)

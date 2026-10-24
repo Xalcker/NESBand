@@ -337,6 +337,27 @@ Para probar sin conseguir NSF: FamiStudio trae proyectos de demostración en `to
 que se pueden importar directo (por ejemplo `uv run nesband import-song "tools/famistudio/Demo Songs/Mega
 Man 2.fms" --name wily --song 0 --title "Dr. Wily's Castle"`).
 
+### Editor de charts
+
+```bash
+uv run nesband edit-chart tormenta
+```
+
+Abre en el navegador una página local (HTML + Canvas, sin dependencias; el servidor solo escucha en
+`127.0.0.1`) con la canción de `src/songs/<nombre>/`:
+
+- **Canales de la canción:** las notas de Square 1, Square 2, Triángulo, Ruido y DPCM sobre la línea de
+  tiempo, con la rejilla de tiempos (más marcada cada 4), el cuadro en que arranca la música
+  (`SONG_LEAD_IN`) y el fin. Rueda para el zoom, arrastra para recorrer, clic para mover la línea de
+  golpe; arriba una vista general de toda la canción. En ruido y DPCM cada fila es un tono (o sample).
+- **Chart:** el de un instrumento y dificultad (menús de arriba) con sus 5 carriles, acordes, colas y
+  notas de frase estelar, como se ven en el juego. Rueda para avanzar, `Ctrl`+rueda para el zoom. Las
+  notas con problemas (ver `check_playable`) salen con borde rojo y en la lista de avisos.
+
+Las notas salen de `build/songs/<nombre>/song.txt` (lo deja `import-song`); si falta y la canción no es
+un NSF, se vuelve a pedir a FamiStudio. `--no-open` no abre el navegador, `--port` cambia el puerto y
+`--html ruta.html` escribe una página de solo lectura en vez de servir.
+
 ## Música del título y efectos de sonido
 
 Son originales de NESBand y viven como proyectos de FamiStudio en formato texto:
