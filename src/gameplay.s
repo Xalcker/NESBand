@@ -190,6 +190,19 @@ chart_first:
     lda (ptr),y
     sta seek_frame
     sty seek_frame+1
+@skip:                      ; práctica desde un punto: omite lo que ya pasó (skip_frame = 0: nada)
+    lda seek_frame
+    cmp skip_frame
+    lda seek_frame+1
+    sbc skip_frame+1
+    bcs @done               ; seek_frame >= skip_frame
+    ldy #1
+    lda (ptr),y
+    cmp #CHART_END
+    beq @done
+    jsr chart_step
+    jmp @skip
+@done:
     rts
 
 chart_step:

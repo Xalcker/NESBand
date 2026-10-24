@@ -75,6 +75,7 @@ LIFE_HOLD       = 1                    ; sostener una nota (cada 32 cuadros, y u
 LIFE_STAR       = 6                    ; completar una frase de poder estelar
 SONG_LEAD_IN    = 128                  ; cuadros de autopista antes de que arranque la música
 RESULTS_DELAY   = 60                   ; cuadros entre el fin de la música y los resultados
+PRACTICE_GRACE  = 60                   ; práctica desde un punto: las notas de los primeros cuadros se omiten (no da tiempo)
 VBUF_SIZE       = 128                  ; bytes de la cola de textos para la NMI
 
 ; La autopista es un rollo de 30 filas en la nametable de $2000. Con mirroring
@@ -308,10 +309,13 @@ opt_mirror:     .res 1   ; 1 = carriles invertidos
 opt_speed:      .res 1   ; 0 = 100%, 1 = 75%, 2 = 50% (cuadros que se salta el juego: ver play_update)
 opt_fall:       .res 1   ; 0 = AUTO (la caída de la dificultad), 1-4 = la de fácil a experto
 opt_practice:   .res 1   ; 0 = no, 1-3 = bucle hasta 1/4, 1/2 o 3/4 de la canción, 4 = toda
+opt_start:      .res 1   ; 0 = el principio, 1-3 = la práctica empieza en 1/4, 1/2 o 3/4 de la canción
 opt_cursor:     .res 1   ; opción elegida en la pantalla de opciones
 speed_ctr:      .res 1   ; cuadros transcurridos (para saltarse uno de cada 4 o de cada 2)
 pad_latch:      .res MAX_PLAYERS ; botones presionados en cuadros saltados: se aplican en el siguiente
 practice_end:   .res 2   ; cuadro de la canción donde vuelve a empezar el bucle de práctica
+practice_start: .res 2   ; cuadro pedido para empezar la práctica (practice_seek lo baja a una fila exacta)
+skip_frame:     .res 2   ; los charts empiezan en la primera nota de este cuadro en adelante (0 = desde el principio)
 chart_bit:      .res NUM_LANES ; bit del chart que toca cada carril (con ESPEJO, al revés)
 
 ; -----------------------------------------------------------------------------

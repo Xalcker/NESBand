@@ -68,7 +68,6 @@ enter_play:
     sta next_beat+1
     jmp @beat_back
 @beat_ready:
-    jsr scene_init          ; el público baila al ritmo de estos mismos tiempos
 
     ; Velocidad: la de la dificultad más alta entre los jugadores
     lda #0
@@ -109,14 +108,7 @@ enter_play:
     bpl @chart_bit
 
     ; PRACTICA: el bucle vuelve a empezar en practice_end = (song_end / 4) * opt_practice
-    lda song_end+1
-    lsr a
-    sta tmp+1
-    lda song_end
-    ror a
-    lsr tmp+1
-    ror a
-    sta tmp                 ; tmp = song_end / 4
+    jsr song_quarter        ; tmp = song_end / 4
     lda #0
     sta practice_end
     sta practice_end+1
@@ -134,18 +126,6 @@ enter_play:
     bne @loop_end
 @no_practice:
 
-
-    ; --- Cada jugador: su chart, marcador y carriles ---
-    ldx #0
-@player:
-    jsr load_player
-    jsr init_player
-    jsr store_player
-    ldx player
-    inx
-    cpx num_players
-    bne @player
-
     ; --- Variables de tiempo y scroll (las comparten todos) ---
     lda #0
     sta paused
@@ -162,21 +142,59 @@ enter_play:
     sta speed_ctr
     sta pad_latch
     sta pad_latch+1
+    sta skip_frame          ; (practice_seek lo cambia si la práctica empieza más adelante)
+    sta skip_frame+1
     lda #HIT_ROW
     sta cur_vrow
-
-    ; --- Dibujar las 30 filas iniciales de la autopista ---
-    lda #<FILL_FIRST_ROW
-    sta next_k
-    lda #>FILL_FIRST_ROW
-    sta next_k+1
     lda #FILL_FIRST_VROW
     sta next_vrow
+    jsr practice_seek       ; PRACTICA con INICIO: salta la canción hasta ese punto
 
-    ; next_k_frame = FILL_FIRST_ROW * fpr (es negativo: filas de antes del
-    ; cuadro 0, que van vacías). Multiplicar = restar fpr unas cuantas veces.
-    lda #0
+    ; --- Cada jugador: su chart, marcador y carriles ---
+    ldx #0
+@player:
+    jsr load_player
+    jsr init_player
+    jsr store_player
+    ldx player
+    inx
+    cpx num_players
+    bne @player
+
+    ; Las líneas de beat y el público siguen los tiempos de la canción: next_beat debe caer en
+    ; song_frame o después (con la práctica empezando más adelante hay que saltar varios)
+@beat_catch_up:
+    lda next_beat
+    cmp song_frame
+    lda next_beat+1
+    sbc song_frame+1
+    bcs @beat_caught
+    clc
+    lda next_beat
+    adc beat_frames
+    sta next_beat
+    bcc @beat_catch_up
+    inc next_beat+1
+    jmp @beat_catch_up
+@beat_caught:
+    jsr scene_init          ; el público baila al ritmo de estos mismos tiempos (y scene_on avisa
+                            ; que ya está todo listo: song_frame, charts y escenario)
+
+    ; --- Dibujar las 30 filas iniciales de la autopista ---
+    ; next_k = FILL_FIRST_ROW + cur_row (la fila de abajo del todo; negativa si empieza la canción)
+    clc
+    lda #<FILL_FIRST_ROW
+    adc cur_row
+    sta next_k
+    lda #>FILL_FIRST_ROW
+    adc cur_row+1
+    sta next_k+1
+
+    ; next_k_frame = song_frame + FILL_FIRST_ROW * fpr (negativo al empezar la canción: filas de
+    ; antes del cuadro 0, que van vacías). Multiplicar = restar fpr unas cuantas veces.
+    lda song_frame
     sta next_k_frame
+    lda song_frame+1
     sta next_k_frame+1
     ldx #-FILL_FIRST_ROW
 @first_frame:
@@ -227,6 +245,149 @@ enter_play:
     lda #1
     sta split_on            ; desde el siguiente vblank, pantalla dividida
     jmp ppu_on
+
+; -----------------------------------------------------------------------------
+; song_quarter: tmp = song_end / 4
+; -----------------------------------------------------------------------------
+song_quarter:
+    lda song_end+1
+    lsr a
+    sta tmp+1
+    lda song_end
+    ror a
+    lsr tmp+1
+    ror a
+    sta tmp
+    rts
+
+; -----------------------------------------------------------------------------
+; practice_seek: PRACTICA con INICIO distinto del principio (1/4, 1/2 o 3/4 de la canción).
+; Deja el reloj, el scroll y la música como si la canción llevara jugándose hasta ahí:
+;   - song_frame, cur_row, cur_vrow, next_vrow y row_scroll avanzan fila por fila (un cuadro
+;     cae en la fila exacta: song_frame queda en un múltiplo de fpr)
+;   - skip_frame = ese cuadro + PRACTICE_GRACE: los charts omiten las notas anteriores (no
+;     da tiempo de tocarlas) y la autopista arranca con unos segundos limpios
+;   - el motor de sonido se adelanta llamándolo cuadro por cuadro con el APU callado (la NMI y
+;     la pantalla siguen apagadas, así que solo es cuestión de esperar unos segundos)
+; Si no hay práctica, o empieza en el principio, no hace nada. Va antes que init_player
+; (los charts leen skip_frame) y que scene_init (el público lee song_frame).
+; -----------------------------------------------------------------------------
+practice_seek:
+    lda opt_practice
+    bne @active
+    rts
+@active:
+    ldx opt_start
+    cpx opt_practice        ; no puede empezar donde termina (ni después)
+    bcc @start_ok
+    ldx opt_practice
+    dex
+@start_ok:
+    txa
+    bne @go
+    rts
+@go:
+    jsr song_quarter        ; practice_start = (song_end / 4) * X
+    lda #0
+    sta practice_start
+    sta practice_start+1
+@quarters:
+    clc
+    lda practice_start
+    adc tmp
+    sta practice_start
+    lda practice_start+1
+    adc tmp+1
+    sta practice_start+1
+    dex
+    bne @quarters
+
+    ; Fila por fila, mientras la siguiente fila empiece en practice_start o antes
+@row:
+    clc
+    lda song_frame
+    adc fpr
+    sta tmp
+    lda song_frame+1
+    adc #0
+    sta tmp+1
+    lda practice_start
+    cmp tmp
+    lda practice_start+1
+    sbc tmp+1
+    bcc @rows_done          ; practice_start < la siguiente fila: ya llegamos
+    lda tmp
+    sta song_frame
+    lda tmp+1
+    sta song_frame+1
+    inc cur_row
+    bne @row_ok
+    inc cur_row+1
+@row_ok:
+    dec cur_vrow            ; (como advance_time: la fila de la nametable da la vuelta de 0 a 29)
+    bpl @cur_ok
+    lda #VROWS - 1
+    sta cur_vrow
+@cur_ok:
+    dec next_vrow
+    bpl @next_ok
+    lda #VROWS - 1
+    sta next_vrow
+@next_ok:
+    lda row_scroll
+    sec
+    sbc #8
+    bcs @scroll_ok
+    adc #VROWS * 8
+@scroll_ok:
+    sta row_scroll
+    jmp @row
+
+@rows_done:
+    lda song_frame
+    ora song_frame+1
+    beq @done
+    clc                     ; las notas de los primeros cuadros ya no se tocan ni se dibujan
+    lda song_frame
+    adc #PRACTICE_GRACE
+    sta skip_frame
+    lda song_frame+1
+    adc #0
+    sta skip_frame+1
+
+    ; La música: update_music la arranca (y la actualiza por primera vez) en el cuadro en que
+    ; song_frame llega a SONG_LEAD_IN, así que al empezar el cuadro song_frame lleva
+    ; song_frame - SONG_LEAD_IN + 1 actualizaciones
+    sec
+    lda song_frame
+    sbc #<(SONG_LEAD_IN - 1)
+    sta tmp
+    lda song_frame+1
+    sbc #>(SONG_LEAD_IN - 1)
+    sta tmp+1
+    bcc @done               ; (no pasa: un cuarto de canción dura mucho más que la entrada)
+    lda #0                  ; la canción 0 del archivo exportado
+    jsr famistudio_music_play
+    lda tmp
+    ora tmp+1
+    beq @music_done
+@music:
+    jsr famistudio_update
+    lda #0
+    sta APU_STATUS          ; sin sonido mientras se adelanta (el motor lo enciende en cada nota)
+    lda tmp
+    bne @low
+    dec tmp+1
+@low:
+    dec tmp
+    lda tmp
+    ora tmp+1
+    bne @music
+@music_done:
+    lda #%00001111          ; canales encendidos otra vez (como los deja famistudio_music_play)
+    sta APU_STATUS
+@done:
+    rts
 
 ; -----------------------------------------------------------------------------
 ; init_player: prepara al jugador cargado en pstate para empezar la canción
@@ -376,6 +537,8 @@ play_update:
     beq @go                 ; (ni la canción ni las notas avanzan, y el sonido sigue donde iba)
     inc speed_ctr
     ldx opt_speed
+    cpx #3
+    beq @fast
     lda speed_ctr
     and speed_mask - 1,x
     bne @go
@@ -388,6 +551,14 @@ play_update:
     and #<~BTN_START
     sta pad_latch+1
     rts
+@fast:                      ; 125%: de cada 4 cuadros, uno avanza dos pasos de juego (canción, notas y
+    lda speed_ctr           ; sonido); el segundo paso no cuenta otra vez lo que se presionó
+    and #%11
+    bne @go
+    jsr @go
+    lda #0
+    sta pad_pressed
+    sta pad_pressed+1
 @go:
     lda pad_latch
     ora pad_pressed

@@ -44,11 +44,13 @@
 --   AUTOPLAY_DOWN        1 = Co-Op: el jugador 2 (sin tocar, con fallo) cae y el 1 sigue hasta el final (#10)
 --   AUTOPLAY_REVIVE      1 = además, el jugador 1 lo revive con Select cuando la barra de poder llega a la mitad
 --   AUTOPLAY_MIRROR      1 = opción ESPEJO (carriles invertidos; el bot juega igual, el puntaje no cambia) (#6)
---   AUTOPLAY_SPEED       0 = 100% (default), 1 = 75%, 2 = 50%: la canción y las notas avanzan más lento
+--   AUTOPLAY_SPEED       0 = 100% (default), 1 = 75%, 2 = 50% (la canción y las notas avanzan más lento), 3 = 125% (más rápido)
 --   AUTOPLAY_FALL        0 = AUTO (default), 1-4 = caída de notas como la de fácil .. experto
 --   AUTOPLAY_PRACTICE    0 = no (default), 1-3 = bucle hasta 1/4, 1/2 o 3/4 de la canción, 4 = toda: sin fallo,
 --                        sin resultados; la prueba termina cuando la canción vuelve a empezar
---   TEST_OUT             carpeta donde dejar resultado.txt y capturas .png
+--   AUTOPLAY_START       0 = el principio (default), 1-3 = la práctica empieza en 1/4, 1/2 o 3/4 de la canción
+--                        (#16): se revisa en qué cuadro arranca y que la música cuadre con las notas desde ahí
+--   TEST_OUT            carpeta donde dejar resultado.txt y capturas .png
 --
 -- Requiere que Mesen tenga habilitado "AllowIoOsAccess" (escribir archivos) y
 -- que build/nesband.dbg esté junto a la ROM (para encontrar las variables).
@@ -72,6 +74,8 @@ local opt_mirror = os.getenv("AUTOPLAY_MIRROR") == "1"          -- opciones (#6)
 local opt_speed = tonumber(os.getenv("AUTOPLAY_SPEED") or "0")
 local opt_fall = tonumber(os.getenv("AUTOPLAY_FALL") or "0")
 local opt_practice = tonumber(os.getenv("AUTOPLAY_PRACTICE") or "0")
+local opt_start = tonumber(os.getenv("AUTOPLAY_START") or "") or 0
+local PRACTICE_GRACE = 60       -- como en main.s: las notas de los primeros cuadros de una práctica con inicio se omiten
 local any_option = opt_mirror or opt_speed > 0 or opt_fall > 0 or opt_practice > 0
 local STAR_MAX, STAR_PHRASE, STAR_MIN = 80, 20, 40       -- como en main.s
 local outdir = os.getenv("TEST_OUT") or "."
@@ -188,6 +192,8 @@ if any_option then      -- Select abre las opciones: espejo, velocidad, caída d
   add(0, "right", opt_fall)
   add(0, "down", 1)
   add(0, "right", opt_practice)
+  add(0, "down", 1)
+  add(0, "right", opt_start)
 end
 for i, step in ipairs(steps) do MENU_SCRIPT[50 + i * 4] = step end
 local menu_done = 50 + #steps * 4
@@ -269,6 +275,7 @@ local scene_banks = {}          -- bancos de público que se vieron durante la c
 local scene_lights = {}         -- colores de luz que se vieron (con poder estelar cambian cada tiempo)
 local speed_f1, speed_f2 = nil, nil   -- cuadro real en que la canción llegó a su cuadro 200 y al 1200 (para medir la velocidad)
 local prev_song_frame, practice_done = nil, false
+local practice_first = nil      -- práctica con inicio: song_frame en el primer cuadro con la pantalla encendida
 local scene_drift = 0           -- cuadros en que la fase del tiempo del escenario no cuadró con la canción
 local scene_behind = false      -- el cuadro anterior la fase iba un cuadro atrás (puede ser solo la muestra)
 local star_seen = {}    -- por jugador: ¿se vio el poder estelar activo en algún cuadro?
@@ -362,7 +369,9 @@ local function bot_input(p)
     for lane = 0, 4 do
       local ptr = read8(field(p, "lane_ptr_lo") + lane) + read8(field(p, "lane_ptr_hi") + lane) * 256
       local lane_frame = read8(field(p, "lane_frame_lo") + lane) + read8(field(p, "lane_frame_hi") + lane) * 256
-      if read8(ptr + 1) ~= CHART_END and lane_frame == next_frame then
+      -- (a 125%, de cada 4 cuadros uno avanza dos pasos: el cuadro de en medio nunca se ve, así que se
+      -- toca un cuadro antes, que cae dentro de la ventana)
+      if read8(ptr + 1) ~= CHART_END and (lane_frame == next_frame or (opt_speed == 3 and lane_frame == next_frame + 1)) then
         input[LANE_KEYS[lane + 1]] = true
       end
     end
@@ -455,7 +464,8 @@ local function check_player(p)
   -- Sincronía: notas del chart sin un disparo del motor en su mismo cuadro
   local off_sync, off_frames = 0, {}
   for _, n in ipairs(chart) do
-    if not triggers[p][n.frame] then
+    -- (a 125% el motor puede disparar en el cuadro que nunca se ve: se registra en el siguiente)
+    if not triggers[p][n.frame] and not (opt_speed == 3 and triggers[p][n.frame + 1]) then
       off_sync = off_sync + 1
       if #off_frames < 5 then off_frames[#off_frames + 1] = tostring(n.frame) end
     end
@@ -493,6 +503,9 @@ local function check_player(p)
       star_ok = true
     else
       score_ok = score == team_score
+      if opt_speed == 3 then   -- a 125% el bot toca un cuadro antes en algunos pasos: puede cambiar algún tic de nota sostenida
+        score_ok = math.abs(score - team_score) <= HOLD_POINTS * 2 * #holds[p]
+      end
       star_ok = read8(field(p, "star_energy")) == math.min(STAR_MAX, STAR_PHRASE * team_runs)
                 and read8(field(p, "star_active")) == 0
     end
@@ -615,7 +628,7 @@ local function evaluate()
     end
     if opt_fall > 0 and read8(label("fpr")) ~= ({ 6, 5, 4, 3 })[opt_fall] then ok = false end
     local ratio = (speed_f1 and speed_f2) and (speed_f2 - speed_f1) / 1000 or nil   -- cuadros reales por cuadro de la canción
-    local want = ({ 1, 4 / 3, 2 })[opt_speed + 1]
+    local want = ({ 1, 4 / 3, 2, 0.8 })[opt_speed + 1]
     if not ratio or math.abs(ratio - want) > 0.05 then ok = false end
     all_ok = all_ok and ok
     lines[#lines + 1] = string.format("opciones=%s (reloj x%s, esperado %.2f)", tostring(ok), ratio and string.format("%.2f", ratio) or "?", want)
@@ -691,7 +704,7 @@ emu.addEventCallback(function()
   end
   -- enter_play tarda varios cuadros (con la pantalla apagada) en preparar a
   -- los jugadores: los charts se leen cuando la canción ya está corriendo
-  if state == STATE_PLAY and read16(A_SONG_FRAME) > 0 then
+  if state == STATE_PLAY and read16(A_SONG_FRAME) > 0 and read8(label("scene_on")) == 1 then   -- (scene_on: enter_play ya terminó)
     if not charts then
       charts = {}
       for p = 1, num_players do charts[p], holds[p], star_runs[p] = read_chart(p) end
@@ -717,6 +730,9 @@ emu.addEventCallback(function()
     if song_frame == 1200 and not speed_f2 then speed_f2 = frame end
     -- Práctica: la canción debe volver a empezar justo en practice_end, sin fallar, y ahí termina la prueba
     if opt_practice > 0 and not practice_done then
+      if not practice_first and state == STATE_PLAY and read8(label("scene_on")) == 1 then
+        practice_first = song_frame
+      end
       if prev_song_frame and song_frame + 100 < prev_song_frame then
         practice_done = true
         local expect = (read16(label("song_end")) >> 2) * opt_practice
@@ -725,8 +741,29 @@ emu.addEventCallback(function()
         -- (el último cuadro que se alcanza a ver puede ser el anterior: el reinicio cae a media vuelta del cuadro)
         local ok = alive and (prev_song_frame == expect or prev_song_frame == expect - 1)
                    and read16(label("practice_end")) == expect and scene_drift == 0
-        write_file("resultado.txt", string.format("cancion=%d practica: volvio a empezar desde %d (esperado %d), sin fallo=%s, desfase escenario=%d -> %s\n",
-                   song, prev_song_frame, expect, tostring(alive), scene_drift, ok and "OK" or "FALLA"))
+        -- Inicio de la práctica (#16): empieza en el cuarto pedido (nunca en o después de donde termina), en una
+        -- fila exacta, y desde ahí cada nota del chart suena justo en su cuadro (el motor se adelantó bien)
+        local start_text = ""
+        do
+          local eff = math.min(opt_start, opt_practice - 1)
+          local fpr = read8(label("fpr"))
+          local start_frame = (((read16(label("song_end")) >> 2) * eff) // fpr) * fpr
+          local started = practice_first ~= nil and practice_first >= start_frame and practice_first <= start_frame + 2
+          local missed, missed_frames = 0, {}
+          for p = 1, num_players do
+            for _, n in ipairs(charts[p]) do
+              if n.frame >= start_frame + PRACTICE_GRACE + 2 and n.frame < expect - 3 and not triggers[p][n.frame] then
+                missed = missed + 1
+                if #missed_frames < 8 then missed_frames[#missed_frames + 1] = tostring(n.frame) end
+              end
+            end
+          end
+          ok = ok and started and missed == 0
+          start_text = string.format(" | inicio en %s (esperado %d), notas sin sonar a tiempo=%d [%s]",
+                                     tostring(practice_first), start_frame, missed, table.concat(missed_frames, " "))
+        end
+        write_file("resultado.txt", string.format("cancion=%d practica: volvio a empezar desde %d (esperado %d), sin fallo=%s, desfase escenario=%d%s -> %s\n",
+                   song, prev_song_frame, expect, tostring(alive), scene_drift, start_text, ok and "OK" or "FALLA"))
         emu.stop(ok and 0 or 1)
       end
       prev_song_frame = song_frame
@@ -777,7 +814,9 @@ emu.addEventCallback(function()
     -- (Si el cuadro de pantalla termina a media vuelta del juego, song_frame ya avanzó y scene_update
     -- aún no: la fase va un cuadro atrás. Eso solo vale si al cuadro siguiente ya cuadra.)
     -- (en práctica, al llegar a practice_end el juego está reiniciando la canción: enter_play puede quedar a medias)
-    if beat > 0 and not (opt_practice > 0 and song_frame >= read16(label("practice_end"))) then
+    -- (y mientras practice_seek adelanta la canción con la pantalla apagada, scene_on aún vale 0)
+    if beat > 0 and not (opt_practice > 0 and song_frame >= read16(label("practice_end")))
+       and (opt_start == 0 or read8(label("scene_on")) == 1) then
       local expected = (song_frame - read16(song_ptr + SONG_FIRST_BEAT)) % beat
       local phase = read8(A_SCENE_PHASE) % beat   -- (a media vuelta de scene_update vale beat, que es 0 del tiempo siguiente)
       if phase == expected then

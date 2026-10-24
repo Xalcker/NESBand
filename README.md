@@ -109,12 +109,12 @@ Valen para todos los jugadores y se quedan hasta que las cambies; Start juega y 
 | Opción | Qué hace |
 |---|---|
 | ESPEJO | Invierte los carriles: la nota verde sale en el carril naranja y al revés (y lo mismo con el rojo y el azul). El chart no cambia: se traduce al leerlo |
-| VELOCIDAD | 100%, 75% o 50%: la canción y las notas avanzan más lento (el juego se salta 1 de cada 4, o 1 de cada 2, cuadros; el sonido sigue donde iba, así que se oye más lento y el scroll se ve entrecortado) |
+| VELOCIDAD | 100%, 75%, 50% o 125%: la canción y las notas avanzan más lento (el juego se salta 1 de cada 4, o 1 de cada 2, cuadros; el sonido sigue donde iba, así que se oye más lento y el scroll se ve entrecortado) o más rápido (de cada 4 cuadros, uno avanza dos pasos de juego: canción, notas y sonido) |
 | CAIDA DE NOTAS | Qué tan rápido bajan las notas, sin importar la dificultad (*hyperspeed*): AUTO usa la de la dificultad, o la de fácil, medio, difícil o experto |
-| PRACTICA | La canción se repite desde el inicio hasta 1/4, 1/2, 3/4 o el final: sin fallo y sin resultados. Select en la pausa regresa al menú |
+| PRACTICA | La canción se repite hasta 1/4, 1/2, 3/4 o el final: sin fallo y sin resultados. Select en la pausa regresa al menú |
+| INICIO DE LA PRACTICA | Dónde empieza la práctica: el principio, 1/4, 1/2 o 3/4 de la canción (nunca en o después de donde termina: empieza en el cuarto anterior). Para llegar ahí el juego adelanta el motor de sonido con la pantalla apagada, así que tarda unos segundos (más cuanto más adelante); las notas de los primeros segundos se omiten para dar tiempo de reaccionar |
 
-Con cualquier opción distinta de la normal **no se guardan récords**. (La práctica siempre arranca en el
-inicio de la canción: empezar en un punto cualquiera necesita adelantar el motor de sonido hasta ahí.)
+Con cualquier opción distinta de la normal **no se guardan récords**.
 
 **Juego** (modo "tap", un botón por carril, cada jugador con su control):
 
@@ -366,7 +366,9 @@ copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
     ir exactamente a 4/3 y 2 cuadros reales por cuadro de canción, sin perder la sincronía de la
     música ni las notas; con la caída de notas elegida la autopista usa esa velocidad; ninguna
     opción guarda récord; y en práctica el jugador que no toca nada (con fallo) no pierde y la canción
-    vuelve a empezar justo en el punto elegido.
+    vuelve a empezar justo en el punto elegido. Con INICIO de la práctica, además: la canción arranca en
+    la fila exacta del cuarto pedido (o del anterior al final, si no cabe) y desde ahí cada nota del chart
+    suena en su cuadro (el motor de sonido se adelantó bien), con el escenario al compás.
   - En todas, además: que suene la música del título y que suenen los efectos en el menú y al empezar,
     y el **escenario**: la fase de los tiempos debe cuadrar cuadro por cuadro con la canción, el público
     solo se anima (brazos arriba y saltos) cuando alguien lleva combo, las luces cambian con el poder

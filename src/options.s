@@ -6,17 +6,21 @@
 ;
 ;   ESPEJO          invierte los carriles: la nota verde sale en el carril naranja y al revés
 ;                   (se traduce al leer el chart: ver chart_bit y rev5)
-;   VELOCIDAD       100%, 75% o 50%: la canción y las notas avanzan más lento. El juego se salta
-;                   1 de cada 4 (o 1 de cada 2) cuadros, sin tocar el motor de sonido (ver play_update)
+;   VELOCIDAD       100%, 75%, 50% o 125%: la canción y las notas avanzan más lento (el juego se
+;                   salta 1 de cada 4, o 1 de cada 2, cuadros, sin tocar el motor de sonido) o más
+;                   rápido (de cada 4 cuadros, uno avanza dos pasos de juego): ver play_update
 ;   CAIDA DE NOTAS  qué tan rápido bajan las notas, sin importar la dificultad (la de los charts no
 ;                   cambia): AUTO usa la de la dificultad, o la de fácil a experto (ver set_speed)
-;   PRACTICA        la canción se repite desde el inicio hasta 1/4, 1/2, 3/4 o el final; sin fallo,
-;                   sin resultados y sin récord. Select en la pausa regresa al menú
+;   PRACTICA        la canción se repite hasta 1/4, 1/2, 3/4 o el final; sin fallo, sin
+;                   resultados y sin récord. Select en la pausa regresa al menú
+;   INICIO          dónde empieza la práctica: el principio, 1/4, 1/2 o 3/4 de la canción (si no
+;                   cae antes de donde termina, empieza en el cuarto anterior). El motor de
+;                   sonido se adelanta hasta ahí (ver practice_seek) y tarda unos segundos
 ;
 ; Con cualquier opción distinta de la normal no se guardan récords.
 ; =============================================================================
 
-OPT_ITEMS       = 4
+OPT_ITEMS       = 5
 OPT_ROW0        = 9      ; fila del valor de la primera opción; cada una va 3 filas más abajo
 OPT_VALUE_COL   = 4
 OPT_VALUE_WIDTH = 16
@@ -34,8 +38,9 @@ enter_options:
     PRINT MENU_LABEL_COL, OPT_ROW0 + 2, txt_opt_speed
     PRINT MENU_LABEL_COL, OPT_ROW0 + 5, txt_opt_fall
     PRINT MENU_LABEL_COL, OPT_ROW0 + 8, txt_opt_practice
-    PRINT_CENTER 22, txt_opt_note1
-    PRINT_CENTER 23, txt_opt_note2
+    PRINT MENU_LABEL_COL, OPT_ROW0 + 11, txt_opt_start
+    PRINT_CENTER 23, txt_opt_note1
+    PRINT_CENTER 24, txt_opt_note2
     PRINT_CENTER 26, txt_menu_help
     ldx #OPT_ITEMS - 1
 @draw:
@@ -143,24 +148,29 @@ options_place_cursor:
 
 .segment "RODATA"
 
-opt_count:      .byte 2, 3, 5, PRACTICE_LOOP_MAX + 1
+opt_count:      .byte 2, 4, 5, PRACTICE_LOOP_MAX + 1, 4
 opt_cursor_y:   .byte OPT_ROW0 * 8 - 1, (OPT_ROW0 + 3) * 8 - 1, (OPT_ROW0 + 6) * 8 - 1, (OPT_ROW0 + 9) * 8 - 1
+                .byte (OPT_ROW0 + 12) * 8 - 1
 opt_addr_lo:    .byte <($2000 + OPT_ROW0 * 32 + OPT_VALUE_COL), <($2000 + (OPT_ROW0 + 3) * 32 + OPT_VALUE_COL)
                 .byte <($2000 + (OPT_ROW0 + 6) * 32 + OPT_VALUE_COL), <($2000 + (OPT_ROW0 + 9) * 32 + OPT_VALUE_COL)
+                .byte <($2000 + (OPT_ROW0 + 12) * 32 + OPT_VALUE_COL)
 opt_addr_hi:    .byte >($2000 + OPT_ROW0 * 32 + OPT_VALUE_COL), >($2000 + (OPT_ROW0 + 3) * 32 + OPT_VALUE_COL)
                 .byte >($2000 + (OPT_ROW0 + 6) * 32 + OPT_VALUE_COL), >($2000 + (OPT_ROW0 + 9) * 32 + OPT_VALUE_COL)
+                .byte >($2000 + (OPT_ROW0 + 12) * 32 + OPT_VALUE_COL)
 
-opt_lists:      .addr opt_names_mirror, opt_names_speed, opt_names_fall, opt_names_practice
+opt_lists:      .addr opt_names_mirror, opt_names_speed, opt_names_fall, opt_names_practice, opt_names_start
 opt_names_mirror:   .addr txt_no, txt_yes
-opt_names_speed:    .addr txt_speed_100, txt_speed_75, txt_speed_50
+opt_names_speed:    .addr txt_speed_100, txt_speed_75, txt_speed_50, txt_speed_125
 opt_names_fall:     .addr txt_auto, txt_easy, txt_medium, txt_hard, txt_expert
 opt_names_practice: .addr txt_no, txt_loop_1, txt_loop_2, txt_loop_3, txt_loop_4
+opt_names_start:    .addr txt_start_0, txt_start_1, txt_start_2, txt_start_3
 
 txt_options:     .byte "OPCIONES", 0
 txt_opt_mirror:  .byte "ESPEJO", 0
 txt_opt_speed:   .byte "VELOCIDAD", 0
 txt_opt_fall:    .byte "CAIDA DE NOTAS", 0
 txt_opt_practice: .byte "PRACTICA", 0
+txt_opt_start:   .byte "INICIO DE LA PRACTICA", 0
 txt_opt_note1:   .byte "PRACTICA: SIN FALLO NI RECORD", 0
 txt_opt_note2:   .byte "CON OPCIONES NO HAY RECORD", 0
 txt_menu_options: .byte "SELECT: OPCIONES", 0
@@ -170,9 +180,14 @@ txt_auto:        .byte "AUTO", 0
 txt_speed_100:   .byte "100%", 0
 txt_speed_75:    .byte "75%", 0
 txt_speed_50:    .byte "50%", 0
+txt_speed_125:   .byte "125%", 0
 txt_loop_1:      .byte "HASTA 1/4", 0
 txt_loop_2:      .byte "HASTA 1/2", 0
 txt_loop_3:      .byte "HASTA 3/4", 0
 txt_loop_4:      .byte "TODA LA CANCION", 0
+txt_start_0:     .byte "EL PRINCIPIO", 0
+txt_start_1:     .byte "EN 1/4", 0
+txt_start_2:     .byte "EN 1/2", 0
+txt_start_3:     .byte "EN 3/4", 0
 
 .segment "CODE2"

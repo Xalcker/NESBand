@@ -39,15 +39,18 @@ PS_COMBO        = combo_bin - pstate   ; posición dentro del bloque de un jugad
 
 ; -----------------------------------------------------------------------------
 ; scene_init: al empezar la canción (enter_play, con la NMI apagada). Debe llamarse justo
-; después de dejar next_beat en el primer tiempo desde el cuadro 0: los tiempos de la
-; canción caen en cuadros song_frame = next_beat + k * beat_frames.
+; después de dejar next_beat en el primer tiempo desde song_frame (el cuadro 0, o más adelante
+; en una práctica): los tiempos de la canción caen en cuadros next_beat + k * beat_frames.
 ; -----------------------------------------------------------------------------
 scene_init:
-    lda next_beat           ; fase = cuadros desde el último tiempo: en el cuadro 0 faltan
-    beq @phase              ; next_beat para el siguiente, así que la fase es el resto
+    lda next_beat           ; fase = cuadros desde el último tiempo: a song_frame faltan
+    sec                     ; next_beat - song_frame (menos de un tiempo) para el siguiente,
+    sbc song_frame          ; así que la fase es el resto
+    beq @phase
+    sta tmp
     lda beat_frames
     sec
-    sbc next_beat
+    sbc tmp
 @phase:
     sta scene_phase
     lda #0

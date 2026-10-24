@@ -65,13 +65,18 @@ $kinds = @(
     # Co-Op con un caído: el jugador 2 cae y el 1 sigue; y el 1 lo revive con media barra de poder
     @('2p-coop-cae',   2, 'perfect', 0, 3, 'fail',    2, 3, 0, 0, 1, 0, 0, 1),
     @('2p-coop-revive', 2, 'perfect', 0, 3, 'fail',   2, 3, 0, 0, 1, 0, 0, 0, 1),
-    # Opciones (#6): el último texto son 4 dígitos = espejo (0-1), velocidad (0 = 100%, 1 = 75%, 2 = 50%),
+    # Opciones (#6): el último texto son 4 dígitos = espejo (0-1), velocidad (0 = 100%, 1 = 75%, 2 = 50%, 3 = 125%),
     # caída de notas (0 = auto, 1-4) y práctica (0 = no, 1-3 = hasta 1/4, 1/2, 3/4; 4 = toda)
     @('1p-espejo',     1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '1000'),
     @('1p-lenta75',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0100'),
     @('1p-lenta50',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0200'),
+    @('1p-rapida125',  1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0300'),
     @('1p-caida',      1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0010'),
     @('1p-practica',   1, 'fail',    0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0001'),
+    # (#16) el quinto dígito es el inicio de la práctica (0 = el principio, 1-3 = 1/4, 1/2, 3/4): hasta 3/4 desde 1/2,
+    # y hasta 1/2 pidiendo que empiece en 3/4 (no puede: empieza en el cuarto anterior al final, o sea en 1/4)
+    @('1p-inicio',     1, 'fail',    0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '00032'),
+    @('1p-inicio-tope', 1, 'fail',   0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '00023'),
     @('2p-vs-espejo',  2, 'perfect', 0, 3, 'perfect', 0, 3, 0, 0, 0, 3, 0, 0, 0, '1000'),   # mismo chart y mismo espejo: empate
     # Récords (solo con la canción de ejemplo, y en este orden: el segundo usa lo que guardó el primero)
     @('1p-record1',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 1),
@@ -108,7 +113,7 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
                 AUTOPLAY_RECORD = "$record"; AUTOPLAY_COOP = "$coop"; AUTOPLAY_VS = "$vs"; AUTOPLAY_CUT = "$cut"
                 AUTOPLAY_DOWN = "$down"; AUTOPLAY_REVIVE = "$revive"
                 AUTOPLAY_MIRROR = "$($opts[0])"; AUTOPLAY_SPEED = "$($opts[1])"
-                AUTOPLAY_FALL = "$($opts[2])"; AUTOPLAY_PRACTICE = "$($opts[3])"
+                AUTOPLAY_FALL = "$($opts[2])"; AUTOPLAY_PRACTICE = "$($opts[3])"; AUTOPLAY_START = "$($opts[4])"
             }
         }
         if ($record) { $registros += $caso } else { $trabajos += $caso }
