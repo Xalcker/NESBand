@@ -18,6 +18,8 @@ src/songs/*
 !src/songs/noche/
 !src/songs/carrera/
 !src/songs/brisa/
+!src/songs/cumbia/
+!src/songs/amanecer/
 
 # Referencias visuales con marcas de terceros (logos de Nintendo, etc.)
 docs/referencias/
