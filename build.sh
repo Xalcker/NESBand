@@ -15,7 +15,7 @@ mkdir -p build
 names=$(for f in src/songs/*/song.s; do [ -f "$f" ] && basename "$(dirname "$f")"; done | LC_ALL=C sort)
 count=$(printf '%s\n' "$names" | grep -c . || true)
 if [ "$count" -eq 0 ]; then echo "No hay canciones en src/songs"; exit 1; fi
-if [ "$count" -gt 15 ]; then echo "Hay $count canciones y el cartucho tiene 15 slots"; exit 1; fi
+if [ "$count" -gt 31 ]; then echo "Hay $count canciones y el cartucho tiene 31 slots"; exit 1; fi
 {
     printf '; Generado al compilar - lista de canciones de la ROM, en orden alfabetico\n'
     printf '; Cada cancion va en su slot de 16 KB (ver nes.cfg)\nNUM_SONGS = %s\n\n' "$count"

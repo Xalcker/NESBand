@@ -5,7 +5,11 @@
 .assert SONG_LEAD_IN = 128, error, "El chart se generó con otro SONG_LEAD_IN"
 .assert CHART_ENTRY = 2, error, "El chart se generó con otro CHART_ENTRY"
 
-.segment "RODATA"
+; La ficha, el título y el juego van al inicio del slot (no en el banco fijo, que ya está casi lleno):
+; solo se leen con la canción elegida, que es cuando su slot está en $A000. El slot de cada canción es
+; su lugar en el menú (SONG_SLOT_NUMBER), así que select_song no necesita leer la ficha para encontrarlo.
+.segment .sprintf("SONG%d", SONG_SLOT_NUMBER)
+song_nesband_demo_data:
 song_nesband_demo:
     .addr music_data_nesband_demo
     .word 3200            ; cuadro en que se detiene la música
@@ -23,8 +27,6 @@ song_nesband_demo:
 song_nesband_demo_title: .byte "PRIMER ENSAYO", 0
 song_nesband_demo_game:  .byte "NESBAND", 0
 
-; Música y charts: desde el inicio del slot ($A000)
-.segment .sprintf("SONG%d", SONG_SLOT_NUMBER)
-song_nesband_demo_data:
+; Música y charts, a continuación
 .include "songs/nesband_demo/music.s"
 .include "songs/nesband_demo/chart.s"

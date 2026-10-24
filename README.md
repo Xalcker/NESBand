@@ -4,7 +4,7 @@ Un juego de ritmo estilo Guitar Hero / Rock Band para el NES, con canciones de o
 
 **Estado actual:** título, menú (canción, jugadores, instrumento y dificultad), juego para **1 o 2
 jugadores** con pausa, y pantalla de resultados con precisión, combo máximo y estrellas. Cartucho MMC3
-de 256 KB con espacio para 15 canciones. Los charts se generan automáticamente para guitarra, teclado y
+de 512 KB con espacio para 31 canciones. Los charts se generan automáticamente para guitarra, teclado y
 bajo en 4 dificultades, y los aciertos y fallos están sincronizados al cuadro con la música. Si fallas,
 tu instrumento se calla hasta tu siguiente acierto, como en Rock Band.
 
@@ -235,7 +235,8 @@ Acepta NSF, proyectos de FamiStudio (`.fms`) y de FamiTracker (`.ftm`). Opciones
 
 **Espacio:** cada canción tiene un slot de 16 KB (música + 12 charts + samples). Si no cabe, el
 generador graba menos segundos y vuelve a intentar hasta que quepa, y lo avisa ("No cabe con 154 s…
-pruebo con 102 s"). En el cartucho caben 15 canciones.
+pruebo con 102 s"). En el cartucho caben 31 canciones (512 KB de PRG, el máximo del MMC3; un flash cart como el
+EverDrive N8 Pro lo carga).
 
 Cada canción importada se agrega a la lista del menú (`src/songs/list.s`, en orden alfabético). Para
 quitar una, borra su carpeta en `src/songs/` y corre `uv run nesband list-songs`.
@@ -274,7 +275,7 @@ Qué hace, paso a paso:
    - **acordes** (dos botones a la vez) en medio, difícil y experto, nunca en fácil ni en el bajo: una
      nota se vuelve acorde si su gesto era un arpegio (un acorde "roto" a 30 o 60 notas por segundo) o
      si el otro canal de pulso toca otra altura al mismo tiempo (la armonía). Solo en tiempos fuertes,
-     con aire antes de la siguiente nota y separados (150, 72 y 42 cuadros como mínimo en medio,
+     con aire antes de la siguiente nota y separados (150, 72 y 42 cuadros y 8, 6 y 5 notas sueltas como mínimo en medio,
      difícil y experto). Un acorde no entra en una frase de poder estelar. En el juego cada botón de
      un acorde cuenta como una nota (combo, puntaje y precisión);
    - **lo que un control de NES sí permite:** la cruz no deja apretar ← y → a la vez, y los carriles son
@@ -396,7 +397,7 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 | `src/songs/` | Canciones convertidas (generadas por `nesband import-song`) |
 | `src/chr.s` | Los gráficos (tiles) dibujados como texto; la fuente usa el código ASCII como número de tile. Incluye los 3 bancos del escenario (CHR de 16 KB) |
 | `src/nes.inc` | Direcciones de los registros del hardware |
-| `nes.cfg` | Mapa de memoria del cartucho MMC3 para el linker: dos bancos fijos con el código y 15 slots de canción |
+| `nes.cfg` | Mapa de memoria del cartucho MMC3 para el linker: dos bancos fijos con el código y 31 slots de canción |
 | `pctools/` | Herramientas de PC en Python (`nesband import-song`) |
 
 ## Conceptos clave (para ir aprendiendo)

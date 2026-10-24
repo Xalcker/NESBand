@@ -600,7 +600,12 @@ local function evaluate()
     scene_ok = scene_ok and changed
   end
   all_ok = all_ok and scene_ok
-  lines[#lines + 1] = string.format("escenario=%s (desfase %d cuadros)", tostring(scene_ok), scene_drift)
+  local banks, lights = {}, {}
+  for b in pairs(scene_banks) do banks[#banks + 1] = b end
+  for c in pairs(scene_lights) do lights[#lights + 1] = string.format("%02X", c) end
+  table.sort(banks); table.sort(lights)
+  lines[#lines + 1] = string.format("escenario=%s (desfase %d cuadros, bancos %s, luces %s, scene_on=%d)", tostring(scene_ok), scene_drift,
+                                    table.concat(banks, "/"), table.concat(lights, "/"), read8(A_SCENE_ON))
   -- Opciones (#6): sin récord, carriles invertidos, caída y velocidad como se pidieron
   if any_option then
     local ok = read8(field(1, "new_record")) == 0

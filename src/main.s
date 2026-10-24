@@ -319,7 +319,7 @@ chart_bit:      .res NUM_LANES ; bit del chart que toca cada carril (con ESPEJO,
 ; -----------------------------------------------------------------------------
 .segment "HEADER"
     .byte "NES", $1A
-    .byte 16         ; 16 bancos de 16 KB de PRG-ROM = 256 KB (ver nes.cfg)
+    .byte 32         ; 32 bancos de 16 KB de PRG-ROM = 512 KB (ver nes.cfg)
     .byte 2          ; 2 bancos de 8 KB de CHR-ROM = 16 KB (ver nes.cfg y los bancos del escenario en chr.s)
     .byte $42        ; mapper 4 (MMC3): el mirroring lo elige el programa; bit 1 = RAM con batería
     .byte $00

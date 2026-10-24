@@ -9,7 +9,11 @@
 #                (teclado + guitarra), para comprobar que cada quien lleva su propio juego;
 #                y fácil + experto (la autopista va a la velocidad de experto)
 # Deja resultado y capturas en build\test-<cancion>-<caso>
-param([string[]]$Only = @('*'), [string]$Rom = '', [switch]$NoBuild, [switch]$Rapida)   # (no puede llamarse $Songs: PowerShell no distingue mayúsculas y chocaría con $songs)
+#
+# -Paralelo N corre N casos a la vez (cada uno es un Mesen con su propio ROM copiado a build\par, así que sus
+# .sav no se mezclan); con 6 núcleos,-Paralelo 6 baja la corrida completa de ~4 horas a ~45 minutos. Los casos de
+# récords van siempre de uno en uno, después. Sin -Paralelo corre de uno en uno.
+param([string[]]$Only = @('*'), [string]$Rom = '', [switch]$NoBuild, [switch]$Rapida, [int]$Paralelo = 1)   # (no puede llamarse $Songs: PowerShell no distingue mayúsculas y chocaría con $songs)
 $ErrorActionPreference = 'Stop'
 # -Rapida: la demo y 3 canciones representativas (la de chart más grande, una densa y la más chica);
 # alcanza para cambios del motor. La corrida completa es para cambios de charts, generador o bancos.
@@ -75,6 +79,10 @@ $kinds = @(
 )
 
 $failed = $false
+
+# Los casos: cada uno con las variables de entorno que lee tests/autoplay.lua
+$trabajos = @()     # los que pueden correr a la vez (cada uno con su copia del ROM y su .sav)
+$registros = @()    # los de récords: se pasan el .sav uno al otro, así que van de uno en uno y en orden
 for ($s = 0; $s -lt $songs.Count; $s++) {
     $songName = $songs[$s].Name
     if (-not ($Only | Where-Object { $songName -like $_ })) { continue }
@@ -89,36 +97,87 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
         if (-not $star) { $star = 0 }   # 1 = los jugadores perfectos activan el poder estelar con Select
         if (-not $record) { $record = 0 }   # 1 = escribe iniciales y comprueba el .sav, 2 = comprueba que sigue ahí
         if ($record -and $songName -ne 'nesband_demo') { continue }
-        # Cada caso empieza con los récords vacíos, salvo el que comprueba que sobrevivieron
-        if ($record -ne 2) { Remove-Item (Join-Path $root "tools\mesen\Saves\$romName.sav") -ErrorAction SilentlyContinue }
-        $out = Join-Path $root "build\test-$($songs[$s].Name)-$name"
-        New-Item -ItemType Directory -Force $out | Out-Null
-        Remove-Item "$out\resultado.txt" -ErrorAction SilentlyContinue
-        $env:AUTOPLAY_SONG = $s
-        $env:AUTOPLAY_PLAYERS = $players
-        $env:AUTOPLAY_MODE = $mode1
-        $env:AUTOPLAY_INSTRUMENT = $inst1
-        $env:AUTOPLAY_DIFFICULTY = $diff1
-        $env:AUTOPLAY_MODE2 = $mode2
-        $env:AUTOPLAY_INSTRUMENT2 = $inst2
-        $env:AUTOPLAY_DIFFICULTY2 = $diff2
-        $env:AUTOPLAY_STAR = $star
-        $env:AUTOPLAY_RECORD = $record
-        $env:AUTOPLAY_COOP = $coop
-        $env:AUTOPLAY_VS = $vs
-        $env:AUTOPLAY_CUT = $cut
-        $env:AUTOPLAY_DOWN = $down
-        $env:AUTOPLAY_REVIVE = $revive
-        $env:AUTOPLAY_MIRROR = $opts[0]
-        $env:AUTOPLAY_SPEED = $opts[1]
-        $env:AUTOPLAY_FALL = $opts[2]
-        $env:AUTOPLAY_PRACTICE = $opts[3]
-        $env:TEST_OUT = $out
-        $p = Start-Process -FilePath $mesen -PassThru -Wait -NoNewWindow -ArgumentList @(
-            '--testrunner', "`"$romPath`"", "`"$root\tests\autoplay.lua`"")
-        $result = if (Test-Path "$out\resultado.txt") { (Get-Content "$out\resultado.txt" -Raw).Trim() } else { 'sin resultado' }
-        Write-Host "[$($songs[$s].Name)/$name] $result (exit $($p.ExitCode))"
-        if ($p.ExitCode -ne 0) { $failed = $true }
+        $caso = @{
+            Nombre = "$songName/$name"
+            Record = $record
+            Out = Join-Path $root "build\test-$songName-$name"
+            Env = [ordered]@{
+                AUTOPLAY_SONG = "$s"; AUTOPLAY_PLAYERS = "$players"; AUTOPLAY_MODE = "$mode1"
+                AUTOPLAY_INSTRUMENT = "$inst1"; AUTOPLAY_DIFFICULTY = "$diff1"; AUTOPLAY_MODE2 = "$mode2"
+                AUTOPLAY_INSTRUMENT2 = "$inst2"; AUTOPLAY_DIFFICULTY2 = "$diff2"; AUTOPLAY_STAR = "$star"
+                AUTOPLAY_RECORD = "$record"; AUTOPLAY_COOP = "$coop"; AUTOPLAY_VS = "$vs"; AUTOPLAY_CUT = "$cut"
+                AUTOPLAY_DOWN = "$down"; AUTOPLAY_REVIVE = "$revive"
+                AUTOPLAY_MIRROR = "$($opts[0])"; AUTOPLAY_SPEED = "$($opts[1])"
+                AUTOPLAY_FALL = "$($opts[2])"; AUTOPLAY_PRACTICE = "$($opts[3])"
+            }
+        }
+        if ($record) { $registros += $caso } else { $trabajos += $caso }
     }
+}
+
+# Lanza Mesen con un ROM (sin esperarlo) para un caso y devuelve el proceso
+function Iniciar-Caso($caso, $rom) {
+    foreach ($k in $caso.Env.Keys) { Set-Item -Path "env:$k" -Value $caso.Env[$k] }
+    $env:TEST_OUT = $caso.Out
+    New-Item -ItemType Directory -Force $caso.Out | Out-Null
+    Remove-Item "$($caso.Out)\resultado.txt" -ErrorAction SilentlyContinue
+    $p = Start-Process -FilePath $mesen -PassThru -WindowStyle Hidden `
+        -RedirectStandardOutput "$($caso.Out)\mesen.log" -RedirectStandardError "$($caso.Out)\mesen_err.log" `
+        -ArgumentList @('--testrunner', "`"$rom`"", "`"$root\tests\autoplay.lua`"")
+    $null = $p.Handle    # (sin esto, PowerShell 5.1 pierde el código de salida de un proceso que no se espera)
+    return $p
+}
+
+function Informar-Caso($caso, $codigo) {
+    $archivo = "$($caso.Out)\resultado.txt"
+    $resultado = if (Test-Path $archivo) { (Get-Content $archivo -Raw).Trim() } else { 'sin resultado' }
+    Write-Host "[$($caso.Nombre)] $resultado (exit $codigo)"
+    if ($codigo -ne 0) { $script:failed = $true }
+}
+
+# 1) Los casos independientes, de a $Paralelo a la vez. Cada ranura tiene su copia del ROM (y su .dbg,
+#    que Mesen busca junto a él) para que los .sav de récords de uno no se mezclen con los de otro
+$saves = Join-Path $root 'tools\mesen\Saves'
+$parDir = Join-Path $root 'build\par'
+$dbgOrigen = [IO.Path]::ChangeExtension($romPath, '.dbg')
+if ($trabajos.Count -gt 0) {
+    New-Item -ItemType Directory -Force $parDir | Out-Null
+    $libres = New-Object System.Collections.Generic.Queue[int]
+    for ($i = 0; $i -lt [Math]::Max(1, $Paralelo); $i++) {
+        Copy-Item $romPath (Join-Path $parDir "par$i.nes") -Force
+        if (Test-Path $dbgOrigen) { Copy-Item $dbgOrigen (Join-Path $parDir "par$i.dbg") -Force }
+        $libres.Enqueue($i)
+    }
+    $cola = New-Object System.Collections.Generic.Queue[object]
+    $trabajos | ForEach-Object { $cola.Enqueue($_) }
+    $corriendo = @()
+    while ($cola.Count -gt 0 -or $corriendo.Count -gt 0) {
+        while ($cola.Count -gt 0 -and $libres.Count -gt 0) {
+            $caso = $cola.Dequeue()
+            $ranura = $libres.Dequeue()
+            Remove-Item (Join-Path $saves "par$ranura.sav") -ErrorAction SilentlyContinue   # cada caso empieza con los récords vacíos
+            $p = Iniciar-Caso $caso (Join-Path $parDir "par$ranura.nes")
+            $corriendo += , @{ Proceso = $p; Caso = $caso; Ranura = $ranura }
+        }
+        Start-Sleep -Milliseconds 250
+        $siguen = @()
+        foreach ($c in $corriendo) {
+            if ($c.Proceso.HasExited) {
+                Informar-Caso $c.Caso $c.Proceso.ExitCode
+                $libres.Enqueue($c.Ranura)
+            } else {
+                $siguen += , $c
+            }
+        }
+        $corriendo = $siguen
+    }
+}
+
+# 2) Los de récords, de uno en uno con el ROM de siempre (el segundo usa lo que guardó el primero)
+foreach ($caso in $registros) {
+    if ($caso.Env.AUTOPLAY_RECORD -ne '2') { Remove-Item (Join-Path $saves "$romName.sav") -ErrorAction SilentlyContinue }
+    $p = Iniciar-Caso $caso $romPath
+    $p.WaitForExit()
+    Informar-Caso $caso $p.ExitCode
 }
 if ($failed) { exit 1 }

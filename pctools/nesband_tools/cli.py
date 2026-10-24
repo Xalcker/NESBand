@@ -45,7 +45,8 @@ WORK_DIR = ROOT / "build" / "songs"
 
 LEAD_IN = 128  # cuadros de autopista antes de que arranque la música (SONG_LEAD_IN en main.s)
 TEXT_MAX = 26  # caracteres que caben en el menú
-MAX_SONGS = 15  # slots en nes.cfg
+MAX_SONGS = 31  # slots en nes.cfg
+FICHA_RESERVE = 128  # bytes del inicio del slot para la ficha de la canción (45) y su título y juego (hasta ~55)
 SLOT_START = 0xA000  # donde se ve el slot de la canción elegida
 SLOT_SIZE = 0x4000  # 16 KB por canción
 BANK_SIZE = 0x2000  # la segunda mitad del slot ($C000-$DFFF) es donde pueden ir los samples DPCM
@@ -192,7 +193,11 @@ song_{name}_data_end:
 .assert SONG_LEAD_IN = {LEAD_IN}, error, "El chart se generó con otro SONG_LEAD_IN"
 .assert CHART_ENTRY = 2, error, "El chart se generó con otro CHART_ENTRY"
 
-.segment "RODATA"
+; La ficha, el título y el juego van al inicio del slot (no en el banco fijo, que ya está casi lleno):
+; solo se leen con la canción elegida, que es cuando su slot está en $A000. El slot de cada canción es
+; su lugar en el menú (SONG_SLOT_NUMBER), así que select_song no necesita leer la ficha para encontrarlo.
+.segment .sprintf("SONG%d", SONG_SLOT_NUMBER)
+song_{name}_data:
 song_{name}:
     .addr {music_label}
     .word {end_frame}            ; cuadro en que se detiene la música
@@ -207,9 +212,7 @@ song_{name}:
 song_{name}_title: .byte "{title}", 0
 song_{name}_game:  .byte "{game}", 0
 
-; Música y charts: desde el inicio del slot ($A000)
-.segment .sprintf("SONG%d", SONG_SLOT_NUMBER)
-song_{name}_data:
+; Música y charts, a continuación
 .include "songs/{name}/music.s"
 .include "songs/{name}/chart.s"
 {dpcm}""")
@@ -328,7 +331,7 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
     #    los samples, al final del slot y alineados a 64 bytes (ver dpcm_start)
     if dmc_size > BANK_SIZE:
         sys.exit(f"Los samples DPCM ocupan {dmc_size} B y el máximo es {BANK_SIZE} B")
-    data_size = music_size + sum(c[2] for c in charts)
+    data_size = FICHA_RESERVE + music_size + sum(c[2] for c in charts)
     total = data_size + dpcm_room(dmc_size)
     return Converted(total <= SLOT_SIZE, total, music_label, music_size, dmc_files, dmc_size, project, song, grid,
                      charts, chart_labels, instrument_mask, summary)

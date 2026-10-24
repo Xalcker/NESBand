@@ -398,6 +398,8 @@ vs_mirror:
 ; cada jugador tenga un instrumento que se pueda usar en esta canción
 ; -----------------------------------------------------------------------------
 select_song:
+    lda cur_song            ; el slot de cada canción es su lugar en el menú (SONG_SLOT_NUMBER, ver
+    jsr select_slot         ; list.s): su ficha vive dentro del slot, así que primero se pone el slot
     lda cur_song
     asl a
     tax
@@ -405,9 +407,6 @@ select_song:
     sta song_ptr
     lda song_table+1,x
     sta song_ptr+1
-    ldy #SONG_SLOT
-    lda (song_ptr),y
-    jsr select_slot
     jsr compute_song_hash   ; para encontrar sus récords
 
     ldx #0
