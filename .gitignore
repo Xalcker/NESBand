@@ -10,6 +10,8 @@ build/
 songs_src/
 src/songs/*
 !src/songs/nesband_demo/
+# Canciones originales de NESBand (GPL-2.0-or-later, componidas con audio/compose.py): sí van en git.
+!src/songs/tormenta/
 
 # Referencias visuales con marcas de terceros (logos de Nintendo, etc.)
 docs/referencias/
