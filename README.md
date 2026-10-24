@@ -356,6 +356,18 @@ Abre en el navegador una página local (HTML + Canvas, sin dependencias; el serv
   tiempo, con la rejilla de tiempos (más marcada cada 4), el cuadro en que arranca la música
   (`SONG_LEAD_IN`) y el fin. Rueda para el zoom, arrastra para recorrer, clic para mover la línea de
   golpe; arriba una vista general de toda la canción. En ruido y DPCM cada fila es un tono (o sample).
+- **Escuchar** (botón o `Espacio`): toca la canción desde la línea de golpe, con las notas pasando y la línea
+  de tiempo siguiéndola. Suena igual que en el juego porque usa el **mismo motor de sonido**: el servidor
+  ensambla `src/audio.s` (con las mismas banderas del motor) junto con la ficha de la canción en una imagen
+  de 24 KB (`build/player/<nombre>/`, ver `player.py`), y el navegador ejecuta ese código 6502 con un
+  emulador mínimo del CPU y del sonido del NES (`nesplayer.js`: 2 pulsos, triángulo, ruido, DPCM,
+  contador de cuadros y mezcla no lineal). Al primer Play prepara el audio completo (menos de un segundo),
+  y desde entonces moverte o empezar desde otro punto es instantáneo. Necesita `ca65` y `ld65`
+  (`tools/cc65` o el PATH), no el ROM compilado. En las pruebas (`pctools/tests/test_player.py`, con Node)
+  se comprueba el 6502, el APU y que las canciones, también con DPCM, lleguen a los registros correctos; el
+  volumen de `tormenta` y `carrera` coincide con el WAV que exporta FamiStudio (±3 % de mediana).
+  No es una emulación exacta ciclo por ciclo del chip: el motor corre una vez por cuadro y sus escrituras
+  se aplican al inicio del cuadro.
 - **Chart:** el de un instrumento y dificultad (menús de arriba) con sus 5 carriles, acordes, colas y
   notas de frase estelar, como se ven en el juego. Rueda para avanzar, `Ctrl`+rueda para el zoom. Las
   notas con problemas (ver `check_playable`) salen con borde rojo y en la lista de avisos.
@@ -384,8 +396,7 @@ Las notas salen de `build/songs/<nombre>/song.txt` (lo deja `import-song`); si f
 un NSF, se vuelve a pedir a FamiStudio. `--no-open` no abre el navegador, `--port` cambia el puerto y
 `--html ruta.html` escribe una página de solo lectura en vez de servir (sin edición).
 
-Aún no tiene: escuchar la canción con las notas pasando ni la vista de batería (asignar carril a cada
-golpe de ruido y DPCM); siguen pendientes en el [issue #15](https://github.com/Xalcker/NESBand/issues/15).
+Aún no tiene la vista de batería (asignar carril a cada golpe de ruido y DPCM); sigue pendiente en el [issue #15](https://github.com/Xalcker/NESBand/issues/15).
 
 ## Música del título y efectos de sonido
 

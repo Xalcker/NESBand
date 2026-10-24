@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlparse
 from . import famistudio
 from .chart import DIFFICULTIES, BeatGrid, ChartNote, build_chart, chart_size, chart_to_asm
 from .m3u import find_playlist
+from .player import player_payload
 from .chartedit import (
     EDITS_FILE,
     apply_edits,
@@ -35,6 +36,7 @@ from .chartedit import (
 HTML_PATH = Path(__file__).with_name("editor.html")
 HOME_PATH = Path(__file__).with_name("home.html")  # la página sin canción abierta
 MENU_PATH = Path(__file__).with_name("menu.html")  # el menú Archivo, compartido por las dos
+NESPLAYER_PATH = Path(__file__).with_name("nesplayer.js")  # el 6502 y el APU que tocan la canción
 
 
 @dataclass
@@ -190,7 +192,9 @@ def export_chart_s(src: SongSource, charts: dict[str, list[ChartNote]]) -> str:
 def render_page(payload: dict, template: Path = HTML_PATH) -> str:
     data = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).replace("</", "<\\/")
     menu = MENU_PATH.read_text(encoding="utf-8")
-    return template.read_text(encoding="utf-8").replace("__MENU__", menu, 1).replace("__DATA__", data, 1)
+    nesplayer = NESPLAYER_PATH.read_text(encoding="utf-8")
+    return (template.read_text(encoding="utf-8").replace("__MENU__", menu, 1)
+            .replace("__NESPLAYER__", nesplayer, 1).replace("__DATA__", data, 1))
 
 
 # --- Menú Archivo: canciones disponibles, fuentes para importar y la canción abierta -----------
@@ -324,6 +328,10 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         page = render_page({**build_payload(self.app.src), "editable": True})
                     self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
+                elif url.path == "/api/player":
+                    if self.app.src is None:
+                        raise ValueError("no hay canción abierta")
+                    self._json(200, self._player(self.app.src))
                 elif url.path == "/api/songs":
                     self._json(200, {"songs": list_songs()})
                 elif url.path == "/api/sources":
@@ -334,6 +342,16 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(404, b"no encontrado", "text/plain; charset=utf-8")
         except (ValueError, KeyError) as error:
             self._json(400, {"error": str(error)})
+
+    @staticmethod
+    def _player(src: SongSource) -> dict:
+        """El motor de sonido del juego con la música de la canción (ver player.py)."""
+        from . import cli
+
+        try:
+            return player_payload(cli.ROOT, src.name)
+        except (RuntimeError, OSError) as error:
+            raise ValueError(f"no pude armar el reproductor: {error}") from None
 
     def _json(self, status: int, data: dict) -> None:
         self._send(status, json.dumps(data).encode("utf-8"), "application/json")

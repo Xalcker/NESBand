@@ -51,6 +51,7 @@
   <span class="sub" id="subtitle"></span>
   <label>Instrumento <select id="inst"></select></label>
   <label>Dificultad <select id="diff"></select></label>
+  <span id="playslot"></span>
   <span id="actions"></span>
 </header>
 <main>
@@ -982,6 +983,113 @@ if (DATA.editable) (function () {
       }
     },
   };
+})();
+</script>
+<script>
+__NESPLAYER__
+</script>
+<script>
+"use strict";
+// --- Escuchar: el motor de sonido del juego (nesplayer.js) toca la canción desde la línea de golpe ---
+if (DATA.editable) (function () {
+  const FPS = NesPlayer.CPU_HZ / NesPlayer.FRAME_CYCLES;   // cuadros por segundo del NES (60.0988)
+  const P = { ctx: null, buffer: null, preparing: null, source: null, playing: false, t0: 0, cur0: 0, expected: 0, raf: 0 };
+  let button;
+
+  function status(text, bad) {
+    const el = $("msg");
+    el.textContent = text;
+    el.style.color = bad ? css("--err") : css("--muted");
+  }
+
+  async function prepare() {
+    // Arma el reproductor (el servidor ensambla el motor con la música) y toca la canción completa una vez
+    if (P.buffer) return;
+    if (!P.preparing) {
+      P.preparing = (async () => {
+        status("Preparando el audio…");
+        const res = await fetch("/api/player");
+        const player = await res.json();
+        if (!res.ok) throw new Error(player.error || res.statusText);
+        const frames = SONG_END - LEAD_IN;
+        const result = await NesPlayer.render(player, frames, {
+          sampleRate: 44100,
+          onProgress: (f) => status(`Preparando el audio… ${Math.round(f * 100)}%`),
+          yieldFn: () => new Promise((r) => setTimeout(r)),
+        });
+        const buffer = P.ctx.createBuffer(1, result.audio.length, result.sampleRate);
+        buffer.copyToChannel(result.audio, 0);
+        P.buffer = buffer;
+        status("");
+      })().catch((e) => { P.preparing = null; throw e; });
+    }
+    await P.preparing;
+  }
+
+  function stopSource() {
+    if (P.source) { try { P.source.stop(); } catch (e) { /* ya terminó */ } P.source.disconnect(); P.source = null; }
+  }
+
+  function startAt(frame) {
+    // La música empieza en el cuadro LEAD_IN: antes de él solo corre el reloj
+    stopSource();
+    P.cur0 = frame;
+    P.t0 = P.ctx.currentTime + 0.05;
+    const source = P.ctx.createBufferSource();
+    source.buffer = P.buffer;
+    source.connect(P.ctx.destination);
+    const lead = Math.max(0, LEAD_IN - frame) / FPS, offset = Math.max(0, frame - LEAD_IN) / FPS;
+    if (offset < P.buffer.duration) source.start(P.t0 + lead, offset);
+    P.source = source;
+    P.expected = frame;
+  }
+
+  function tick() {
+    if (!P.playing) return;
+    if (Math.abs(state.cur - P.expected) > 1.5) startAt(state.cur);   // alguien movió la línea de golpe: seguir desde ahí
+    const frame = P.cur0 + Math.max(0, P.ctx.currentTime - P.t0) * FPS;
+    if (frame >= SONG_END + 30) { pause(); return; }
+    state.cur = P.expected = frame;
+    keepTimelineFollowing();
+    redraw();
+    P.raf = requestAnimationFrame(tick);
+  }
+
+  async function play() {
+    if (P.playing) return;
+    try {
+      if (!P.ctx) P.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (P.ctx.state === "suspended") await P.ctx.resume();
+      await prepare();
+    } catch (e) { status(`No pude preparar el audio: ${e.message}`, true); return; }
+    if (state.cur >= SONG_END) state.cur = LEAD_IN - 60;
+    P.playing = true;
+    startAt(state.cur);
+    button.textContent = "⏸ Pausa";
+    P.raf = requestAnimationFrame(tick);
+  }
+
+  function pause() {
+    P.playing = false;
+    cancelAnimationFrame(P.raf);
+    stopSource();
+    if (button) button.textContent = "▶ Escuchar";
+  }
+
+  window.addEventListener("DOMContentLoaded", () => {
+    button = document.createElement("button");
+    button.textContent = "▶ Escuchar";
+    button.title = "Toca la canción con el motor de sonido del juego desde la línea de golpe (Espacio)";
+    button.onclick = () => (P.playing ? pause() : play());
+    $("playslot").append(button);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.code !== "Space" || e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, select, textarea, dialog")) return;
+    e.preventDefault();
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    if (P.playing) pause(); else play();
+  });
+  window.addEventListener("beforeunload", pause);
 })();
 </script>
 __MENU__
