@@ -418,9 +418,10 @@ Al cambiar un papel se rehacen al momento los charts de batería de las 4 dificu
   gema) y solo en **experto** (el «Pro»); en las demás dificultades se tocan como toms. La tarola y el bombo
   nunca son platillos. En el chart el platillo es el bit `$40` (la batería no usa colas, así que no cambia
   el formato de 2 bytes), tecla `P` en el editor;
-- fácil usa bombo, tarola y tom 1 (sin acordes); medio agrega el tom 2; difícil y experto los tres toms, con
-  acordes de a dos (un golpe y el bombo). Verde + amarillo (los dos toms de los extremos) nunca juntos,
-  porque ← y → no se pueden apretar a la vez; amarillo + naranja sí, el bombo es el pie.
+- fácil usa bombo, tarola y tom 1 (sin acordes); medio agrega el tom 2 y acordes de a dos (un golpe y el bombo);
+  difícil y experto usan los tres toms y hasta **3 botones a la vez: el bombo y dos golpes de mano, nunca más**
+  (solo hay dos manos y un pie; el editor lo marca como error y no deja guardar). Verde + amarillo (los dos toms
+  de los extremos) nunca juntos, porque ← y → no se pueden apretar a la vez; amarillo + naranja sí, el bombo es el pie.
 
 La asignación se guarda en `src/songs/<nombre>/drums.json` y las ediciones de los charts de batería en
 `edits.json`; las dos sobreviven a `reimport`. **El juego todavía no tiene modo batería** (la barra del bombo

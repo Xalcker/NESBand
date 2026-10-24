@@ -112,6 +112,46 @@ def test_chart_respects_blocked_pair_gap_and_buttons():
         assert all(b.frame - a.frame >= gap for a, b in zip(chart, chart[1:])), name
 
 
+def popcount(mask):
+    return bin(mask).count("1")
+
+
+def test_at_most_three_buttons_and_two_hands_per_moment():
+    # bombo + tarola + tom 2 + tom 1 al mismo tiempo: se queda el bombo y dos golpes de mano
+    hits = hits_of([(0, "kick", False), (0, "snare", False), (0, "tom2", False), (0, "tom1", False)])
+    for name, buttons in (("facil", 1), ("medio", 2), ("dificil", 3), ("experto", 3)):
+        chart = build_drum_chart(hits, name, GRID, 0)
+        assert popcount(chart[0].mask) == buttons, name
+        assert popcount(chart[0].mask & ~KICK) <= 2, name
+    expert = build_drum_chart(hits, "experto", GRID, 0)[0].mask
+    assert expert == KICK | SNARE | TOM2 or expert == KICK | SNARE | TOM1     # sin pasar de dos manos
+    # tres golpes de mano sin bombo tampoco: solo dos
+    three = build_drum_chart(hits_of([(0, "snare", False), (0, "tom2", False), (0, "tom3", False)]), "experto", GRID, 0)
+    assert popcount(three[0].mask) == 2
+    # con el bombo y la tarola, el hi-hat de experto (amarillo) también cabe: bombo + dos manos
+    pro = build_drum_chart(hits_of([(0, "kick", False), (0, "snare", False), (0, "tom1", True)]), "experto", GRID, 0)
+    assert pro[0].mask == KICK | SNARE | TOM1 and pro[0].cymbal
+    for chart in (build_drum_chart(hits, "experto", GRID, 0), pro):
+        check_playable(chart, DRUM_BLOCKED_PAIRS)
+        assert not [p for p in chart_problems(chart, 5, True) if p["kind"] == "error"]
+
+
+def test_chart_problems_flag_too_many_buttons_in_drums():
+    two_hands_and_kick = [ChartNote(10, KICK | SNARE | TOM2)]
+    assert not [p for p in chart_problems(two_hands_and_kick, 5, True) if p["kind"] == "error"]
+    three_hands = [ChartNote(10, SNARE | TOM2 | TOM1)]
+    errors = [p for p in chart_problems(three_hands, 5, True) if p["kind"] == "error"]
+    assert errors and "solo hay dos manos" in errors[0]["text"]
+    four = [ChartNote(10, KICK | SNARE | TOM2 | TOM1)]
+    errors = [p["text"] for p in chart_problems(four, 5, True) if p["kind"] == "error"]
+    assert any("manos" in text for text in errors)
+    with pytest.raises(ValueError, match="manos"):
+        validate_chart("bateria/experto", four)
+    validate_chart("bateria/experto", two_hands_and_kick)
+    # la regla es de la batería: en los demás instrumentos tres botones sí se piden (si no son pareja bloqueada)
+    assert not [p for p in chart_problems([ChartNote(10, 0b01011)], 5, False) if p["kind"] == "error"]
+
+
 def test_cymbal_flag_in_chart_file_format():
     chart = [ChartNote(10, 0b01000, None, False, True), ChartNote(20, 0b10000)]
     entries = chart_entries(chart)

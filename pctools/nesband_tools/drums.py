@@ -33,7 +33,9 @@ ROLES = tuple(ROLE_LABELS)
 ROLE_WEIGHT = {"kick": 3, "snare": 3, "tom1": 2, "tom2": 2, "tom3": 2}
 # Con menos dificultad, los toms se juntan en los que quedan: fácil usa bombo, tarola y tom 1; medio agrega el 2
 FOLD = {"facil": {"tom2": "tom1", "tom3": "tom1"}, "medio": {"tom3": "tom2"}, "dificil": {}, "experto": {}}
-MAX_BUTTONS = {"facil": 1, "medio": 2, "dificil": 2, "experto": 2}   # botones a la vez (un golpe y su bombo)
+# Botones a la vez: como máximo 3 (el pie y dos manos); fácil y medio quedan en 1 y 2
+MAX_BUTTONS = {"facil": 1, "medio": 2, "dificil": 3, "experto": 3}
+MAX_HANDS = 2   # golpes de mano a la vez (sin contar el bombo): solo hay dos manos
 PRO_CYMBALS = {"experto"}   # dificultades donde los platillos se distinguen de los toms
 CYMBAL_WEIGHT_PENALTY = 0.5   # los platillos (hi-hat) son lo primero que se quita al reducir
 MERGE_FRAMES = 1   # golpes a esta distancia son el mismo momento
@@ -182,7 +184,8 @@ def build_drum_chart(hits: list[Hit], difficulty_name: str, grid: BeatGrid, lead
     """El chart de batería de una dificultad.
 
     1. Los toms se juntan según la dificultad (FOLD) y los golpes casi simultáneos son un "momento".
-    2. De cada momento quedan hasta MAX_BUTTONS botones (primero bombo y tarola), sin verde + amarillo.
+    2. De cada momento quedan hasta MAX_BUTTONS botones (primero bombo y tarola), con a lo más MAX_HANDS
+       golpes de mano y sin verde + amarillo.
     3. Se quitan momentos hasta que ninguno quede a menos de min_gap cuadros de otro, conservando los
        de los tiempos fuertes y los de bombo y tarola.
     4. Los platillos solo se marcan en las dificultades Pro (PRO_CYMBALS)."""
@@ -208,7 +211,10 @@ def build_drum_chart(hits: list[Hit], difficulty_name: str, grid: BeatGrid, lead
         ranked = sorted(lanes.items(), key=lambda item: -item[1][0])
         kept: dict[int, tuple] = {}
         for lane, value in ranked:
-            if len(kept) < max_buttons and not any({lane, other} == {0, 2} for other in kept):
+            is_hand = lane != ROLE_LANE["kick"]
+            hands = sum(1 for other in kept if other != ROLE_LANE["kick"])
+            if (len(kept) < max_buttons and (not is_hand or hands < MAX_HANDS)
+                    and not any({lane, other} == {0, 2} for other in kept)):
                 kept[lane] = value
         moment["lanes"] = kept
         moment["weight"] = max(w for w, _ in kept.values())

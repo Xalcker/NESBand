@@ -36,6 +36,9 @@ from .chart import (
 EDITS_FILE = "edits.json"
 EDITS_VERSION = 1
 LANE_MASK = 0x1F
+KICK_MASK = 0b10000  # el bombo (naranja)
+MAX_DRUM_HANDS = 2  # golpes de mano a la vez en la batería: solo hay dos manos
+MAX_DRUM_BUTTONS = 3  # botones a la vez: el bombo y dos golpes de mano
 TOM_MASK = 0b01101  # carriles de los toms de la batería (verde, amarillo y azul): los únicos que pueden ser platillos
 
 
@@ -214,6 +217,12 @@ def chart_problems(chart: list[ChartNote], lanes_allowed: int = 5, drums: bool =
             add(note.frame, "warn", f"carril fuera de los {lanes_allowed} de esta dificultad")
         if any({x, y} in blocked for x in lanes for y in lanes):
             add(note.frame, "error", "acorde imposible (izquierda + derecha de la cruz)")
+        if drums:
+            hands = bin(note.mask & ~KICK_MASK).count("1")
+            if hands > MAX_DRUM_HANDS:
+                add(note.frame, "error", f"{hands} golpes de mano a la vez: solo hay dos manos (y un pie para el bombo)")
+            elif len(lanes) > MAX_DRUM_BUTTONS:
+                add(note.frame, "error", f"{len(lanes)} botones a la vez: como máximo 3 (el bombo y dos golpes de mano)")
         if note.cymbal and (note.end is not None or not note.mask & TOM_MASK):
             add(note.frame, "error", "un platillo no lleva cola y solo puede ser un tom (no la tarola ni el bombo)")
         if note.end is not None:
@@ -259,6 +268,10 @@ def validate_chart(key: str, chart: list[ChartNote]) -> None:
     """Falla con un mensaje claro si el chart no se puede tocar (ver chart.check_playable)."""
     try:
         check_playable(chart, DRUM_BLOCKED_PAIRS if key.startswith("bateria/") else BLOCKED_PAIRS)
+        if key.startswith("bateria/"):
+            for problem in chart_problems(chart, 5, True):
+                if problem["kind"] == "error" and "a la vez" in problem["text"]:
+                    raise ValueError(f"cuadro {problem['frame']}: {problem['text']}")
         if any(n.cymbal and (n.end is not None or not n.mask & TOM_MASK) for n in chart):
             raise ValueError("un platillo no lleva cola y solo puede ser un tom")
     except ValueError as error:
