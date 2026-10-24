@@ -201,7 +201,7 @@ def test_save_and_export_through_the_server(tmp_path):
 
     src = make_source(tmp_path)
     src.options = {"source": "audio/prueba.txt"}
-    handler = type("Bound", (editor.Handler,), {"src": src})
+    handler = type("Bound", (editor.Handler,), {"app": editor.App(src)})
     server = editor.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_address[1]}"
@@ -223,12 +223,12 @@ def test_save_and_export_through_the_server(tmp_path):
         # Mover la primera nota a otro carril y guardar
         first = charts["guitarra/facil"][0]
         first["mask"] = 0b00010 if first["mask"] != 0b00010 else 0b00001
-        assert call("/api/save", {"charts": charts})[0] == 200
+        assert call("/api/save", {"song": "prueba", "charts": charts})[0] == 200
         edits = load_edits(tmp_path)
         assert set(edits) == {"guitarra/facil"} and edits["guitarra/facil"][0]["op"] == "set"
 
         # Exportar: el chart.s tiene todos los charts, con la edición
-        status, _ = call("/api/export", {"charts": charts})
+        status, _ = call("/api/export", {"song": "prueba", "charts": charts})
         assert status == 200
         exported = parse_chart_asm((tmp_path / "chart.s").read_text(encoding="utf-8"))
         assert len(exported) == len(charts)
@@ -238,12 +238,40 @@ def test_save_and_export_through_the_server(tmp_path):
         before = (tmp_path / "edits.json").read_text(encoding="utf-8")
         bad = {k: list(v) for k, v in charts.items()}
         bad["guitarra/facil"] = [{"frame": 200, "mask": 0b00101, "end": None, "star": False}]
-        assert call("/api/save", {"charts": bad})[0] == 400
-        assert call("/api/export", {"charts": {}})[0] == 400
+        assert call("/api/save", {"song": "prueba", "charts": bad})[0] == 400
+        assert call("/api/export", {"song": "prueba", "charts": {}})[0] == 400
         assert (tmp_path / "edits.json").read_text(encoding="utf-8") == before
 
-        status, body = call("/api/validate", {"key": "guitarra/facil", "chart": bad["guitarra/facil"]})
+        status, body = call("/api/validate", {"song": "prueba", "key": "guitarra/facil", "chart": bad["guitarra/facil"]})
         assert status == 200 and json.loads(body)["problems"][0]["kind"] == "error"
+
+        # Una página de otra canción (o sin canción abierta) no puede guardar encima
+        assert call("/api/save", {"song": "otra", "charts": charts})[0] == 400
+        assert call("/api/close", {})[0] == 200
+        assert call("/api/save", {"song": "prueba", "charts": charts})[0] == 400
+        status, page = call("/")
+        assert status == 200 and b'"home":true' in page and b"Nueva canci" in page
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_song_and_source_lists():
+    songs = {s["name"]: s for s in editor.list_songs()}
+    assert songs["tormenta"]["title"] == "TORMENTA DE NEON" and not songs["tormenta"]["edited"]
+    assert all(s["path"].lower().endswith(editor.SOURCE_SUFFIXES) for s in editor.list_sources())
+
+
+def test_import_rejects_bad_requests():
+    app = editor.App()
+    with pytest.raises(ValueError, match="identificador"):
+        editor.import_new_song(app, {"name": "Mala Cancion", "source": "x.nsf"})
+    with pytest.raises(ValueError, match="ya existe"):
+        editor.import_new_song(app, {"name": "tormenta", "source": "x.nsf"})
+    with pytest.raises(ValueError, match="no encontré"):
+        editor.import_new_song(app, {"name": "nueva_cancion", "source": "no_existe.nsf"})
+    with pytest.raises(ValueError, match="no encontré"):
+        editor.import_new_song(app, {"name": "nueva_cancion", "source": "README.md"})
+    with pytest.raises(ValueError, match="no existe"):
+        editor.open_song(app, "../etc")
+    assert app.src is None

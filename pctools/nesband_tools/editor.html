@@ -46,6 +46,7 @@
 </head>
 <body>
 <header>
+  <span id="menuslot"></span>
   <h1 id="title"></h1>
   <span class="sub" id="subtitle"></span>
   <label>Instrumento <select id="inst"></select></label>
@@ -639,7 +640,7 @@ if (DATA.editable) (function () {
   async function validate() {
     const key = chartKey(), seq = ++ED.seq;
     try {
-      const res = await fetch("/api/validate", { method: "POST", body: JSON.stringify({ key, chart: state.charts[key] }) });
+      const res = await fetch("/api/validate", { method: "POST", body: JSON.stringify({ song: DATA.name, key, chart: state.charts[key] }) });
       const data = await res.json();
       if (seq === ED.seq && data.problems) { state.problems[key] = data.problems; redraw(); }
     } catch (e) { say("No pude validar: ¿sigue abierto el servidor?", "error"); }
@@ -896,7 +897,7 @@ if (DATA.editable) (function () {
   // --- Guardar y exportar ---
   const isDirty = () => JSON.stringify(state.charts) !== ED.saved;
   async function post(url) {
-    const res = await fetch(url, { method: "POST", body: JSON.stringify({ charts: state.charts }) });
+    const res = await fetch(url, { method: "POST", body: JSON.stringify({ song: DATA.name, charts: state.charts }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || res.statusText);
     return data.message;
@@ -909,7 +910,9 @@ if (DATA.editable) (function () {
     } catch (e) { say(`No se guardó: ${e.message}`, "error"); }
     refreshButtons();
   }
-  window.addEventListener("beforeunload", (e) => { if (isDirty()) { e.preventDefault(); e.returnValue = ""; } });
+  window.addEventListener("beforeunload", (e) => { if (isDirty() && !window.__leaving) { e.preventDefault(); e.returnValue = ""; } });
+  window.editorDirty = isDirty;                 // lo usa el menú Archivo antes de abrir o cerrar otra canción
+  window.editorActions = { save };
 
   // --- Botones ---
   const buttons = {};
@@ -981,5 +984,6 @@ if (DATA.editable) (function () {
   };
 })();
 </script>
+__MENU__
 </body>
 </html>

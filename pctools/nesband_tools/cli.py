@@ -475,6 +475,8 @@ def edit_chart(args: argparse.Namespace) -> None:
     from . import editor
 
     if args.html:
+        if not args.name:
+            sys.exit("--html necesita el nombre de la canción")
         payload = editor.build_payload(editor.load_song_source(args.name))
         args.html.write_text(editor.render_page(payload), encoding="utf-8", newline="\n")
         print(f"Página de solo lectura: {args.html}")
@@ -518,7 +520,7 @@ def main() -> None:
     p.set_defaults(func=reimport)
 
     p = sub.add_parser("edit-chart", help="Abre el editor visual de charts de una canción (página local en el navegador)")
-    p.add_argument("name", help="canción de src/songs/")
+    p.add_argument("name", nargs="?", help="canción de src/songs/ (sin ella, el editor abre en blanco y eliges desde su menú Archivo)")
     p.add_argument("--port", type=int, default=8765, help="puerto local (0 = cualquiera libre)")
     p.add_argument("--no-open", action="store_true", help="no abrir el navegador")
     p.add_argument("--html", type=Path, help="en vez de servir, escribe una página HTML de solo lectura en esta ruta")

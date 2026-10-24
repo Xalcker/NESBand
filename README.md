@@ -340,12 +340,18 @@ Man 2.fms" --name wily --song 0 --title "Dr. Wily's Castle"`).
 ### Editor de charts
 
 ```bash
-uv run nesband edit-chart tormenta
+uv run nesband edit-chart            # abre en blanco: eliges la canción desde el menú Archivo
+uv run nesband edit-chart tormenta   # o directo una canción
 ```
 
 Abre en el navegador una página local (HTML + Canvas, sin dependencias; el servidor solo escucha en
 `127.0.0.1`) con la canción de `src/songs/<nombre>/`:
 
+- **Menú Archivo:** *Nueva canción…* importa un NSF, FamiStudio o FamiTracker (lista los de `songs_src/` y las
+  demos de FamiStudio, o escribes otra ruta; con `.m3u` eliges la pista y de ahí salen título, juego y
+  duración) y hace lo mismo que `import-song`; *Abrir…* lista las canciones de `src/songs/`; *Guardar*,
+  *Exportar chart.s* y *Cerrar canción* (todos avisan si hay cambios sin guardar). Así no hace falta la
+  línea de comandos para cambiar de canción.
 - **Canales de la canción:** las notas de Square 1, Square 2, Triángulo, Ruido y DPCM sobre la línea de
   tiempo, con la rejilla de tiempos (más marcada cada 4), el cuadro en que arranca la música
   (`SONG_LEAD_IN`) y el fin. Rueda para el zoom, arrastra para recorrer, clic para mover la línea de

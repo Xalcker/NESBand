@@ -15,10 +15,13 @@ import webbrowser
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from . import famistudio
 from .chart import DIFFICULTIES, BeatGrid, ChartNote, build_chart, chart_size, chart_to_asm
+from .m3u import find_playlist
 from .chartedit import (
+    EDITS_FILE,
     apply_edits,
     chart_file_text,
     chart_from_json,
@@ -30,6 +33,8 @@ from .chartedit import (
 )
 
 HTML_PATH = Path(__file__).with_name("editor.html")
+HOME_PATH = Path(__file__).with_name("home.html")  # la página sin canción abierta
+MENU_PATH = Path(__file__).with_name("menu.html")  # el menú Archivo, compartido por las dos
 
 
 @dataclass
@@ -182,13 +187,121 @@ def export_chart_s(src: SongSource, charts: dict[str, list[ChartNote]]) -> str:
     return f"chart.s escrito ({sum(chart_size(c) for c in charts.values())} bytes de charts)"
 
 
-def render_page(payload: dict) -> str:
+def render_page(payload: dict, template: Path = HTML_PATH) -> str:
     data = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).replace("</", "<\\/")
-    return HTML_PATH.read_text(encoding="utf-8").replace("__DATA__", data, 1)
+    menu = MENU_PATH.read_text(encoding="utf-8")
+    return template.read_text(encoding="utf-8").replace("__MENU__", menu, 1).replace("__DATA__", data, 1)
+
+
+# --- Menú Archivo: canciones disponibles, fuentes para importar y la canción abierta -----------
+
+SOURCE_SUFFIXES = (".nsf", ".nsfe", ".fms", ".ftm")
+
+
+class App:
+    """La canción abierta (o ninguna) del servidor. Un candado evita que dos acciones se pisen."""
+
+    def __init__(self, src: SongSource | None = None):
+        self.src = src
+        self.lock = threading.RLock()
+
+
+def list_songs() -> list[dict]:
+    from . import cli
+
+    songs = []
+    for options in sorted(cli.SONGS_DIR.glob("*/import.json")):
+        meta = read_song_meta(options.parent)
+        songs.append({
+            "name": options.parent.name,
+            "title": meta.get("title", options.parent.name),
+            "game": meta.get("game", ""),
+            "edited": (options.parent / EDITS_FILE).exists(),
+        })
+    return songs
+
+
+def list_sources() -> list[dict]:
+    """Archivos que se pueden importar como canción nueva: los de songs_src/ y las demos de FamiStudio."""
+    from . import cli
+
+    found = []
+    for folder in (cli.ROOT / "songs_src", cli.ROOT / "tools" / "famistudio" / "Demo Songs"):
+        for path in sorted(folder.glob("*")) if folder.is_dir() else []:
+            if path.suffix.lower() in SOURCE_SUFFIXES:
+                found.append({"path": path.relative_to(cli.ROOT).as_posix(), "name": path.stem})
+    return found
+
+
+def resolve_source(text: str) -> Path:
+    from . import cli
+
+    path = Path(text.strip().strip('"'))
+    path = path if path.is_absolute() else cli.ROOT / path
+    if path.suffix.lower() not in SOURCE_SUFFIXES or not path.is_file():
+        raise ValueError(f"no encontré un archivo .nsf, .nsfe, .fms o .ftm en {path}")
+    return path
+
+
+def list_tracks(source: str) -> dict:
+    """Las pistas del .m3u junto a un NSF (vacío si no hay)."""
+    path = resolve_source(source)
+    playlist = find_playlist(path) if path.suffix.lower() in (".nsf", ".nsfe") else None
+    if not playlist:
+        return {"game": None, "tracks": []}
+    return {"game": playlist.game,
+            "tracks": [{"number": t.number, "title": t.title, "seconds": t.seconds} for t in playlist.tracks.values()]}
+
+
+def open_song(app: App, name: str) -> None:
+    from . import cli
+
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", name) or not (cli.SONGS_DIR / name / "import.json").exists():
+        raise ValueError(f"no existe la canción {name}")
+    try:
+        app.src = load_song_source(name)
+    except SystemExit as error:  # load_song_source avisa con sys.exit
+        raise ValueError(str(error.code)) from None
+
+
+def import_new_song(app: App, body: dict) -> str:
+    """Importa una canción nueva (como `nesband import-song`), la abre y devuelve lo que imprimió el importador."""
+    import argparse
+    import contextlib
+    import io
+
+    from . import cli
+
+    name = str(body.get("name", "")).strip()
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
+        raise ValueError("el identificador son minúsculas, números y _ (empezando con letra)")
+    if (cli.SONGS_DIR / name).exists():
+        raise ValueError(f"ya existe la canción {name}: ábrela, o elige otro identificador")
+    source = resolve_source(str(body.get("source", "")))
+    number = body.get("number")
+    is_nsf = source.suffix.lower() in (".nsf", ".nsfe")
+    has_playlist = is_nsf and find_playlist(source) is not None
+    args = argparse.Namespace(
+        source=source, name=name,
+        track=number if has_playlist else None,                      # el .m3u cuenta desde 1
+        song=0 if has_playlist or number is None else number - 1,    # el archivo, desde 0
+        title=body.get("title") or None, game=body.get("game") or None,
+        duration=body.get("duration") or None, beat_frames=body.get("beat_frames") or None,
+    )
+    log = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(log):
+            cli.import_song(args)
+    except SystemExit as error:
+        raise ValueError(str(error.code)) from None
+    except (RuntimeError, FileNotFoundError) as error:
+        raise ValueError(str(error)) from None
+    open_song(app, name)
+    return log.getvalue()
 
 
 class Handler(BaseHTTPRequestHandler):
-    src: SongSource  # lo fija serve()
+    app: App  # lo fija serve()
 
     def log_message(self, format, *args):  # sin ruido en la terminal
         pass
@@ -202,11 +315,25 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:
-        if self.path.split("?")[0] == "/":
-            page = render_page({**build_payload(self.src), "editable": True})
-            self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
-        else:
-            self._send(404, b"no encontrado", "text/plain; charset=utf-8")
+        url = urlparse(self.path)
+        try:
+            with self.app.lock:
+                if url.path == "/":
+                    if self.app.src is None:
+                        page = render_page({"home": True}, HOME_PATH)
+                    else:
+                        page = render_page({**build_payload(self.app.src), "editable": True})
+                    self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
+                elif url.path == "/api/songs":
+                    self._json(200, {"songs": list_songs()})
+                elif url.path == "/api/sources":
+                    self._json(200, {"sources": list_sources()})
+                elif url.path == "/api/tracks":
+                    self._json(200, list_tracks(parse_qs(url.query).get("source", [""])[0]))
+                else:
+                    self._send(404, b"no encontrado", "text/plain; charset=utf-8")
+        except (ValueError, KeyError) as error:
+            self._json(400, {"error": str(error)})
 
     def _json(self, status: int, data: dict) -> None:
         self._send(status, json.dumps(data).encode("utf-8"), "application/json")
@@ -216,35 +343,45 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Origin") not in (None, f"http://{self.headers.get('Host')}"):
             self._json(403, {"error": "origen no permitido"})
             return
+        app = self.app
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
-            if self.path == "/api/validate":
-                chart = chart_from_json(body["chart"])
-                self._json(200, {"problems": chart_problems(chart, lanes_for(body["key"]))})
-            elif self.path in ("/api/save", "/api/export"):
-                charts = {key: chart_from_json(items) for key, items in body["charts"].items()}
-                if self.path == "/api/save":
-                    edits = save_edits_from_page(self.src, charts)
-                    count = sum(len(ops) for ops in edits.values())
-                    self._json(200, {"message": f"edits.json guardado ({count} ediciones)"})
+            with app.lock:
+                if self.path == "/api/open":
+                    open_song(app, str(body.get("name", "")))
+                    self._json(200, {"message": f"abierta {app.src.name}"})
+                elif self.path == "/api/close":
+                    app.src = None
+                    self._json(200, {"message": "cerrada"})
+                elif self.path == "/api/import":
+                    self._json(200, {"message": import_new_song(app, body)})
+                elif self.path in ("/api/validate", "/api/save", "/api/export"):
+                    src = app.src
+                    if src is None or body.get("song") != src.name:
+                        raise ValueError("la canción de esta página ya no es la abierta: recarga la página")
+                    if self.path == "/api/validate":
+                        chart = chart_from_json(body["chart"])
+                        self._json(200, {"problems": chart_problems(chart, lanes_for(body["key"]))})
+                    else:
+                        charts = {key: chart_from_json(items) for key, items in body["charts"].items()}
+                        if self.path == "/api/save":
+                            edits = save_edits_from_page(src, charts)
+                            count = sum(len(ops) for ops in edits.values())
+                            self._json(200, {"message": f"edits.json guardado ({count} ediciones)"})
+                        else:
+                            self._json(200, {"message": export_chart_s(src, charts)})
                 else:
-                    self._json(200, {"message": export_chart_s(self.src, charts)})
-            else:
-                self._json(404, {"error": "no encontrado"})
+                    self._json(404, {"error": "no encontrado"})
         except (ValueError, KeyError, TypeError) as error:
             self._json(400, {"error": str(error)})
 
 
-def serve(name: str, port: int, open_browser: bool) -> None:
-    src = load_song_source(name)
-
-    class Bound(Handler):
-        pass
-
-    Bound.src = src
+def serve(name: str | None, port: int, open_browser: bool) -> None:
+    app = App(load_song_source(name) if name else None)
+    Bound = type("Bound", (Handler,), {"app": app})
     server = ThreadingHTTPServer(("127.0.0.1", port), Bound)
     url = f"http://127.0.0.1:{server.server_address[1]}/"
-    print(f"Editor de charts de '{name}': {url}  (Ctrl+C para cerrar)")
+    print(f"Editor de charts{f' de {name!r}' if name else ''}: {url}  (Ctrl+C para cerrar)")
     if open_browser:
         threading.Timer(0.3, webbrowser.open, args=(url,)).start()
     try:
