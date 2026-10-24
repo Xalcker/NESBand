@@ -412,7 +412,7 @@ bombo, siguiente = tarola, ruido agudo = hi-hat; un nombre con «hat» va al ama
 Al cambiar un papel se rehacen al momento los charts de batería de las 4 dificultades (instrumento
 `bateria` del menú), que se retocan a mano como los demás. Reglas, al estilo Rock Band 4:
 
-- como en Rock Band 4, los colores de la batería no son los de la guitarra: **tarola** rojo (↓), **tom 1 / hi-hat** amarillo (→),
+- como en Rock Band 4, los colores de la batería no son los de la guitarra (y las columnas van en su orden: rojo, amarillo, azul, verde y la barra naranja): **tarola** rojo (↓), **tom 1 / hi-hat** amarillo (→),
   **tom 2 / ride** azul (B), **tom 3 / crash** verde (←) y **bombo** naranja (A), dibujado como una barra horizontal;
 - los **platillos** comparten carril y botón con los toms; solo cambia cómo se ven (un rombo en vez de una
   gema) y solo en **experto** (el «Pro»); en las demás dificultades se tocan como toms. La tarola y el bombo

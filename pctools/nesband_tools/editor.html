@@ -346,7 +346,12 @@ const HW_HEIGHT = 560;
 
 const hwY = (frame, h) => h - 60 - (frame - state.cur) * state.hwScale;
 const hwFrame = (y, h) => state.cur + (h - 60 - y) / state.hwScale;
-const laneX = (lane, w) => HW.padX + ((lane + .5) * (w - 2 * HW.padX)) / 5;
+// En pantalla la batería va como en Rock Band: rojo, amarillo, azul, verde y, al final, el naranja del bombo.
+// El carril (el botón del control) es el mismo de siempre; solo cambia en qué columna se dibuja.
+const DRUM_ORDER = [1, 2, 3, 0, 4];
+const slotOf = (lane) => (state.inst === "bateria" ? DRUM_ORDER.indexOf(lane) : lane);
+const laneOfSlot = (slot) => (state.inst === "bateria" ? DRUM_ORDER[slot] : slot);
+const laneX = (lane, w) => HW.padX + ((slotOf(lane) + .5) * (w - 2 * HW.padX)) / 5;
 
 function problemFrames() {
   const map = new Map();
@@ -404,12 +409,12 @@ function drawHighway() {
   const fieldL = HW.padX, fieldW = w - 2 * HW.padX;
   const laneW = fieldW / 5;
   // Carriles
-  for (let lane = 0; lane < 5; lane++) {
-    ctx.fillStyle = lane % 2 ? "rgba(255,255,255,.03)" : "rgba(255,255,255,.06)";
-    ctx.fillRect(fieldL + lane * laneW, 0, laneW, h);
-    ctx.fillStyle = LANES[lane].color;
+  for (let slot = 0; slot < 5; slot++) {
+    ctx.fillStyle = slot % 2 ? "rgba(255,255,255,.03)" : "rgba(255,255,255,.06)";
+    ctx.fillRect(fieldL + slot * laneW, 0, laneW, h);
+    ctx.fillStyle = LANES[laneOfSlot(slot)].color;
     ctx.globalAlpha = .6;
-    ctx.fillRect(fieldL + lane * laneW + laneW / 2 - 1, 0, 2, h);
+    ctx.fillRect(fieldL + slot * laneW + laneW / 2 - 1, 0, 2, h);
     ctx.globalAlpha = 1;
   }
   // Rejilla de tiempos (la línea más fuerte cada 4 tiempos)
@@ -476,7 +481,8 @@ function drawHighway() {
   const hit = hwY(state.cur, h);
   ctx.fillStyle = "rgba(255,255,255,.12)";
   ctx.fillRect(fieldL, hit - 12, fieldW, 24);
-  for (let lane = 0; lane < 5; lane++) {
+  for (let slot = 0; slot < 5; slot++) {
+    const lane = laneOfSlot(slot);
     const x = laneX(lane, w);
     ctx.strokeStyle = LANES[lane].color;
     ctx.lineWidth = 2;
@@ -779,8 +785,9 @@ if (DATA.editable) (function () {
   function moveLane(delta) {
     const note = selNote();
     if (!note) return;
-    const lanes = lanesOf(note.mask).map((l) => l + delta);
-    if (lanes.some((l) => l < 0 || l >= lanesAllowed())) return;
+    const slots = lanesOf(note.mask).map((l) => slotOf(l) + delta);   // las flechas mueven por columna (en la batería no es el carril)
+    if (slots.some((s) => s < 0 || s >= lanesAllowed())) return;
+    const lanes = slots.map(laneOfSlot);
     const mask = lanes.reduce((m, l) => m | bit(l), 0);
     if (blockedPair(mask)) { say("Ese carril forma una pareja imposible (izquierda + derecha).", "error"); return; }
     edit(() => { note.mask = mask; trimTails(note); });
@@ -862,8 +869,8 @@ if (DATA.editable) (function () {
   const pointer = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
   function laneAt(x) {
     const { w } = geom();
-    const lane = Math.floor((x - HW.padX) / ((w - 2 * HW.padX) / 5));
-    return lane < 0 || lane > 4 ? -1 : lane;
+    const slot = Math.floor((x - HW.padX) / ((w - 2 * HW.padX) / 5));
+    return slot < 0 || slot > 4 ? -1 : laneOfSlot(slot);
   }
   function hitNote(p) {
     const { w, h } = geom();
