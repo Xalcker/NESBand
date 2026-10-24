@@ -111,6 +111,10 @@ const state = {
   charts: DATA.charts,          // clave "instrumento/dificultad" -> [{frame, mask, end, star}]
   problems: DATA.problems,
 };
+// Silenciar (M) o dejar solo (S) un canal al escuchar; los botones están en la línea de tiempo
+state.mute = {};
+state.solo = {};
+const isAudible = (id) => (Object.values(state.solo).some(Boolean) ? !!state.solo[id] : !state.mute[id]);
 const chartKey = () => `${state.inst}/${state.diff}`;
 const notes = () => state.charts[chartKey()] || [];
 const lanesOf = (mask) => [0, 1, 2, 3, 4].filter((b) => mask >> b & 1);
@@ -172,6 +176,39 @@ function clampTimeline() {
   state.tlStart = Math.max(-30, Math.min(state.tlStart, total - Math.min(visible, total)));
 }
 
+// Botones M (silenciar) y S (solo) de cada canal, debajo de su nombre
+const CH_BTN = { y: 31, size: 17, mx: 8, sx: 29 };
+function drawChannelButtons(ctx, ch, top) {
+  for (const [label, x, on, color] of [["M", CH_BTN.mx, state.mute[ch.id], css("--err")], ["S", CH_BTN.sx, state.solo[ch.id], css("--warn")]]) {
+    ctx.fillStyle = on ? color : "transparent";
+    ctx.strokeStyle = on ? color : css("--line");
+    ctx.fillRect(x, top + CH_BTN.y, CH_BTN.size, CH_BTN.size);
+    ctx.strokeRect(x + .5, top + CH_BTN.y + .5, CH_BTN.size - 1, CH_BTN.size - 1);
+    ctx.fillStyle = on ? "#000" : css("--muted");
+    ctx.font = "bold 10px system-ui";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    ctx.fillText(label, x + CH_BTN.size / 2, top + CH_BTN.y + CH_BTN.size / 2 + 1);
+    ctx.textAlign = "left";
+  }
+  ctx.font = "12px system-ui";
+}
+function channelButtonAt(x, y) {
+  if (!DATA.editable || y < TL.top) return null;
+  const row = Math.floor((y - TL.top) / TL.rowH);
+  const dy = y - TL.top - row * TL.rowH - CH_BTN.y;
+  if (row >= CHANNELS.length || dy < 0 || dy > CH_BTN.size) return null;
+  if (x >= CH_BTN.mx && x <= CH_BTN.mx + CH_BTN.size) return { id: CHANNELS[row].id, kind: "mute" };
+  if (x >= CH_BTN.sx && x <= CH_BTN.sx + CH_BTN.size) return { id: CHANNELS[row].id, kind: "solo" };
+  return null;
+}
+function toggleChannel(id, kind) {
+  const map = kind === "mute" ? state.mute : state.solo;
+  map[id] = !map[id];
+  if (window.onChannelsChanged) window.onChannelsChanged();
+  redraw();
+}
+
 function drawTimeline() {
   const height = TL.top + CHANNELS.length * TL.rowH + 4;
   const { ctx, w, h } = fit($("timeline"), height);
@@ -231,16 +268,18 @@ function drawTimeline() {
     }
   }
 
-  // Notas
+  // Notas (apagadas si el canal no se oye)
   CHANNELS.forEach((ch, i) => {
     const top = TL.top + i * TL.rowH;
     ctx.fillStyle = ch.color;
+    ctx.globalAlpha = isAudible(ch.id) ? 1 : 0.25;
     for (const n of DATA.channels[ch.id] || []) {
       const x = tlX(n[0]);
       const wd = Math.max(2, n[2] * state.tlScale - 1);
       if (x + wd < TL.labelW || x > w) continue;
       ctx.fillRect(x, pitchY(ch, n[1], top) - 2, wd, 5);
     }
+    ctx.globalAlpha = 1;
   });
 
   // Las notas del chart elegido, como marcas arriba de todo
@@ -264,9 +303,10 @@ function drawTimeline() {
   ctx.font = "12px system-ui";
   CHANNELS.forEach((ch, i) => {
     const top = TL.top + i * TL.rowH;
-    ctx.fillStyle = ch.color;
+    ctx.fillStyle = isAudible(ch.id) ? ch.color : css("--muted");
     ctx.textBaseline = "top";
     ctx.fillText(ch.label, 8, top + 5);
+    if (DATA.editable) drawChannelButtons(ctx, ch, top);
     ctx.fillStyle = css("--muted");
     ctx.font = "10px system-ui";
     const lay = layouts[ch.id];
@@ -487,6 +527,8 @@ function zoomTimeline(factor, anchorX) {
   const overviewFrame = (x) => ((x - TL.labelW) / (canvas.clientWidth - TL.labelW)) * (SONG_END + 60);
   canvas.addEventListener("pointerdown", (e) => {
     const p = pos(e);
+    const button = channelButtonAt(p.x, p.y);
+    if (button) { toggleChannel(button.id, button.kind); return; }
     canvas.setPointerCapture(e.pointerId);
     drag = { x0: p.x, start: state.tlStart, moved: false, overview: p.y < TL.overviewH };
     if (drag.overview) {
@@ -1013,18 +1055,44 @@ if (DATA.editable) (function () {
         if (!res.ok) throw new Error(player.error || res.statusText);
         const frames = SONG_END - LEAD_IN;
         const result = await NesPlayer.render(player, frames, {
-          sampleRate: 44100,
+          sampleRate: 44100, stems: true,
           onProgress: (f) => status(`Preparando el audio… ${Math.round(f * 100)}%`),
           yieldFn: () => new Promise((r) => setTimeout(r)),
         });
         const buffer = P.ctx.createBuffer(1, result.audio.length, result.sampleRate);
         buffer.copyToChannel(result.audio, 0);
-        P.buffer = buffer;
+        P.full = buffer;
+        P.stems = result.stems;
+        P.rate = result.sampleRate;
+        P.mixes = new Map();
+        P.buffer = currentBuffer();
         status("");
       })().catch((e) => { P.preparing = null; throw e; });
     }
     await P.preparing;
   }
+
+  // El audio con los canales que se oyen: todos = la mezcla completa del motor; si no, la suma de los de cada canal
+  function currentBuffer() {
+    const audible = CHANNELS.map((c) => isAudible(c.id));
+    if (audible.every(Boolean)) return P.full;
+    const key = audible.map((a) => (a ? 1 : 0)).join("");
+    if (!P.mixes.has(key)) {
+      if (P.mixes.size >= 8) P.mixes.delete(P.mixes.keys().next().value);
+      const sum = new Float32Array(P.full.length);
+      audible.forEach((on, c) => { if (on) { const stem = P.stems[c]; for (let i = 0; i < sum.length; i++) sum[i] += stem[i] / 32767; } });
+      const buffer = P.ctx.createBuffer(1, sum.length, P.rate);
+      buffer.copyToChannel(sum, 0);
+      P.mixes.set(key, buffer);
+    }
+    return P.mixes.get(key);
+  }
+
+  window.onChannelsChanged = () => {
+    if (!P.full) return;   // aún no hay audio: se aplica al prepararlo
+    P.buffer = currentBuffer();
+    if (P.playing) startAt(state.cur);
+  };
 
   function stopSource() {
     if (P.source) { try { P.source.stop(); } catch (e) { /* ya terminó */ } P.source.disconnect(); P.source = null; }
@@ -1090,6 +1158,12 @@ if (DATA.editable) (function () {
     if (P.playing) pause(); else play();
   });
   window.addEventListener("beforeunload", pause);
+  // Teclas 1-5: silenciar Square 1, Square 2, Triángulo, Ruido y DPCM (con Mayús: dejar solo ese)
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, select, textarea, dialog")) return;
+    const c = e.code.match(/^(?:Digit|Numpad)([1-5])$/);
+    if (c) { e.preventDefault(); toggleChannel(CHANNELS[Number(c[1]) - 1].id, e.shiftKey ? "solo" : "mute"); }
+  });
 })();
 </script>
 __MENU__

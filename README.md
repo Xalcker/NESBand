@@ -366,6 +366,11 @@ Abre en el navegador una página local (HTML + Canvas, sin dependencias; el serv
   (`tools/cc65` o el PATH), no el ROM compilado. En las pruebas (`pctools/tests/test_player.py`, con Node)
   se comprueba el 6502, el APU y que las canciones, también con DPCM, lleguen a los registros correctos; el
   volumen de `tormenta` y `carrera` coincide con el WAV que exporta FamiStudio (±3 % de mediana).
+  **Silenciar canales:** cada fila de la línea de tiempo tiene un botón **M** (silenciar) y uno **S** (solo ese
+  canal); también las teclas `1`-`5` (con `Mayús`, solo). Funciona al escuchar, también mientras suena:
+  el audio se prepara además canal por canal, y con alguno silenciado se suman los canales que se oyen
+  (con todos activos suena la mezcla exacta del motor; con alguno apagado la suma queda apenas más alta,
+  porque el mezclador del NES no es lineal).
   No es una emulación exacta ciclo por ciclo del chip: el motor corre una vez por cuadro y sus escrituras
   se aplican al inicio del cuadro.
 - **Chart:** el de un instrumento y dificultad (menús de arriba) con sus 5 carriles, acordes, colas y

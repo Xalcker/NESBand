@@ -396,7 +396,7 @@ const NesPlayer = (function () {
       this.p1 = new Pulse(true); this.p2 = new Pulse(false); this.tri = new Triangle(); this.noise = new Noise();
       this.dmc = new DMC(bus);
       this.cycle = 0; this.fiveStep = false; this.step = 0; this.frameStart = 0; this.nextEvent = 7457;
-      this.log = log || null; this.frame = 0;
+      this.log = log || null; this.frame = 0; this.levels = [0, 0, 0, 0, 0];
       this.hp = 0; this.prev = 0;
     }
     write(addr, v) {
@@ -449,11 +449,19 @@ const NesPlayer = (function () {
         }
         if (this.cycle >= this.nextEvent - 1e-9) this.frameEvent();
       }
-      const p = (a1 + a2) / cycles, t = at / cycles, n = an / cycles, d = ad / cycles;
-      const pulse = p > 0 ? 95.88 / (8128 / p + 100) : 0;
-      const tnd = t + n + d > 0 ? 159.79 / (1 / (t / 8227 + n / 12241 + d / 22638) + 100) : 0;
-      return pulse + tnd;
+      // Nivel promedio de cada canal en esta muestra (para mezclar canales por separado: ver Song.frame)
+      const lv = this.levels;
+      lv[0] = a1 / cycles; lv[1] = a2 / cycles; lv[2] = at / cycles; lv[3] = an / cycles; lv[4] = ad / cycles;
+      return mix(lv[0], lv[1], lv[2], lv[3], lv[4]);
     }
+  }
+
+  // El mezclador no lineal del NES (pulsos por un lado; triángulo, ruido y DPCM por otro)
+  function mix(p1, p2, t, n, d) {
+    const p = p1 + p2;
+    const pulse = p > 0 ? 95.88 / (8128 / p + 100) : 0;
+    const tnd = t + n + d > 0 ? 159.79 / (1 / (t / 8227 + n / 12241 + d / 22638) + 100) : 0;
+    return pulse + tnd;
   }
 
   // --- Memoria del NES con la imagen del reproductor --------------------------------------------------------
@@ -506,13 +514,24 @@ const NesPlayer = (function () {
       this.owed -= count * this.cyclesPerSample;
       const out = new Float32Array(count);
       const apu = this.bus.apu;
+      const stems = this.stems ? this.stems.map(() => new Float32Array(count)) : null;
       for (let i = 0; i < count; i++) {
         const s = apu.sample(this.cyclesPerSample);
         // Filtro pasa-altas (~37 Hz) como el del NES: quita el nivel de continua
         apu.hp = apu.hp * 0.9948 + s - apu.prev; apu.prev = s;
         out[i] = apu.hp * 1.6;
+        if (stems) {
+          // Cada canal solo, con el mismo mezclador y filtro, para poder silenciar canales al escuchar
+          const lv = apu.levels;
+          for (let c = 0; c < 5; c++) {
+            const v = mix(c === 0 ? lv[0] : 0, c === 1 ? lv[1] : 0, c === 2 ? lv[2] : 0, c === 3 ? lv[3] : 0, c === 4 ? lv[4] : 0);
+            const st = this.stems[c];
+            st.hp = st.hp * 0.9948 + v - st.prev; st.prev = v;
+            stems[c][i] = st.hp * 1.6;
+          }
+        }
       }
-      return out;
+      return stems ? { out, stems } : out;
     }
   }
 
@@ -520,10 +539,13 @@ const NesPlayer = (function () {
   // de vez en cuando; si `yieldFn` existe (una función async) se espera con él para no congelar la página.
   async function render(player, frames, options = {}) {
     const song = new Song(player, options);
-    const chunks = [];
+    // options.stems: además del audio completo, el de cada canal solo (Int16Array, escala 32767)
+    if (options.stems) song.stems = [0, 1, 2, 3, 4].map(() => ({ hp: 0, prev: 0 }));
+    const chunks = [], stemChunks = [[], [], [], [], []];
     let total = 0;
     for (let f = 0; f < frames; f++) {
-      const part = song.frame(f);
+      let part = song.frame(f);
+      if (options.stems) { part.stems.forEach((s, c) => stemChunks[c].push(s)); part = part.out; }
       chunks.push(part); total += part.length;
       if (f % 120 === 119) {
         if (options.onProgress) options.onProgress(f / frames);
@@ -533,7 +555,16 @@ const NesPlayer = (function () {
     const audio = new Float32Array(total);
     let at = 0;
     for (const c of chunks) { audio.set(c, at); at += c.length; }
-    return { audio, sampleRate: song.sampleRate, log: options.log || null };
+    const result = { audio, sampleRate: song.sampleRate, log: options.log || null };
+    if (options.stems) {
+      result.stems = stemChunks.map((list) => {
+        const stem = new Int16Array(total);
+        let pos = 0;
+        for (const c of list) { for (let i = 0; i < c.length; i++) stem[pos + i] = Math.max(-32767, Math.min(32767, Math.round(c[i] * 32767))); pos += c.length; }
+        return stem;
+      });
+    }
+    return result;
   }
 
   return { CPU, APU, Bus, Song, render, FRAME_CYCLES, CPU_HZ };

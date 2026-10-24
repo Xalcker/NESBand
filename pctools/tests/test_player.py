@@ -64,6 +64,31 @@ def test_player_image_and_rendering(tmp_path):
 
 @needs_node
 @needs_cc65
+def test_stems_add_up_to_the_mix(tmp_path):
+    """Cada canal solo (para silenciar al escuchar) suma aproximadamente lo que la mezcla completa."""
+    (tmp_path / "player.json").write_text(json.dumps(player.player_payload(ROOT, "carrera")), encoding="utf-8")
+    script = """
+const fs = require('fs'), NP = require(process.argv[1]);
+NP.render(JSON.parse(fs.readFileSync(process.argv[2])), 600, { stems: true }).then((r) => {
+  const rms = (get, n) => { let s = 0; for (let i = 0; i < n; i++) s += get(i) ** 2; return Math.sqrt(s / n); };
+  const n = r.audio.length;
+  console.log(JSON.stringify({
+    full: rms((i) => r.audio[i], n),
+    sum: rms((i) => r.stems.reduce((a, s) => a + s[i] / 32767, 0), n),
+    channels: r.stems.map((s) => rms((i) => s[i] / 32767, n)),
+  }));
+});
+"""
+    result = subprocess.run([NODE, "-e", script, str(ROOT / "pctools" / "nesband_tools" / "nesplayer.js"),
+                             str(tmp_path / "player.json")], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    data = json.loads(result.stdout)
+    assert 0.9 < data["sum"] / data["full"] < 1.3      # el mezclador no es lineal: la suma queda un poco más alta
+    assert all(level > 0.001 for level in data["channels"])   # carrera usa los cinco canales
+
+
+@needs_node
+@needs_cc65
 def test_dpcm_song_reaches_the_dmc(tmp_path):
     _, rms, regs = render_with_node(tmp_path, "carrera", 600)
     assert rms > 0.02
