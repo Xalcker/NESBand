@@ -10,11 +10,13 @@ Pasos:
      en su gesto había un arpegio (varias alturas muy seguidas) o si el otro canal
      de pulso toca otra altura al mismo tiempo (la armonía).
 
-Cada instrumento tiene su papel (ROLES) para que sus charts no sean el mismo con otro nombre:
-  guitarra (lead): la melodía, que va con el contorno y los tiempos fuertes
-  teclado  (keys): lo que ocurre entre los tiempos, con el carril fijo por nota (como las teclas
-                   de un piano: la misma nota cae siempre en el mismo carril) y más acordes
-  bajo     (bass): las notas largas y de los tiempos fuertes; sin acordes
+Cada instrumento tiene su papel (ROLES), pero todos siguen el contorno de su melodía y los tiempos
+fuertes: un chart que no suena como la canción se siente desconectado (lo probamos con carriles fijos
+por nota y notas a contratiempo para el teclado, y se jugaba peor: ver #19).
+  guitarra (lead): contorno con un vecindario de 4 notas a cada lado
+  teclado  (keys): contorno con un vecindario más amplio (KEYS_WINDOW): carriles distintos a los de
+                   la guitarra, pero igual de suaves; sus acordes se permiten en medios tiempos
+  bajo     (bass): prefiere las notas largas en los tiempos fuertes; sin acordes
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from dataclasses import dataclass
 from .famistudio import Note
 
 ROLES = ("lead", "keys", "bass")
+KEYS_WINDOW = 6  # vecindario de notas (a cada lado) con el que el teclado reparte sus carriles (la guitarra usa 4)
 
 
 @dataclass(frozen=True)
@@ -130,13 +133,10 @@ def arpeggio_pitch(group: list[Note], main: Note) -> int | None:
 def reduce_notes(notes: list[Note], difficulty: Difficulty, grid: BeatGrid, role: str = "lead") -> list[Note]:
     """Quita notas hasta que ninguna quede a menos de min_gap cuadros de otra.
 
-    Se conservan primero las de más prioridad: la guitarra prefiere los tiempos fuertes; el teclado,
-    lo que cae entre los tiempos (completa a la guitarra en vez de repetirla); el bajo, los tiempos
-    fuertes y las notas largas."""
-    if role == "keys":
-        weight = {3: 1, 2: 3, 1: 2, 0: 0}  # medios tiempos primero, y los tiempos al final
-        by_priority = sorted(notes, key=lambda n: (-weight[grid.strength(n.frame)], n.frame))
-    elif role == "bass":
+    Se conservan primero las de más prioridad: los tiempos fuertes; el bajo, además, prefiere las notas
+    largas. (Probamos que el teclado prefiriera lo que cae entre los tiempos y se sentía desconectado
+    del ritmo de la canción: ver #19.)"""
+    if role == "bass":
         by_priority = sorted(notes, key=lambda n: (-grid.strength(n.frame), -n.duration, n.frame))
     else:
         by_priority = sorted(notes, key=lambda n: (-grid.strength(n.frame), n.frame))
@@ -209,12 +209,6 @@ def sustain_ends(notes: list[Note], lanes: list[int | tuple[int, ...]]) -> list[
     return ends
 
 
-def keys_lane(pitch: int, lanes: int) -> int:
-    """Carril fijo por nota (el teclado): las 12 notas de la octava se reparten entre los carriles,
-    así la misma nota cae siempre en el mismo carril, sin importar lo que suene alrededor."""
-    return (pitch % 12) * lanes // 12
-
-
 # El control de NES tiene una cruz: no se pueden apretar izquierda y derecha a la vez. Los carriles son
 # verde = izquierda, rojo = abajo, amarillo = derecha, azul = B y naranja = A, así que verde + amarillo
 # (carriles 0 y 2) es imposible en un control de verdad. Con la opción ESPEJO los carriles se invierten
@@ -278,12 +272,7 @@ def chord_masks(
                     break
         if other is None:
             continue
-        if role == "keys":
-            lane2 = keys_lane(other, difficulty.lanes)
-            if lane2 == lane or {lane, lane2} in BLOCKED_PAIRS:
-                lane2 = second_lane(lane, difficulty.lanes, other - note.pitch)
-        else:
-            lane2 = second_lane(lane, difficulty.lanes, other - note.pitch)
+        lane2 = second_lane(lane, difficulty.lanes, other - note.pitch)
         if lane2 is not None and lane2 != lane:
             masks[i] |= 1 << lane2
             last_chord = note.frame
@@ -305,10 +294,9 @@ def build_chart(
     role es el papel del instrumento (ver ROLES) y partner las notas del otro canal de pulso,
     de donde sale la armonía de los acordes."""
     reduced = reduce_notes(merge_attacks(notes), difficulty, grid, role)
-    if role == "keys":
-        lanes = [keys_lane(n.pitch, difficulty.lanes) for n in reduced]
-    else:
-        lanes = assign_lanes(reduced, difficulty.lanes)
+    # El contorno de la melodía manda en todos; el teclado mira un vecindario más corto (2 notas a cada
+    # lado y no 4), así sus carriles siguen la melodía pero no son los mismos que los de la guitarra
+    lanes = assign_lanes(reduced, difficulty.lanes, window=KEYS_WINDOW if role == "keys" else 4)
     masks = chord_masks(reduced, lanes, difficulty, grid, role, merge_attacks(partner or []))
     ends = sustain_ends(reduced, [tuple(b for b in range(5) if mask >> b & 1) for mask in masks])
     stars = star_notes(len(reduced), [mask & (mask - 1) != 0 for mask in masks])

@@ -268,10 +268,11 @@ Qué hace, paso a paso:
      marca `$40` y otra entrada posterior, con la marca `$80` y el carril, dice en qué cuadro termina la
      cola (siempre antes de la siguiente nota del mismo carril). El formato sigue siendo de 2 bytes por
      entrada;
-   - **cada instrumento tiene su papel** para que sus charts no sean el mismo con otro nombre: la
-     **guitarra** sigue la melodía (contorno y tiempos fuertes); el **teclado** conserva lo que cae
-     *entre* los tiempos y usa un **carril fijo por nota** (como las teclas de un piano: la misma nota
-     cae siempre en el mismo carril); el **bajo** prefiere los tiempos fuertes y las notas largas;
+   - todos siguen el **contorno de la melodía** y los tiempos fuertes (un chart que no suena como la
+     canción se siente desconectado: se probó el teclado con carriles fijos por nota y notas a
+     contratiempo, y se jugaba peor). La **guitarra** reparte sus carriles mirando 4 notas a cada lado y
+     el **teclado** 6, así no caen en los mismos carriles pero son igual de suaves; el **bajo** prefiere
+     las notas largas en los tiempos fuertes;
    - **acordes** (dos botones a la vez) en medio, difícil y experto, nunca en fácil ni en el bajo: una
      nota se vuelve acorde si su gesto era un arpegio (un acorde "roto" a 30 o 60 notas por segundo) o
      si el otro canal de pulso toca otra altura al mismo tiempo (la armonía). Solo en tiempos fuertes,

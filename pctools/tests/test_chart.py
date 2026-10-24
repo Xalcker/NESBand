@@ -196,24 +196,24 @@ def test_chords_have_two_adjacent_enough_lanes_and_respect_spacing():
     assert masks[0] & (masks[0] - 1) == 0 and masks[1] & (masks[1] - 1) == 0
 
 
-def test_keys_use_a_fixed_lane_per_pitch_class_and_differ_from_lead():
-    from nesband_tools.chart import keys_lane
-
-    assert keys_lane(60, 5) == keys_lane(72, 5) == keys_lane(48, 5)  # la misma nota, el mismo carril
-    assert {keys_lane(p, 5) for p in range(60, 72)} == {0, 1, 2, 3, 4}
+def test_keys_follow_the_melody_contour_like_the_lead():
+    """El teclado reparte sus carriles con un vecindario más amplio (KEYS_WINDOW), pero igual sube cuando
+    la melodía sube y repite cuando repite (los carriles que no siguen la melodía se sienten desconectados)."""
     grid = BeatGrid(20, 0)
-    notes = _melody([60, 62, 64, 62, 60, 62, 64, 62, 60, 62], spacing=20)
-    lead = build_chart(notes, DIFFICULTIES[2], grid, 0, "lead")
-    keys = build_chart(notes, DIFFICULTIES[2], grid, 0, "keys")
-    assert [n.mask for n in lead] != [n.mask for n in keys]
+    rising = _melody([60, 62, 64, 65, 67, 69, 71, 72], spacing=20)
+    keys = build_chart(rising, DIFFICULTIES[3], grid, 0, "keys")
+    lanes = [n.mask.bit_length() - 1 for n in keys if n.mask & (n.mask - 1) == 0]
+    assert lanes == sorted(lanes) and lanes[0] < lanes[-1]
+    repeated = build_chart(_melody([60] * 6, spacing=20), DIFFICULTIES[3], grid, 0, "keys")
+    assert len({n.mask for n in repeated}) == 1
 
 
-def test_keys_prefer_the_offbeat_and_bass_the_long_notes():
+def test_bass_prefers_the_long_notes_and_keys_the_beat_like_the_lead():
     grid = BeatGrid(20, 0)
+    easy = DIFFICULTIES[0]  # solo cabe una nota cada 24 cuadros
     notes = [Note(0, 60, 5), Note(10, 64, 5)]  # un tiempo y un medio tiempo, a 10 cuadros
-    easy = DIFFICULTIES[0]  # solo cabe una (min_gap 24)
     assert [n.frame for n in reduce_notes(notes, easy, grid, "lead")] == [0]
-    assert [n.frame for n in reduce_notes(notes, easy, grid, "keys")] == [10]
+    assert [n.frame for n in reduce_notes(notes, easy, grid, "keys")] == [0]
     long_vs_short = [Note(0, 40, 5), Note(0, 43, 60)]
     assert reduce_notes(long_vs_short, easy, grid, "bass")[0].duration == 60
 
