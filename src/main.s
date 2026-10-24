@@ -742,16 +742,41 @@ nmi:
     sta MMC3_BANK_SELECT
     lda scene_bank
     sta MMC3_BANK_DATA
+    lda drum_look
+    bne @drum_light
     bit PPUSTATUS
     lda #$3F                    ; color 2 de la paleta 3 de fondo ($3F0E)
     sta PPUADDR
     lda #$0E
     sta PPUADDR
     lda scene_color
-    ldy drum_look           ; batería: el color 2 de la paleta 3 es el verde del tom 3 (ver palettes), fijo:
-    beq @light              ; sin luces que cambien de color (si no, las gemas verdes cambiarían con ellas)
-    lda #$2A
-@light:
+    sta PPUDATA
+    jmp @no_scene
+
+    ; Batería: el color 2 de la paleta 3 es el verde del tom 3 (ver palettes) y no puede cambiar con las
+    ; luces. Las luces pasan al color de fondo ($3F00), el que se ve donde no hay nada dibujado: negro
+    ; normalmente, azul oscuro al latir con el combo y gris claro en el destello del rayo estelar.
+@drum_light:
+    lda scene_color
+    cmp #SCENE_COLOR            ; luz normal -> fondo negro
+    bne @not_normal
+    lda #$0F
+    bne @backdrop               ; (siempre)
+@not_normal:
+    cmp #SCENE_COLOR_PULSE      ; late con el tiempo -> azul oscuro
+    bne @not_pulse
+    lda #$01
+    bne @backdrop
+@not_pulse:
+    cmp #SCENE_COLOR_OFF        ; todos perdieron: negro
+    beq @backdrop
+    lda #$00                    ; el resto (destello estelar): gris (el $10, gris claro, cubría toda la pantalla)
+@backdrop:
+    bit PPUSTATUS
+    ldy #$3F
+    sty PPUADDR
+    ldy #$00
+    sty PPUADDR
     sta PPUDATA
 @no_scene:
     ; 5) Scroll, en todos los cuadros (la IRQ del cuadro anterior lo cambió).
