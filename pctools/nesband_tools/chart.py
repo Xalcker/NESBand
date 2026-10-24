@@ -32,13 +32,14 @@ class Difficulty:
     lanes: int  # cuántos carriles usa (desde el verde)
     min_gap: int  # cuadros mínimos entre dos notas
     chord_gap: int = 0  # cuadros mínimos entre dos acordes (0 = sin acordes)
+    chord_notes: int = 0  # notas sueltas mínimas entre dos acordes (para que no sean la mitad del chart y quepan frases estelares)
 
 
 DIFFICULTIES = [
     Difficulty("facil", lanes=3, min_gap=24),
-    Difficulty("medio", lanes=4, min_gap=14, chord_gap=150),
-    Difficulty("dificil", lanes=5, min_gap=9, chord_gap=72),
-    Difficulty("experto", lanes=5, min_gap=5, chord_gap=42),
+    Difficulty("medio", lanes=4, min_gap=14, chord_gap=150, chord_notes=8),
+    Difficulty("dificil", lanes=5, min_gap=9, chord_gap=72, chord_notes=6),
+    Difficulty("experto", lanes=5, min_gap=5, chord_gap=42, chord_notes=5),
 ]
 
 
@@ -257,11 +258,13 @@ def chord_masks(
     min_strength = 2 if role == "lead" else 1
     by_frame = {n.frame: n for n in partner}
     last_chord = -(10**9)
+    last_chord_index = -(10**9)
     for i, (note, lane) in enumerate(zip(notes, lanes)):
         next_gap = notes[i + 1].frame - note.frame if i + 1 < len(notes) else 10**9
         if (
             i < 2
             or note.frame - last_chord < difficulty.chord_gap
+            or i - last_chord_index <= difficulty.chord_notes
             or next_gap < difficulty.min_gap * 2
             or grid.strength(note.frame) < min_strength
         ):
@@ -284,6 +287,7 @@ def chord_masks(
         if lane2 is not None and lane2 != lane:
             masks[i] |= 1 << lane2
             last_chord = note.frame
+            last_chord_index = i
     return masks
 
 
