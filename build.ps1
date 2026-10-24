@@ -66,7 +66,7 @@ if ($Release) {
     $hash = (Get-FileHash "$out\$base.nes" -Algorithm SHA256).Hash.ToLower()
     [IO.File]::WriteAllText("$out\$base.nes.sha256", "$hash  $base.nes`n")
     Copy-Item (Join-Path $root 'LICENSE') "$out\LICENSE" -Force
-    Escribir-Lista $todas      # la lista de las compilaciones normales vuelve a tener todas las canciones locales
+    if ($todas.Count -le 31) { Escribir-Lista $todas }      # la lista de las compilaciones normales vuelve a tener todas las canciones locales (si caben)
     Write-Host "ROM de release ($($names.Count) canciones): $out\$base.nes" -ForegroundColor Green
     Write-Host "SHA-256: $hash"
 } else {
