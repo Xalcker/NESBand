@@ -463,6 +463,19 @@ def build_scene(args: argparse.Namespace) -> None:
         scene.main()
 
 
+def build_font(args: argparse.Namespace) -> None:
+    from . import fontgen
+
+    ttf = args.ttf or ROOT / "assets" / "fonts" / "Bongo-8_Mono.ttf"
+    try:
+        glyphs = fontgen.glyphs_from_ttf(ttf)
+    except ImportError:
+        sys.exit("Falta Pillow: corre `uv run --with pillow nesband build-font` (solo hace falta para generar la fuente)")
+    out = ROOT / "src" / "font.s"
+    write_lf(out, fontgen.build_font_s(glyphs, ttf.name))
+    print(f"{out.relative_to(ROOT)} generado desde {ttf.name}")
+
+
 def list_songs(args: argparse.Namespace) -> None:
     names = write_song_list()
     print(f"{len(names)} canciones en src/songs/list.s: {', '.join(names)}")
@@ -523,6 +536,10 @@ def main() -> None:
 
     p = sub.add_parser("build-audio", help="Exporta la música del título y los efectos (audio/*.txt) a src/audio/")
     p.set_defaults(func=build_audio)
+
+    p = sub.add_parser("build-font", help="Genera src/font.s: las letras del juego desde una fuente TTF de 8 px (necesita Pillow)")
+    p.add_argument("--ttf", type=Path, help="fuente a usar (default: Bongo-8 Mono, assets/fonts/)")
+    p.set_defaults(func=build_font)
 
     p = sub.add_parser("build-scene", help="Genera src/scene_art.s: el público, las luces y las torres del escenario")
     p.add_argument("--preview", action="store_true", help="en vez de generar, dibuja el escenario como texto")
