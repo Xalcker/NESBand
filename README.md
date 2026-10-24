@@ -401,7 +401,34 @@ Las notas salen de `build/songs/<nombre>/song.txt` (lo deja `import-song`); si f
 un NSF, se vuelve a pedir a FamiStudio. `--no-open` no abre el navegador, `--port` cambia el puerto y
 `--html ruta.html` escribe una página de solo lectura en vez de servir (sin edición).
 
-Aún no tiene la vista de batería (asignar carril a cada golpe de ruido y DPCM); sigue pendiente en el [issue #15](https://github.com/Xalcker/NESBand/issues/15).
+#### Batería
+
+Un NSF no dice qué es cada golpe, así que el editor los **agrupa** (canal Ruido o DPCM + tono o sample +
+instrumento de FamiStudio) y la tabla «Batería» le da a cada grupo un papel: **bombo, tarola, tom 1, tom 2,
+tom 3** o sin usar, con una casilla de **platillo** para los toms. Al abrir una canción sin asignación aparece una
+sugerencia automática (por el nombre del instrumento si lo dice; si no, por canal y tono: DPCM más grave =
+bombo, siguiente = tarola, ruido agudo = platillo); casi nunca acierta del todo, es el punto de partida.
+
+Al cambiar un papel se rehacen al momento los charts de batería de las 4 dificultades (instrumento
+`bateria` del menú), que se retocan a mano como los demás. Reglas, al estilo Rock Band 4:
+
+- carriles por color (el botón de siempre): **tarola** rojo (↓), **tom 1** amarillo (→), **tom 2** azul (B),
+  **tom 3** verde (←) y **bombo** naranja (A), dibujado como una barra horizontal;
+- los **platillos** comparten carril y botón con los toms; solo cambia cómo se ven (un rombo en vez de una
+  gema) y solo en **experto** (el «Pro»); en las demás dificultades se tocan como toms. La tarola y el bombo
+  nunca son platillos. En el chart el platillo es el bit `$40` (la batería no usa colas, así que no cambia
+  el formato de 2 bytes), tecla `P` en el editor;
+- fácil usa bombo, tarola y tom 1 (sin acordes); medio agrega el tom 2; difícil y experto los tres toms, con
+  acordes de a dos (un golpe y el bombo). Verde + amarillo (los dos toms de los extremos) nunca juntos,
+  porque ← y → no se pueden apretar a la vez; amarillo + naranja sí, el bombo es el pie.
+
+La asignación se guarda en `src/songs/<nombre>/drums.json` y las ediciones de los charts de batería en
+`edits.json`; las dos sobreviven a `reimport`. **El juego todavía no tiene modo batería** (la barra del bombo
+y los platillos piden cambios en el ROM, issue aparte), así que *Exportar chart.s* no escribe la batería y el
+menú del juego no la muestra.
+
+Aún no tiene escuchar un solo grupo de golpes (el motor mezcla todo en cada canal; con M/S puedes aislar
+Ruido o DPCM). El [issue #15](https://github.com/Xalcker/NESBand/issues/15) sigue abierto por el modo batería del ROM.
 
 ## Música del título y efectos de sonido
 

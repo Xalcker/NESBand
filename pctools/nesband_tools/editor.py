@@ -19,6 +19,18 @@ from urllib.parse import parse_qs, urlparse
 
 from . import famistudio
 from .chart import DIFFICULTIES, BeatGrid, ChartNote, build_chart, chart_size, chart_to_asm
+from .drums import (
+    ROLE_LABELS,
+    ROLE_LANE,
+    ROLES,
+    build_drum_chart,
+    check_assignment,
+    drum_groups,
+    drum_hits,
+    load_drums,
+    save_drums,
+    suggest_assignment,
+)
 from .m3u import find_playlist
 from .player import player_payload
 from .chartedit import (
@@ -87,11 +99,28 @@ def read_song_meta(song_dir: Path) -> dict[str, str]:
     return meta
 
 
-def auto_charts(src: SongSource) -> dict[str, list[ChartNote]]:
-    """Los charts que genera el importador, sin ediciones, por clave "instrumento/dificultad"."""
+def drum_assignment(src: SongSource, override: dict | None = None) -> tuple[dict, bool]:
+    """La asignación de papeles de la batería: la que manda la página, la de drums.json o, si no hay,
+    la sugerida. Devuelve (asignación, ¿es solo una sugerencia sin guardar?)."""
+    if override is not None:
+        check_assignment(override)
+        return override, False
+    saved = load_drums(src.song_dir)
+    if saved is not None:
+        return saved, False
+    return suggest_assignment(drum_groups(src.song)), True
+
+
+def auto_charts(src: SongSource, assignment: dict | None = None) -> dict[str, list[ChartNote]]:
+    """Los charts que genera el importador, sin ediciones, por clave "instrumento/dificultad".
+    La batería sale de la asignación de papeles (ver drums.py) y solo existe si algún grupo tiene papel."""
     from . import cli
 
     charts: dict[str, list[ChartNote]] = {}
+    hits = drum_hits(src.song, drum_assignment(src, assignment)[0])
+    if hits:
+        for difficulty in DIFFICULTIES:
+            charts[f"bateria/{difficulty.name}"] = build_drum_chart(hits, difficulty.name, src.grid, cli.LEAD_IN)
     for instrument, channel in cli.INSTRUMENTS:
         notes = src.song.notes.get(channel, []) if channel else []
         if not notes:
@@ -116,7 +145,7 @@ def edited_charts(src: SongSource, auto: dict[str, list[ChartNote]], edits: dict
 
 
 def chart_json(chart: list[ChartNote]) -> list[dict]:
-    return [{"frame": n.frame, "mask": n.mask, "end": n.end, "star": n.star} for n in chart]
+    return [{"frame": n.frame, "mask": n.mask, "end": n.end, "star": n.star, "cymbal": n.cymbal} for n in chart]
 
 
 def build_payload(src: SongSource) -> dict:
@@ -124,10 +153,19 @@ def build_payload(src: SongSource) -> dict:
     from . import cli
 
     lead_in = cli.LEAD_IN
-    auto = auto_charts(src)
+    assignment, suggested = drum_assignment(src)
+    auto = auto_charts(src, assignment)
     charts, warnings = edited_charts(src, auto)
     meta = read_song_meta(src.song_dir)
     return {
+        "drums": {
+            "groups": [{"key": g.key, "channel": g.channel, "tone": g.tone, "instrument": g.instrument,
+                        "count": g.count, "avgDuration": round(g.avg_duration, 1)}
+                       for g in drum_groups(src.song)],
+            "assignment": assignment,
+            "suggested": suggested,
+            "roles": [{"id": role, "label": ROLE_LABELS[role], "lane": ROLE_LANE[role]} for role in ROLES],
+        },
         "name": src.name,
         "title": meta.get("title") or src.name,
         "game": meta.get("game") or "",
@@ -145,7 +183,7 @@ def build_payload(src: SongSource) -> dict:
         "difficulties": [{"name": d.name, "lanes": d.lanes} for d in DIFFICULTIES],
         "charts": {key: chart_json(chart) for key, chart in charts.items()},
         "auto": {key: chart_json(chart) for key, chart in auto.items()},
-        "problems": {key: chart_problems(chart, lanes_for(key)) for key, chart in charts.items()},
+        "problems": {key: problems_for(key, chart) for key, chart in charts.items()},
         "warnings": warnings,
         "chartBytes": sum(chart_size(chart) for chart in charts.values()),
         "editable": False,
@@ -158,9 +196,15 @@ def lanes_for(key: str) -> int:
     return next(d.lanes for d in DIFFICULTIES if d.name == difficulty)
 
 
-def save_edits_from_page(src: SongSource, charts: dict[str, list[ChartNote]]) -> dict[str, list[dict]]:
-    """Guarda en edits.json lo que difiere de los charts automáticos. Falla si algún chart no se puede tocar."""
-    auto = auto_charts(src)
+def problems_for(key: str, chart: list[ChartNote]) -> list[dict]:
+    return chart_problems(chart, lanes_for(key), key.startswith("bateria/"))
+
+
+def save_edits_from_page(src: SongSource, charts: dict[str, list[ChartNote]],
+                         assignment: dict | None = None) -> dict[str, list[dict]]:
+    """Guarda en edits.json lo que difiere de los charts automáticos (y en drums.json la asignación de la
+    batería, si la manda la página). Falla si algún chart no se puede tocar."""
+    auto = auto_charts(src, assignment)
     if set(charts) != set(auto):
         raise ValueError(f"faltan o sobran charts: se esperaban {sorted(auto)}")
     edits = {}
@@ -169,24 +213,34 @@ def save_edits_from_page(src: SongSource, charts: dict[str, list[ChartNote]]) ->
             raise ValueError(f"chart desconocido: {key}")
         validate_chart(key, chart)
         edits[key] = diff_charts(auto[key], chart)
+    if assignment is None and load_drums(src.song_dir) is None and any(
+            ops for key, ops in edits.items() if key.startswith("bateria/")):
+        assignment = drum_assignment(src)[0]   # las ediciones de la batería van atadas a la asignación con que se hicieron
+    if assignment is not None:
+        save_drums(src.song_dir, assignment)
     save_edits(src.song_dir, edits)
     return edits
 
 
-def export_chart_s(src: SongSource, charts: dict[str, list[ChartNote]]) -> str:
-    """Guarda las ediciones y reescribe chart.s con el mismo formato y orden que `import-song`."""
+def export_chart_s(src: SongSource, charts: dict[str, list[ChartNote]], assignment: dict | None = None) -> str:
+    """Guarda las ediciones y reescribe chart.s con el mismo formato y orden que `import-song`.
+    La batería no se exporta a chart.s todavía (el juego aún no tiene su modo): queda en drums.json y edits.json."""
     from . import cli
 
-    save_edits_from_page(src, charts)
+    save_edits_from_page(src, charts, assignment)
     blocks = []
     for instrument, _ in cli.INSTRUMENTS:
+        if instrument == "bateria":
+            continue
         for difficulty in DIFFICULTIES:
             key = f"{instrument}/{difficulty.name}"
             if key in charts:
                 blocks.append(chart_to_asm(f"chart_{src.name}_{instrument}_{difficulty.name}", charts[key]))
     source_name = Path(src.options["source"]).name
     cli.write_lf(src.song_dir / "chart.s", chart_file_text(source_name, blocks))
-    return f"chart.s escrito ({sum(chart_size(c) for c in charts.values())} bytes de charts)"
+    size = sum(chart_size(c) for key, c in charts.items() if not key.startswith("bateria/"))
+    return f"chart.s escrito ({size} bytes de charts)" + (
+        "; la batería queda en drums.json y edits.json hasta que el juego tenga su modo" if any(k.startswith("bateria/") for k in charts) else "")
 
 
 def render_page(payload: dict, template: Path = HTML_PATH) -> str:
@@ -379,15 +433,30 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError("la canción de esta página ya no es la abierta: recarga la página")
                     if self.path == "/api/validate":
                         chart = chart_from_json(body["chart"])
-                        self._json(200, {"problems": chart_problems(chart, lanes_for(body["key"]))})
+                        self._json(200, {"problems": problems_for(body["key"], chart)})
                     else:
                         charts = {key: chart_from_json(items) for key, items in body["charts"].items()}
+                        assignment = body.get("drums")
                         if self.path == "/api/save":
-                            edits = save_edits_from_page(src, charts)
+                            edits = save_edits_from_page(src, charts, assignment)
                             count = sum(len(ops) for ops in edits.values())
-                            self._json(200, {"message": f"edits.json guardado ({count} ediciones)"})
+                            self._json(200, {"message": f"guardado ({count} ediciones)"})
                         else:
-                            self._json(200, {"message": export_chart_s(src, charts)})
+                            self._json(200, {"message": export_chart_s(src, charts, assignment)})
+                elif self.path == "/api/drums":
+                    src = app.src
+                    if src is None or body.get("song") != src.name:
+                        raise ValueError("la canción de esta página ya no es la abierta: recarga la página")
+                    # Otra asignación: los charts de batería se rehacen (con las ediciones ya guardadas encima)
+                    assignment, _ = drum_assignment(src, body["assignment"])
+                    auto = auto_charts(src, assignment)
+                    charts, warnings = edited_charts(src, auto)
+                    self._json(200, {
+                        "charts": {k: chart_json(c) for k, c in charts.items() if k.startswith("bateria/")},
+                        "auto": {k: chart_json(c) for k, c in auto.items() if k.startswith("bateria/")},
+                        "problems": {k: problems_for(k, c) for k, c in charts.items() if k.startswith("bateria/")},
+                        "warnings": warnings,
+                    })
                 else:
                     self._json(404, {"error": "no encontrado"})
         except (ValueError, KeyError, TypeError) as error:

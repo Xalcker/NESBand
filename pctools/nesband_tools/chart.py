@@ -187,6 +187,7 @@ class ChartNote:
     mask: int  # bits 0-4 = carriles
     end: int | None = None  # cuadro en que termina su cola (None = nota normal)
     star: bool = False  # nota de una frase de poder estelar
+    cymbal: bool = False  # solo en la batería (no usa colas): el pad es un platillo, no un tom; va en el bit $40
 
 
 def sustain_ends(notes: list[Note], lanes: list[int | tuple[int, ...]]) -> list[int | None]:
@@ -217,9 +218,14 @@ def sustain_ends(notes: list[Note], lanes: list[int | tuple[int, ...]]) -> list[
 BLOCKED_PAIRS = ({0, 2}, {2, 4})
 
 
-def lanes_clash(a: set[int], b: set[int]) -> bool:
+# En la batería el bombo es el carril naranja pero se pisa con el pie, no con la cruz: ahí solo
+# verde + amarillo (los dos toms de los extremos) es imposible. (ESPEJO no aplica a la batería.)
+DRUM_BLOCKED_PAIRS = ({0, 2},)
+
+
+def lanes_clash(a: set[int], b: set[int], blocked=BLOCKED_PAIRS) -> bool:
     """¿Dos notas con estos carriles no pueden estar activas al mismo tiempo? (mismo carril, o una pareja bloqueada)"""
-    return bool(a & b) or any({x, y} in BLOCKED_PAIRS for x in a for y in b)
+    return bool(a & b) or any({x, y} in blocked for x in a for y in b)
 
 
 def second_lane(lane: int, lanes: int, delta: int) -> int | None:
@@ -342,6 +348,10 @@ def chart_entries(chart: list[ChartNote]) -> list[tuple[int, int]]:
     end_masks: dict[int, int] = {}
     for note in chart:
         mask = note.mask | (STAR_FLAG if note.star else 0)
+        if note.cymbal:
+            if note.end is not None:
+                raise ValueError(f"nota del cuadro {note.frame}: un platillo no lleva cola (comparten el bit $40)")
+            mask |= SUSTAIN_FLAG
         if note.end is None:
             events.append((note.frame, mask))
         else:
@@ -375,17 +385,18 @@ def chart_to_asm(label: str, chart: list[ChartNote]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def check_playable(chart: list[ChartNote]) -> None:
+def check_playable(chart: list[ChartNote], blocked=BLOCKED_PAIRS) -> None:
     """Falla si el chart pide algo imposible con un control de NES: dos carriles de una pareja
-    bloqueada (BLOCKED_PAIRS) a la vez, ya sea en un acorde o tocando una nota mientras se sostiene otra."""
+    bloqueada (BLOCKED_PAIRS; en la batería DRUM_BLOCKED_PAIRS) a la vez, ya sea en un acorde o tocando
+    una nota mientras se sostiene otra."""
     sets = [{b for b in range(5) if n.mask >> b & 1} for n in chart]
     for i, (note, lanes) in enumerate(zip(chart, sets)):
-        if any({x, y} in BLOCKED_PAIRS for x in lanes for y in lanes):
+        if any({x, y} in blocked for x in lanes for y in lanes):
             raise ValueError(f"acorde imposible en el cuadro {note.frame}: carriles {sorted(lanes)}")
         if note.end is None:
             continue
         for other, other_lanes in zip(chart[i + 1 :], sets[i + 1 :]):
             if other.frame >= note.end:
                 break
-            if lanes_clash(other_lanes, lanes):
+            if lanes_clash(other_lanes, lanes, blocked):
                 raise ValueError(f"la nota del cuadro {other.frame} cae mientras se sostiene la del {note.frame}")

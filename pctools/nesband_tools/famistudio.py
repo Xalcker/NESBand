@@ -60,6 +60,7 @@ class Note:
     pitch: int  # número MIDI (solo importa para comparar alturas)
     duration: int
     extra: int | None = None  # otra altura del mismo gesto (un arpegio fusionado: un acorde "roto"); ver merge_attacks
+    instrument: str | None = None  # nombre del instrumento de FamiStudio (en ruido y DPCM, parte de lo que identifica un golpe)
 
 
 @dataclass
@@ -82,6 +83,14 @@ class Song:
 class Project:
     attrs: dict[str, str]
     songs: list[Song]
+
+
+_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def midi_to_name(pitch: int) -> str:
+    """60 -> "C4" (inverso de note_to_midi)."""
+    return f"{_NAMES[pitch % 12]}{pitch // 12 - 1}"
 
 
 def note_to_midi(value: str) -> int | None:
@@ -118,8 +127,8 @@ def parse_text(text: str) -> Project:
             for index, name in sorted(instances):
                 if index >= len(starts):
                     continue
-                for time, pitch, duration in patterns.get(name, []):
-                    notes.append(Note(starts[index] + time, pitch, duration))
+                for time, pitch, duration, instrument in patterns.get(name, []):
+                    notes.append(Note(starts[index] + time, pitch, duration, None, instrument))
             song.notes[channel] = sorted(notes, key=lambda n: n.frame)
 
     for line in text.splitlines():
@@ -152,7 +161,7 @@ def parse_text(text: str) -> Project:
         elif tag == "Note" and "Value" in attrs:
             pitch = note_to_midi(attrs["Value"])
             if pitch is not None:
-                patterns[pattern].append((int(attrs["Time"]), pitch, int(attrs.get("Duration", "1"))))
+                patterns[pattern].append((int(attrs["Time"]), pitch, int(attrs.get("Duration", "1")), attrs.get("Instrument")))
         elif tag == "PatternInstance":
             instances.append((int(attrs["Time"]), attrs["Pattern"]))
     finish_channel()

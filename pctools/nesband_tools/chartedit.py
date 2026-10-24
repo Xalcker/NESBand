@@ -23,6 +23,7 @@ from pathlib import Path
 from .chart import (
     BLOCKED_PAIRS,
     CHART_END,
+    DRUM_BLOCKED_PAIRS,
     END_FLAG,
     STAR_FLAG,
     STAR_PHRASE_LEN,
@@ -35,6 +36,7 @@ from .chart import (
 EDITS_FILE = "edits.json"
 EDITS_VERSION = 1
 LANE_MASK = 0x1F
+TOM_MASK = 0b01101  # carriles de los toms de la batería (verde, amarillo y azul): los únicos que pueden ser platillos
 
 
 def lanes_of(mask: int) -> set[int]:
@@ -60,8 +62,9 @@ def parse_chart_asm(text: str) -> dict[str, list[tuple[int, int]]]:
     return charts
 
 
-def entries_to_chart(entries: list[tuple[int, int]]) -> list[ChartNote]:
-    """Inverso de chart.chart_entries: del formato del juego a notas con su cola y su frase estelar."""
+def entries_to_chart(entries: list[tuple[int, int]], drums: bool = False) -> list[ChartNote]:
+    """Inverso de chart.chart_entries: del formato del juego a notas con su cola y su frase estelar.
+    En la batería el bit $40 es un platillo (no hay colas)."""
     notes: list[dict] = []
     open_notes: list[dict] = []  # notas con cola esperando su entrada de fin
     frame = 0
@@ -79,11 +82,12 @@ def entries_to_chart(entries: list[tuple[int, int]]) -> list[ChartNote]:
                     release &= ~note["mask"]
                     open_notes.remove(note)
             continue
-        note = {"frame": frame, "mask": mask & LANE_MASK, "end": None, "star": bool(mask & STAR_FLAG)}
+        note = {"frame": frame, "mask": mask & LANE_MASK, "end": None, "star": bool(mask & STAR_FLAG),
+                "cymbal": drums and bool(mask & SUSTAIN_FLAG)}
         notes.append(note)
-        if mask & SUSTAIN_FLAG:
+        if mask & SUSTAIN_FLAG and not drums:
             open_notes.append(note)
-    return [ChartNote(n["frame"], n["mask"], n["end"], n["star"]) for n in notes]
+    return [ChartNote(n["frame"], n["mask"], n["end"], n["star"], n["cymbal"]) for n in notes]
 
 
 def read_song_charts(song_dir: Path) -> dict[str, list[ChartNote]]:
@@ -96,7 +100,7 @@ def read_song_charts(song_dir: Path) -> dict[str, list[ChartNote]]:
     for label, entries in parse_chart_asm(path.read_text(encoding="utf-8")).items():
         match = re.fullmatch(rf"chart_{re.escape(name)}_(\w+?)_(\w+)", label)
         if match:
-            result[f"{match.group(1)}/{match.group(2)}"] = entries_to_chart(entries)
+            result[f"{match.group(1)}/{match.group(2)}"] = entries_to_chart(entries, match.group(1) == "bateria")
     return result
 
 
@@ -139,7 +143,7 @@ def save_edits(song_dir: Path, edits: dict) -> None:
 
 
 def _note_dict(note: ChartNote) -> dict:
-    return {"frame": note.frame, "mask": note.mask, "end": note.end, "star": note.star}
+    return {"frame": note.frame, "mask": note.mask, "end": note.end, "star": note.star, "cymbal": note.cymbal}
 
 
 def apply_edits(chart: list[ChartNote], ops: list[dict], warn=None) -> list[ChartNote]:
@@ -151,7 +155,7 @@ def apply_edits(chart: list[ChartNote], ops: list[dict], warn=None) -> list[Char
         if kind == "add":
             if frame in notes:
                 warn(f"cuadro {frame}: ya hay una nota; se reemplaza con la agregada a mano")
-            notes[frame] = ChartNote(frame, op["mask"], op.get("end"), op.get("star", False))
+            notes[frame] = ChartNote(frame, op["mask"], op.get("end"), op.get("star", False), op.get("cymbal", False))
         elif frame not in notes:
             warn(f"cuadro {frame}: la nota que se editó ya no existe en el chart automático ({kind} omitido)")
         elif kind == "delete":
@@ -163,6 +167,7 @@ def apply_edits(chart: list[ChartNote], ops: list[dict], warn=None) -> list[Char
                 op.get("mask", old.mask),
                 op["end"] if "end" in op else old.end,
                 op.get("star", old.star),
+                op.get("cymbal", old.cymbal),
             )
         else:
             raise ValueError(f"operación desconocida en edits.json: {kind!r}")
@@ -179,7 +184,7 @@ def diff_charts(auto: list[ChartNote], edited: list[ChartNote]) -> list[dict]:
         if new is None:
             ops.append({"op": "delete", "frame": frame})
         elif old is None:
-            ops.append({"op": "add", **_note_dict(new)})
+            ops.append({"op": "add", **{k: v for k, v in _note_dict(new).items() if k != "cymbal" or v}})
         elif old != new:
             changes = {k: v for k, v in _note_dict(new).items() if _note_dict(old)[k] != v}
             ops.append({"op": "set", "frame": frame, **changes})
@@ -189,11 +194,13 @@ def diff_charts(auto: list[ChartNote], edited: list[ChartNote]) -> list[dict]:
 # --- Validación ---------------------------------------------------------------------
 
 
-def chart_problems(chart: list[ChartNote], lanes_allowed: int = 5) -> list[dict]:
+def chart_problems(chart: list[ChartNote], lanes_allowed: int = 5, drums: bool = False) -> list[dict]:
     """Todo lo que el editor debe avisar de un chart: [{"frame", "kind", "text"}, ...].
 
     Errores (los que check_playable rechaza): "error". Avisos que el juego acepta pero que no
-    son lo habitual: "warn". `lanes_allowed` son los carriles de la dificultad (fácil usa 3)."""
+    son lo habitual: "warn". `lanes_allowed` son los carriles de la dificultad (fácil usa 3).
+    En la batería (`drums`) solo verde + amarillo es imposible, y el bit $40 es un platillo, no una cola."""
+    blocked = DRUM_BLOCKED_PAIRS if drums else BLOCKED_PAIRS
     problems: list[dict] = []
 
     def add(frame: int, kind: str, text: str) -> None:
@@ -205,8 +212,10 @@ def chart_problems(chart: list[ChartNote], lanes_allowed: int = 5) -> list[dict]
             add(note.frame, "error", "nota sin carril")
         if any(lane >= lanes_allowed for lane in lanes):
             add(note.frame, "warn", f"carril fuera de los {lanes_allowed} de esta dificultad")
-        if any({x, y} in BLOCKED_PAIRS for x in lanes for y in lanes):
+        if any({x, y} in blocked for x in lanes for y in lanes):
             add(note.frame, "error", "acorde imposible (izquierda + derecha de la cruz)")
+        if note.cymbal and (note.end is not None or not note.mask & TOM_MASK):
+            add(note.frame, "error", "un platillo no lleva cola y solo puede ser un tom (no la tarola ni el bombo)")
         if note.end is not None:
             if note.end <= note.frame:
                 add(note.frame, "error", "la cola termina antes de empezar")
@@ -214,7 +223,7 @@ def chart_problems(chart: list[ChartNote], lanes_allowed: int = 5) -> list[dict]
             for other, other_lanes in zip(chart[i + 1 :], sets[i + 1 :]):
                 if other.frame >= note.end:
                     break
-                if lanes_clash(other_lanes, lanes):
+                if lanes_clash(other_lanes, lanes, blocked):
                     add(other.frame, "error", f"cae mientras se sostiene la nota del cuadro {note.frame}")
         if note.star and len(lanes) > 1:
             add(note.frame, "warn", "un acorde dentro de una frase estelar")
@@ -237,7 +246,7 @@ def chart_from_json(items: list[dict]) -> list[ChartNote]:
             raise ValueError(f"cola inválida: {item}")
         if frame in notes:
             raise ValueError(f"dos notas en el cuadro {frame}")
-        notes[frame] = ChartNote(frame, mask, end, bool(item.get("star", False)))
+        notes[frame] = ChartNote(frame, mask, end, bool(item.get("star", False)), bool(item.get("cymbal", False)))
     return sorted(notes.values(), key=lambda n: n.frame)
 
 
@@ -249,6 +258,8 @@ def chart_file_text(source_name: str, blocks: list[str]) -> str:
 def validate_chart(key: str, chart: list[ChartNote]) -> None:
     """Falla con un mensaje claro si el chart no se puede tocar (ver chart.check_playable)."""
     try:
-        check_playable(chart)
+        check_playable(chart, DRUM_BLOCKED_PAIRS if key.startswith("bateria/") else BLOCKED_PAIRS)
+        if any(n.cymbal and (n.end is not None or not n.mask & TOM_MASK) for n in chart):
+            raise ValueError("un platillo no lleva cola y solo puede ser un tom")
     except ValueError as error:
         raise ValueError(f"chart {key}: {error}") from error

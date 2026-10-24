@@ -37,6 +37,7 @@ from .chart import (
     estimate_beat,
     merge_attacks,
 )
+from .drums import DRUMS_FILE
 from .chartedit import EDITS_FILE, apply_edits, chart_file_text, load_edits, validate_chart
 from .m3u import find_playlist
 
@@ -136,24 +137,28 @@ def import_song(args: argparse.Namespace) -> None:
     out_dir = SONGS_DIR / name
     work_dir = WORK_DIR / name
 
-    # Las ediciones manuales (edits.json) sobreviven a la importación: se leen antes de que convert
-    # borre la carpeta, se aplican a los charts automáticos y el archivo se vuelve a escribir
-    edits_file = out_dir / EDITS_FILE
-    edits_text = edits_file.read_text(encoding="utf-8") if edits_file.exists() else None
+    # El trabajo manual (edits.json con las ediciones de los charts y drums.json con la asignación de la
+    # batería) sobrevive a la importación: se lee antes de que convert borre la carpeta, las ediciones se
+    # aplican a los charts automáticos y los archivos se vuelven a escribir
+    kept = {n: (out_dir / n).read_text(encoding="utf-8") for n in (EDITS_FILE, DRUMS_FILE) if (out_dir / n).exists()}
     edits = load_edits(out_dir)
+
+    def restore_manual_work() -> None:
+        for file_name, text in kept.items():
+            write_lf(out_dir / file_name, text)
 
     # Convertir; si no cabe en el slot y es un NSF, grabar menos segundos y reintentar
     for _ in range(6):
         result = convert(fs, source, name, song_index, duration, args.beat_frames, is_nsf, out_dir, work_dir, edits)
-        if edits_text is not None:
-            write_lf(edits_file, edits_text)
+        restore_manual_work()
         if result.fits:
             break
         shutil.rmtree(out_dir)
         if not is_nsf:
-            if edits_text is not None:
-                out_dir.mkdir(parents=True)
-                write_lf(edits_file, edits_text)
+            out_dir.mkdir(parents=True)
+            restore_manual_work()
+            if not kept:
+                out_dir.rmdir()
             sys.exit(f"La canción no cabe en su slot de 16 KB ({result.total} bytes): hay que acortarla en FamiStudio.")
         new_duration = min(duration - 1, int(duration * SLOT_SIZE * 0.96 / result.total))
         print(f"No cabe con {duration} s ({result.total} de {SLOT_SIZE} bytes): pruebo con {new_duration} s")
