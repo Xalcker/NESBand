@@ -60,7 +60,7 @@ def test_groups_and_suggestion_use_names_then_pitch():
     assignment = suggest_assignment(groups)
     assert assignment["DPCM:C2:Bombo"] == {"lane": "kick", "cymbal": False}
     assert assignment["DPCM:D2:Tarola"] == {"lane": "snare", "cymbal": False}
-    assert assignment["Noise:C4:Hi-hat"] == {"lane": "tom2", "cymbal": True}
+    assert assignment["Noise:C4:Hi-hat"] == {"lane": "tom1", "cymbal": True}   # el hi-hat es el amarillo
     assert assignment["Noise:D3:Raro"]["lane"] is None   # menos de 3 golpes: no se asigna
 
 

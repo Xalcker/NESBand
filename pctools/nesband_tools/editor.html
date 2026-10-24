@@ -358,7 +358,7 @@ function problemFrames() {
 
 // La batería (instrumento "bateria") usa los mismos 5 carriles: tarola, toms y, en el naranja, la barra del bombo
 const isDrums = () => state.inst === "bateria";
-const DRUM_LANE_NAMES = ["Tom 3", "Tarola", "Tom 1", "Tom 2", "Bombo"];
+const DRUM_LANE_NAMES = ["T3 Crash", "Tarola", "T1 Hi-hat", "T2 Ride", "Bombo"];   // como en Rock Band: los platillos son el mismo carril que el tom
 const laneName = (lane) => (isDrums() ? DRUM_LANE_NAMES[lane] : LANES[lane].name);
 
 function drawGem(ctx, x, y, lane, star, bad, cymbal) {

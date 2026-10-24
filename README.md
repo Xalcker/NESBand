@@ -407,13 +407,13 @@ Un NSF no dice qué es cada golpe, así que el editor los **agrupa** (canal Ruid
 instrumento de FamiStudio) y la tabla «Batería» le da a cada grupo un papel: **bombo, tarola, tom 1, tom 2,
 tom 3** o sin usar, con una casilla de **platillo** para los toms. Al abrir una canción sin asignación aparece una
 sugerencia automática (por el nombre del instrumento si lo dice; si no, por canal y tono: DPCM más grave =
-bombo, siguiente = tarola, ruido agudo = platillo); casi nunca acierta del todo, es el punto de partida.
+bombo, siguiente = tarola, ruido agudo = hi-hat; un nombre con «hat» va al amarillo, «ride» al azul y «crash» o «platillo» al verde); casi nunca acierta del todo, es el punto de partida.
 
 Al cambiar un papel se rehacen al momento los charts de batería de las 4 dificultades (instrumento
 `bateria` del menú), que se retocan a mano como los demás. Reglas, al estilo Rock Band 4:
 
-- carriles por color (el botón de siempre): **tarola** rojo (↓), **tom 1** amarillo (→), **tom 2** azul (B),
-  **tom 3** verde (←) y **bombo** naranja (A), dibujado como una barra horizontal;
+- como en Rock Band 4, los colores de la batería no son los de la guitarra: **tarola** rojo (↓), **tom 1 / hi-hat** amarillo (→),
+  **tom 2 / ride** azul (B), **tom 3 / crash** verde (←) y **bombo** naranja (A), dibujado como una barra horizontal;
 - los **platillos** comparten carril y botón con los toms; solo cambia cómo se ven (un rombo en vez de una
   gema) y solo en **experto** (el «Pro»); en las demás dificultades se tocan como toms. La tarola y el bombo
   nunca son platillos. En el chart el platillo es el bit `$40` (la batería no usa colas, así que no cambia

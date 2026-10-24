@@ -7,7 +7,8 @@ a cada grupo un papel; la asignación vive en src/songs/<canción>/drums.json, a
 se retoca a mano en el editor con las mismas ediciones (edits.json) que los demás instrumentos.
 
 Papeles y carriles (cada carril es el color de siempre, que fija el botón del control):
-    tarola = rojo (↓)   tom 1 = amarillo (→)   tom 2 = azul (B)   tom 3 = verde (←)   bombo = naranja (A)
+    tarola = rojo (↓)   tom 1 / hi-hat = amarillo (→)   tom 2 / ride = azul (B)   tom 3 / crash = verde (←)
+    bombo = naranja (A), la barra
 En el nivel experto (el "Pro" de Rock Band) un golpe de platillo se marca con el bit $40 (la batería no usa
 colas); va en el mismo carril y botón que un tom, solo se ve distinto. En las demás dificultades los
 platillos se tocan como toms.
@@ -26,7 +27,8 @@ DRUMS_FILE = "drums.json"
 DRUMS_VERSION = 1
 DRUM_CHANNELS = ("Noise", "DPCM")
 ROLE_LANE = {"tom3": 0, "snare": 1, "tom1": 2, "tom2": 3, "kick": 4}
-ROLE_LABELS = {"kick": "Bombo", "snare": "Tarola", "tom1": "Tom 1", "tom2": "Tom 2", "tom3": "Tom 3"}
+ROLE_LABELS = {"kick": "Bombo (barra naranja)", "snare": "Tarola (rojo)", "tom1": "Tom 1 / Hi-hat (amarillo)",
+               "tom2": "Tom 2 / Ride (azul)", "tom3": "Tom 3 / Crash (verde)"}
 ROLES = tuple(ROLE_LABELS)
 ROLE_WEIGHT = {"kick": 3, "snare": 3, "tom1": 2, "tom2": 2, "tom3": 2}
 # Con menos dificultad, los toms se juntan en los que quedan: fácil usa bombo, tarola y tom 1; medio agrega el 2
@@ -74,8 +76,9 @@ def drum_groups(song: Song) -> list[Group]:
 NAME_HINTS = (
     (("bombo", "kick", "bass drum", "bd"), "kick", False),
     (("tarola", "snare", "caja", "sd"), "snare", False),
-    (("platillo", "cymbal", "crash", "ride", "hat"), "tom2", True),
-    (("abierto", "cerrado", "open", "closed"), "tom3", True),
+    (("hat", "hh", "cerrado", "abierto", "closed", "open"), "tom1", True),   # hi-hat: amarillo
+    (("ride",), "tom2", True),                                              # ride: azul
+    (("platillo", "cymbal", "crash"), "tom3", True),                        # crash: verde
     (("tom",), "tom1", False),
 )
 
@@ -117,7 +120,7 @@ def suggest_assignment(groups: list[Group]) -> dict[str, dict]:
         elif third == 1:
             give(group, ["snare", "tom1", "tom3"])
         else:
-            give(group, ["tom2"], cymbal=True)
+            give(group, ["tom1", "tom2", "tom3"], cymbal=True)   # lo más agudo: hi-hat (amarillo), luego ride y crash
     return assignment
 
 
