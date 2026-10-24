@@ -763,9 +763,9 @@ nmi:
     lda #$0F
     bne @backdrop               ; (siempre)
 @not_normal:
-    cmp #SCENE_COLOR_PULSE      ; late con el tiempo -> azul oscuro
+    cmp #SCENE_COLOR_PULSE      ; late con el tiempo -> azul más oscuro
     bne @not_pulse
-    lda #$01
+    lda #$02                    ; ($01 era un azul muy fuerte)
     bne @backdrop
 @not_pulse:
     cmp #SCENE_COLOR_OFF        ; todos perdieron: negro
