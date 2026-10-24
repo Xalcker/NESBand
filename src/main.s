@@ -29,6 +29,15 @@
 ; -----------------------------------------------------------------------------
 ; Parámetros del juego
 ; -----------------------------------------------------------------------------
+; Opciones de compilación (apagadas por defecto). Se activan al ensamblar: `build.ps1 -LucesBateria
+; -MedidorTransparente` (o `LUCES_BATERIA=1 MEDIDOR_TRANSPARENTE=1 ./build.sh`), que pasan -D a ca65.
+.ifndef DRUM_LIGHTS
+DRUM_LIGHTS = 0             ; 1 = con la batería, las luces del escenario cambian el color de FONDO (negro, azul
+.endif                      ;     oscuro al latir con el combo, gris en el destello estelar); 0 = sin luces
+.ifndef METER_FLICKER
+METER_FLICKER = 0           ; 1 = el medidor de vida se dibuja un cuadro sí y uno no (semitransparente)
+.endif
+
 NUM_LANES       = 5
 MAX_PLAYERS     = 2
 NUM_INSTRUMENTS = 4                    ; guitarra, teclado, bajo, batería
@@ -754,9 +763,11 @@ nmi:
     jmp @no_scene
 
     ; Batería: el color 2 de la paleta 3 es el verde del tom 3 (ver palettes) y no puede cambiar con las
-    ; luces. Las luces pasan al color de fondo ($3F00), el que se ve donde no hay nada dibujado: negro
-    ; normalmente, azul oscuro al latir con el combo y gris claro en el destello del rayo estelar.
+    ; luces. Con la opción DRUM_LIGHTS las luces pasan al color de fondo ($3F00), el que se ve donde no
+    ; hay nada dibujado: negro normalmente, azul oscuro al latir con el combo y gris en el destello del
+    ; rayo estelar. Sin ella (lo normal) la batería no tiene luces que cambien.
 @drum_light:
+.if DRUM_LIGHTS
     lda scene_color
     cmp #SCENE_COLOR            ; luz normal -> fondo negro
     bne @not_normal
@@ -778,6 +789,7 @@ nmi:
     ldy #$00
     sty PPUADDR
     sta PPUDATA
+.endif
 @no_scene:
     ; 5) Scroll, en todos los cuadros (la IRQ del cuadro anterior lo cambió).
     ; Va al final porque escribir en $2006 descompone el scroll.

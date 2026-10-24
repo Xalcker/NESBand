@@ -110,6 +110,13 @@ de las variables y las etiquetas del código en lugar de direcciones sueltas.
 
 Compilar la ROM **no** necesita FamiStudio ni Python: la canción ya convertida vive en `src/songs/`.
 
+**Opciones de compilación** (apagadas por defecto; se pasan al ensamblar):
+
+| Opción | Windows / macOS y Linux | Qué hace |
+|---|---|---|
+| Luces de la batería | `.build.ps1 -LucesBateria` / `LUCES_BATERIA=1 ./build.sh` | Con la batería, las luces del escenario cambian el color de fondo (negro, azul oscuro al latir con el combo, gris en el destello estelar). Apagada, la batería no tiene luces que cambien: la paleta del escenario es la del tom verde. |
+| Medidor semitransparente | `.build.ps1 -MedidorTransparente` / `MEDIDOR_TRANSPARENTE=1 ./build.sh` | El medidor de vida se dibuja un cuadro sí y uno no (parpadeo a 30 Hz que parece transparencia; puede molestar a quien sea sensible a los parpadeos). |
+
 ### Controles
 
 **Menú:** ↑/↓ elige la opción (canción, jugadores, instrumento, dificultad), ←/→ cambia el valor,

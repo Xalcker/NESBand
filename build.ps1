@@ -4,7 +4,7 @@
 # -Release arma la ROM para publicar: solo con las canciones que están en git (las importadas de
 # juegos comerciales no se distribuyen) y la deja en build\release\nesband-v<versión>.nes con su
 # suma de verificación (.sha256) y la licencia. La versión sale del archivo VERSION si no se indica.
-param([switch]$Release, [string]$Version = '')
+param([switch]$Release, [string]$Version = '', [switch]$LucesBateria, [switch]$MedidorTransparente)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 if ($Release -and -not $Version) { $Version = (Get-Content (Join-Path $root 'VERSION') -TotalCount 1).Trim() }
@@ -45,7 +45,11 @@ if ($Release) {
 }
 Escribir-Lista $names
 
-& $ca65 (Join-Path $root 'src\main.s') -g -I (Join-Path $root 'src') --bin-include-dir (Join-Path $root 'src') --bin-include-dir (Join-Path $root 'src\famistudio') -o "$out\main.o"
+# Opciones de compilación (apagadas por defecto; ver src/main.s): -LucesBateria, -MedidorTransparente
+$opciones = @()
+if ($LucesBateria) { $opciones += '-D', 'DRUM_LIGHTS=1' }
+if ($MedidorTransparente) { $opciones += '-D', 'METER_FLICKER=1' }
+& $ca65 (Join-Path $root 'src\main.s') @opciones -g -I (Join-Path $root 'src') --bin-include-dir (Join-Path $root 'src') --bin-include-dir (Join-Path $root 'src\famistudio') -o "$out\main.o"
 if ($LASTEXITCODE -ne 0) { Write-Host 'Error al ensamblar' -ForegroundColor Red; exit 1 }
 
 $base = if ($Release) { "nesband-v$Version" } else { 'nesband' }

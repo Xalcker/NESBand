@@ -847,15 +847,25 @@ update_meters:
     tax
     lda player_save + PS_NO_FAIL,x
     ora player_save + PS_FAILED,x
-    bne @hide
+    beq @in_game
+    jmp @hide               ; (muy lejos para un bne con las opciones de compilación)
+@in_game:
     lda player_save + PS_LIFE,x
     sta tmp+1               ; vida que queda por dibujar
     cmp #METER_LOW + 1
     bcs @steady
     lda frame_counter       ; poca vida: parpadea (8 cuadros sí, 8 no)
     and #%00001000
-    bne @hide
+    beq @steady
+    jmp @hide
 @steady:
+.if METER_FLICKER
+    lda frame_counter       ; opción: semitransparente, el medidor aparece un cuadro sí y uno no
+    and #1
+    beq @solid
+    jmp @hide
+@solid:
+.endif
     ; paleta según el nivel: 2 = rojo, 0 = amarillo (fuego), 3 = verde
     lda tmp+1
     cmp #METER_LOW + 1
@@ -879,6 +889,10 @@ update_meters:
     adc lane
     tax
     lda meter_x,x
+    ldx drum_look           ; batería: la autopista es más angosta y centrada; el medidor va pegado a ella,
+    beq @meter_x            ; en el margen negro (columna 21) y no sobre las luces verdes del escenario
+    lda #21 * 8
+@meter_x:
     sta addr+1
     lda #FX_Y - 1           ; coordenada Y del segmento de abajo (su borde de arriba es FX_Y)
     sta tmp

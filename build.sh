@@ -52,7 +52,12 @@ else
 fi
 escribir_lista "$names"
 
-"$CA65" src/main.s -g -I src --bin-include-dir src --bin-include-dir src/famistudio -o "$OUT/main.o"
+# Opciones de compilación (apagadas por defecto; ver src/main.s): LUCES_BATERIA=1, MEDIDOR_TRANSPARENTE=1
+OPCIONES=""
+[ "$LUCES_BATERIA" = "1" ] && OPCIONES="$OPCIONES -D DRUM_LIGHTS=1"
+[ "$MEDIDOR_TRANSPARENTE" = "1" ] && OPCIONES="$OPCIONES -D METER_FLICKER=1"
+# shellcheck disable=SC2086
+"$CA65" src/main.s $OPCIONES -g -I src --bin-include-dir src --bin-include-dir src/famistudio -o "$OUT/main.o"
 "$LD65" -C nes.cfg "$OUT/main.o" -o "$OUT/$BASE.nes" --dbgfile "$OUT/$BASE.dbg" -m "$OUT/$BASE.map"
 
 if [ "$RELEASE" -eq 1 ]; then
