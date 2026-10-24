@@ -8,7 +8,11 @@ de 512 KB con espacio para 31 canciones. Los charts se generan automáticamente 
 bajo en 4 dificultades, y los aciertos y fallos están sincronizados al cuadro con la música. Si fallas,
 tu instrumento se calla hasta tu siguiente acierto, como en Rock Band.
 
-**Canciones:** el repositorio trae una sola, *Primer Ensayo*, original de NESBand (`audio/demo.txt`).
+**Canciones:** el repositorio trae seis, originales de NESBand (GPL-2.0-or-later), cada una con un
+instrumento distinto al frente: *Primer Ensayo* (`audio/demo.txt`), *Tormenta de Neon* (rock, guitarra),
+*Luz de Luna* (balada, teclado), *Salto Mortal* (funk, bajo), *Marcha del Cartucho* (marcha chiptune) y
+*Noche sin Estrellas* (oscura, arpegios rápidos). Las cinco nuevas se componen en Python con
+`audio/compose.py` (por ejemplo `uv run python audio/tormenta.py`) y se importan como cualquier otra.
 La música de juegos comerciales tiene copyright y no se incluye: cada quien importa las suyas desde sus
 propios NSF con `nesband import-song` (ver [Importar canciones](#importar-canciones)). Al compilar, el
 menú incluye todas las canciones que haya en `src/songs/`.
@@ -289,8 +293,8 @@ Qué hace, paso a paso:
 
 **Dónde van los originales:** pon tus NSF (y sus `.m3u`, que dicen el número, nombre y duración de cada
 pista) en `songs_src/`. Ni esa carpeta ni lo que importes en `src/songs/` se suben a git (están en
-`.gitignore`): la música de juegos comerciales tiene copyright. En git solo va la canción original
-`src/songs/nesband_demo/`. Ojo: en un `.m3u` las pistas empiezan en 1 y `--song` empieza en 0.
+`.gitignore`): la música de juegos comerciales tiene copyright. En git solo van las canciones originales
+(`src/songs/nesband_demo/`, `tormenta/`, `luna/`, `salto/`, `marcha/` y `noche/`). Ojo: en un `.m3u` las pistas empiezan en 1 y `--song` empieza en 0.
 
 Para probar sin conseguir NSF: FamiStudio trae proyectos de demostración en `tools/famistudio/Demo Songs/`
 que se pueden importar directo (por ejemplo `uv run nesband import-song "tools/famistudio/Demo Songs/Mega
