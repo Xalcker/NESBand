@@ -44,6 +44,7 @@ def parse_duration(text: str) -> int | None:
 _EXT_TITLE = re.compile(r"^#EXTINF:[-\d]+,\s*(.*?)\s*$")
 _EXT_ENTRY = re.compile(r"::(\d+)\s*$")
 _EXT_TRACK = re.compile(r"^(.*?)\s+-\s+Track\s+\d+\s+-\s+(.*)$")
+_EXT_PLAIN = re.compile(r"^(.+?)\s+-\s+(.+)$")
 
 
 def parse_extm3u(text: str) -> Playlist:
@@ -64,7 +65,7 @@ def parse_extm3u(text: str) -> Playlist:
         entry = _EXT_ENTRY.search(line)
         if entry and title is not None and not line.startswith("#"):
             number = int(entry.group(1))
-            named = _EXT_TRACK.match(title)
+            named = _EXT_TRACK.match(title) or _EXT_PLAIN.match(title)   # "Juego - Track 03 - Título" o "Juego - Título"
             if named:
                 game = game or named.group(1)
                 title = named.group(2)

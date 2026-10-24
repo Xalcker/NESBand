@@ -20,7 +20,7 @@ fi
 BIN=tools/cc65/bin
 if [ -x "$BIN/ca65" ]; then CA65="$BIN/ca65"; LD65="$BIN/ld65"; else CA65=ca65; LD65=ld65; fi
 
-if [ "$RELEASE" -eq 1 ]; then OUT=build/release; BASE="nesband-v$VERSION"; elif [ -n "$SOLO" ]; then OUT=build; BASE=nesband-solo; else OUT=build; BASE=nesband; fi
+if [ "$RELEASE" -eq 1 ]; then OUT=build/release; BASE="nesband-v$VERSION"; elif [ -n "$SOLO" ]; then OUT=build; BASE="nesband-${NOMBRE:-solo}"; else OUT=build; BASE=nesband; fi
 mkdir -p "$OUT"
 
 # Lista de canciones (src/songs/list.s): todas las carpetas de src/songs con un song.s, en orden

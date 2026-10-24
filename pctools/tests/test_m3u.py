@@ -46,3 +46,10 @@ def test_parse_extm3u_without_durations():
     assert playlist.tracks[3].title == "Cut Man Stage"
     assert playlist.tracks[3].seconds is None
     assert playlist.tracks[11].title == "Dr. Wily's Castle Stage 1 & 2"
+
+
+def test_parse_extm3u_without_track_numbers():
+    text = "#EXTM3U\n#EXTINF:-1,Mega Man 2 - Quick Man Stage\nmm2.nsf::6\n"
+    playlist = parse_m3u(text)
+    assert playlist.game == "Mega Man 2"
+    assert playlist.tracks[6].title == "Quick Man Stage"
