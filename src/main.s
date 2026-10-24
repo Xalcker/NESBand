@@ -99,6 +99,7 @@ STATE_MENU      = 1
 STATE_PLAY      = 2
 STATE_RESULTS   = 3
 STATE_INITIALS  = 4
+STATE_OPTIONS   = 5
 
 ; Ficha de una canción (la genera `nesband import-song` en src/songs/*/song.s)
 SONG_MUSIC       = 0    ; .addr  datos para el motor de FamiStudio
@@ -301,6 +302,16 @@ scene_beat:     .res 1   ; tiempos transcurridos (solo importa su paridad y sus 
 scene_alive:    .res 1   ; scene_update: jugadores que siguen en pie
 scene_cheer:    .res 1   ; ... con combo para animar al público
 scene_star:     .res 1   ; ... con poder estelar activo
+opt_values:                  ; las opciones (options.s): se quedan hasta que las cambies
+opt_mirror:     .res 1   ; 1 = carriles invertidos
+opt_speed:      .res 1   ; 0 = 100%, 1 = 75%, 2 = 50% (cuadros que se salta el juego: ver play_update)
+opt_fall:       .res 1   ; 0 = AUTO (la caída de la dificultad), 1-4 = la de fácil a experto
+opt_practice:   .res 1   ; 0 = no, 1-3 = bucle hasta 1/4, 1/2 o 3/4 de la canción, 4 = toda
+opt_cursor:     .res 1   ; opción elegida en la pantalla de opciones
+speed_ctr:      .res 1   ; cuadros transcurridos (para saltarse uno de cada 4 o de cada 2)
+pad_latch:      .res MAX_PLAYERS ; botones presionados en cuadros saltados: se aplican en el siguiente
+practice_end:   .res 2   ; cuadro de la canción donde vuelve a empezar el bucle de práctica
+chart_bit:      .res NUM_LANES ; bit del chart que toca cada carril (con ESPEJO, al revés)
 
 ; -----------------------------------------------------------------------------
 ; Encabezado iNES: le dice al emulador qué tipo de cartucho es
@@ -331,6 +342,7 @@ scene_star:     .res 1   ; ... con poder estelar activo
 ; results.s va en el banco fijo de $E000 (segmento CODE2): el de $8000 (CODE) ya está lleno
 .segment "CODE2"
 .include "results.s"
+.include "options.s"
 .segment "CODE"
 .include "records.s"
 .include "initials.s"
@@ -471,7 +483,7 @@ jump_to_ptr:
     jmp (ptr)
 
 state_handlers:
-    .addr title_update, menu_update, play_update, results_update, initials_update
+    .addr title_update, menu_update, play_update, results_update, initials_update, options_update
 
 ; Espera hasta que ocurra la siguiente NMI
 wait_nmi:

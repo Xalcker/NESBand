@@ -72,7 +72,7 @@ Compilar la ROM **no** necesita FamiStudio ni Python: la canción ya convertida 
 ### Controles
 
 **Menú:** ↑/↓ elige la opción (canción, jugadores, instrumento, dificultad), ←/→ cambia el valor,
-Start juega y B regresa al título. Mientras eliges, suena la canción. Con **2 jugadores**, el jugador 2
+Start juega, Select abre las opciones (ver abajo) y B regresa al título. Mientras eliges, suena la canción. Con **2 jugadores**, el jugador 2
 elige su instrumento y dificultad con el control 2 (su cursor es naranja). No pueden tocar el mismo
 instrumento (en Co-Op; en VS sí pueden, ver abajo): cada quien silencia su canal al fallar.
 
@@ -96,6 +96,19 @@ instrumento (en Co-Op; en VS sí pueden, ver abajo): cada quien silencia su cana
   estrellas sobre el máximo de los dos charts juntos) y, por jugador, sus notas, precisión y si cayó.
   El **récord de banda** es aparte (por canción y la dificultad más alta de los dos), solo vale si los
   dos terminan en pie, y sale bajo el jugador 1 en el menú.
+
+**Opciones (Select en el menú):** modificadores para rejugar una canción o aprender una parte difícil.
+Valen para todos los jugadores y se quedan hasta que las cambies; Start juega y B regresa al menú.
+
+| Opción | Qué hace |
+|---|---|
+| ESPEJO | Invierte los carriles: la nota verde sale en el carril naranja y al revés (y lo mismo con el rojo y el azul). El chart no cambia: se traduce al leerlo |
+| VELOCIDAD | 100%, 75% o 50%: la canción y las notas avanzan más lento (el juego se salta 1 de cada 4, o 1 de cada 2, cuadros; el sonido sigue donde iba, así que se oye más lento y el scroll se ve entrecortado) |
+| CAIDA DE NOTAS | Qué tan rápido bajan las notas, sin importar la dificultad (*hyperspeed*): AUTO usa la de la dificultad, o la de fácil, medio, difícil o experto |
+| PRACTICA | La canción se repite desde el inicio hasta 1/4, 1/2, 3/4 o el final: sin fallo y sin resultados. Select en la pausa regresa al menú |
+
+Con cualquier opción distinta de la normal **no se guardan récords**. (La práctica siempre arranca en el
+inicio de la canción: empezar en un punto cualquiera necesita adelantar el motor de sonido hasta ahí.)
 
 **Juego** (modo "tap", un botón por carril, cada jugador con su control):
 
@@ -323,6 +336,12 @@ copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
     jugador 1 gasta media barra de poder para devolverlo al juego. Comprueba que lo compartido es
     idéntico en la copia de cada jugador.
   - 2 jugadores en **fácil y experto**: la autopista va a la velocidad de experto para los dos.
+  - **Opciones**: con ESPEJO el bot (que lee los carriles del juego) sigue acertando todo y el puntaje
+    no cambia, y los carriles quedan al revés (también en VS); a 75% y 50% el reloj de la canción debe
+    ir exactamente a 4/3 y 2 cuadros reales por cuadro de canción, sin perder la sincronía de la
+    música ni las notas; con la caída de notas elegida la autopista usa esa velocidad; ninguna
+    opción guarda récord; y en práctica el jugador que no toca nada (con fallo) no pierde y la canción
+    vuelve a empezar justo en el punto elegido.
   - En todas, además: que suene la música del título y que suenen los efectos en el menú y al empezar,
     y el **escenario**: la fase de los tiempos debe cuadrar cuadro por cuadro con la canción, el público
     solo se anima (brazos arriba y saltos) cuando alguien lleva combo, las luces cambian con el poder
@@ -348,6 +367,7 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 | `src/scene.s` | El escenario vivo: cómo reaccionan el público y las luces (banco de CHR y color de la paleta) |
 | `src/scene_art.s` | El arte del escenario (tiles y tablas), **generado** por `uv run nesband build-scene` (`pctools/nesband_tools/scene.py`) |
 | `src/results.s` | Pantalla de resultados por jugador: precisión, combo máximo, estrellas |
+| `src/options.s` | Pantalla de opciones: espejo, velocidad, caída de notas y práctica |
 | `src/text.s` | Escribir textos y números en pantalla |
 | `src/highway.s` | La autopista: reloj de la canción, scroll, armado de cada fila de notas |
 | `src/gameplay.s` | Control, ventana de acierto, fallos, combo, puntaje |

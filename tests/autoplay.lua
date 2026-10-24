@@ -43,6 +43,11 @@
 --                        y no se le exige haber terminado la canción (#8)
 --   AUTOPLAY_DOWN        1 = Co-Op: el jugador 2 (sin tocar, con fallo) cae y el 1 sigue hasta el final (#10)
 --   AUTOPLAY_REVIVE      1 = además, el jugador 1 lo revive con Select cuando la barra de poder llega a la mitad
+--   AUTOPLAY_MIRROR      1 = opción ESPEJO (carriles invertidos; el bot juega igual, el puntaje no cambia) (#6)
+--   AUTOPLAY_SPEED       0 = 100% (default), 1 = 75%, 2 = 50%: la canción y las notas avanzan más lento
+--   AUTOPLAY_FALL        0 = AUTO (default), 1-4 = caída de notas como la de fácil .. experto
+--   AUTOPLAY_PRACTICE    0 = no (default), 1-3 = bucle hasta 1/4, 1/2 o 3/4 de la canción, 4 = toda: sin fallo,
+--                        sin resultados; la prueba termina cuando la canción vuelve a empezar
 --   TEST_OUT             carpeta donde dejar resultado.txt y capturas .png
 --
 -- Requiere que Mesen tenga habilitado "AllowIoOsAccess" (escribir archivos) y
@@ -63,6 +68,11 @@ local revive = os.getenv("AUTOPLAY_REVIVE") == "1"   -- Co-Op: el jugador 1 revi
 local down = revive or os.getenv("AUTOPLAY_DOWN") == "1"   -- Co-Op: el jugador 2 cae y el 1 sigue hasta el final (#10)
 local revived, prev_failed2 = 0, 0                -- veces que se revivió al jugador 2
 local cut = os.getenv("AUTOPLAY_CUT") == "1"    -- VS: la partida se corta porque el otro jugador pierde (#8)
+local opt_mirror = os.getenv("AUTOPLAY_MIRROR") == "1"          -- opciones (#6): ver options.s
+local opt_speed = tonumber(os.getenv("AUTOPLAY_SPEED") or "0")
+local opt_fall = tonumber(os.getenv("AUTOPLAY_FALL") or "0")
+local opt_practice = tonumber(os.getenv("AUTOPLAY_PRACTICE") or "0")
+local any_option = opt_mirror or opt_speed > 0 or opt_fall > 0 or opt_practice > 0
 local STAR_MAX, STAR_PHRASE, STAR_MIN = 80, 20, 40       -- como en main.s
 local outdir = os.getenv("TEST_OUT") or "."
 local mem = emu.memType.nesMemory
@@ -99,7 +109,7 @@ local A_SFX_PTR_HI = label("famistudio_sfx_base_addr") + 2   -- no 0 mientras su
 local STATE_PLAY, STATE_RESULTS = 2, 3
 local CHART_ENTRY, CHART_END = 2, 0xFF
 local LANE_KEYS = { "left", "down", "right", "b", "a" }
-local TIMEOUT = 15000
+local TIMEOUT = 15000 * (opt_speed == 2 and 2 or 1)     -- (a 50% la canción tarda el doble)
 local PAUSE_AT, PAUSE_FRAMES = 1500, 90   -- song_frame en que se pausa, y cuánto dura
 -- Machacando, el combo más largo posible es el de un solo golpe (las notas que
 -- caigan juntas antes del primer carril vacío): nunca más de 5
@@ -168,6 +178,16 @@ if num_players == 2 then
   if coop then add(1, "right", (difficulty2 - 1) % 4) end
   add(1, "down", 1)
   if wants_no_fail(2) then add(1, "right", 1) end
+end
+if any_option then      -- Select abre las opciones: espejo, velocidad, caída de notas y práctica
+  add(0, "select", 1)
+  add(0, "right", opt_mirror and 1 or 0)
+  add(0, "down", 1)
+  add(0, "right", opt_speed)
+  add(0, "down", 1)
+  add(0, "right", opt_fall)
+  add(0, "down", 1)
+  add(0, "right", opt_practice)
 end
 for i, step in ipairs(steps) do MENU_SCRIPT[50 + i * 4] = step end
 local menu_done = 50 + #steps * 4
@@ -247,6 +267,8 @@ local star_shot_frame = nil   -- cuadro de la canción en que se captura una gem
 local scene_shots = {}          -- capturas del escenario que ya se tomaron (por banco y por color de luz)
 local scene_banks = {}          -- bancos de público que se vieron durante la canción
 local scene_lights = {}         -- colores de luz que se vieron (con poder estelar cambian cada tiempo)
+local speed_f1, speed_f2 = nil, nil   -- cuadro real en que la canción llegó a su cuadro 200 y al 1200 (para medir la velocidad)
+local prev_song_frame, practice_done = nil, false
 local scene_drift = 0           -- cuadros en que la fase del tiempo del escenario no cuadró con la canción
 local scene_behind = false      -- el cuadro anterior la fase iba un cuadro atrás (puede ser solo la muestra)
 local star_seen = {}    -- por jugador: ¿se vio el poder estelar activo en algún cuadro?
@@ -354,7 +376,9 @@ local function bot_input(p)
     end
     -- Notas sostenidas: mantiene el botón desde la nota hasta el fin de su cola
     for _, h in ipairs(holds[p] or {}) do
-      if next_frame >= h.first and next_frame < h.last then input[LANE_KEYS[h.lane + 1]] = true end
+      if next_frame >= h.first and next_frame < h.last then
+        input[LANE_KEYS[(opt_mirror and 4 - h.lane or h.lane) + 1]] = true   -- (el chart dice un carril; con espejo se toca el de enfrente)
+      end
     end
   end
   return input
@@ -443,6 +467,7 @@ local function check_player(p)
   local expect_record = ((modes[p] == "perfect" or modes[p] == "human90") and rec_mode ~= "2") and 1 or 0
   if coop and p == 2 then expect_record = 0 end     -- el récord de la banda es del jugador 1
   if cut or down then expect_record = 0 end         -- una partida cortada, o con un caído, no vale como récord
+  if any_option then expect_record = 0 end          -- con opciones (espejo, velocidad, caída, práctica) no hay récord (#6)
   local ok
   if modes[p] == "fail" or modes[p] == "human50" or (cut and modes[p] == "perfect") then
     -- Quien pierde deja de jugar y su canción puede terminar antes: no se exige sincronía completa
@@ -576,6 +601,20 @@ local function evaluate()
   end
   all_ok = all_ok and scene_ok
   lines[#lines + 1] = string.format("escenario=%s (desfase %d cuadros)", tostring(scene_ok), scene_drift)
+  -- Opciones (#6): sin récord, carriles invertidos, caída y velocidad como se pidieron
+  if any_option then
+    local ok = read8(field(1, "new_record")) == 0
+    if opt_mirror then
+      local cb = label("chart_bit")
+      for lane = 0, 4 do if read8(cb + lane) ~= (1 << (4 - lane)) then ok = false end end
+    end
+    if opt_fall > 0 and read8(label("fpr")) ~= ({ 6, 5, 4, 3 })[opt_fall] then ok = false end
+    local ratio = (speed_f1 and speed_f2) and (speed_f2 - speed_f1) / 1000 or nil   -- cuadros reales por cuadro de la canción
+    local want = ({ 1, 4 / 3, 2 })[opt_speed + 1]
+    if not ratio or math.abs(ratio - want) > 0.05 then ok = false end
+    all_ok = all_ok and ok
+    lines[#lines + 1] = string.format("opciones=%s (reloj x%s, esperado %.2f)", tostring(ok), ratio and string.format("%.2f", ratio) or "?", want)
+  end
   if vs_expect ~= 0 then
     local winner = read8(A_VS_RESULT)
     all_ok = all_ok and winner == vs_expect
@@ -669,6 +708,24 @@ emu.addEventCallback(function()
       mid_screenshot_frame = frame + 2000
     end
     local song_frame = read16(A_SONG_FRAME)
+    if song_frame == 200 and not speed_f1 then speed_f1 = frame end
+    if song_frame == 1200 and not speed_f2 then speed_f2 = frame end
+    -- Práctica: la canción debe volver a empezar justo en practice_end, sin fallar, y ahí termina la prueba
+    if opt_practice > 0 and not practice_done then
+      if prev_song_frame and song_frame + 100 < prev_song_frame then
+        practice_done = true
+        local expect = (read16(label("song_end")) >> 2) * opt_practice
+        local alive = true
+        for p = 1, num_players do if read8(field(p, "failed")) ~= 0 then alive = false end end
+        -- (el último cuadro que se alcanza a ver puede ser el anterior: el reinicio cae a media vuelta del cuadro)
+        local ok = alive and (prev_song_frame == expect or prev_song_frame == expect - 1)
+                   and read16(label("practice_end")) == expect and scene_drift == 0
+        write_file("resultado.txt", string.format("cancion=%d practica: volvio a empezar desde %d (esperado %d), sin fallo=%s, desfase escenario=%d -> %s\n",
+                   song, prev_song_frame, expect, tostring(alive), scene_drift, ok and "OK" or "FALLA"))
+        emu.stop(ok and 0 or 1)
+      end
+      prev_song_frame = song_frame
+    end
     -- Diagnóstico: cuadros en que el juego se atrasó (la NMI avanzó dos veces en un cuadro de pantalla)
     local nmi = read8(A_NMI_COUNT)
     if prev_nmi and (nmi - prev_nmi) % 256 ~= 1 and #lag_frames < 40 then lag_frames[#lag_frames + 1] = song_frame end
@@ -714,13 +771,18 @@ emu.addEventCallback(function()
     local beat = read8(song_ptr + SONG_BEAT_FRAMES)
     -- (Si el cuadro de pantalla termina a media vuelta del juego, song_frame ya avanzó y scene_update
     -- aún no: la fase va un cuadro atrás. Eso solo vale si al cuadro siguiente ya cuadra.)
-    if beat > 0 then
+    -- (en práctica, al llegar a practice_end el juego está reiniciando la canción: enter_play puede quedar a medias)
+    if beat > 0 and not (opt_practice > 0 and song_frame >= read16(label("practice_end"))) then
       local expected = (song_frame - read16(song_ptr + SONG_FIRST_BEAT)) % beat
       local phase = read8(A_SCENE_PHASE)
       if phase == expected then
         scene_behind = false
       elseif scene_behind or phase ~= (expected - 1) % beat then
         scene_drift = scene_drift + 1
+        if scene_drift == 1 then   -- diagnóstico: el primer cuadro en que no cuadró
+          write_file("desfase_escenario.txt", string.format("cuadro de la cancion %d: fase %d, esperada %d (cuadros por tiempo %d, atrasada antes=%s)\n",
+                     song_frame, phase, expected, beat, tostring(scene_behind)))
+        end
       else
         scene_behind = true
       end

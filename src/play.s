@@ -84,10 +84,55 @@ enter_play:
     inx
     cpx num_players
     bne @max_difficulty
+    lda opt_fall            ; CAIDA DE NOTAS: con otra opción que AUTO, la velocidad de esa dificultad
+    beq @fall_auto
+    sec
+    sbc #1
+    sta tmp
+@fall_auto:
     lda tmp
     jsr set_speed
 
     jsr set_layout          ; dónde va la autopista de cada jugador
+
+    ; ESPEJO: qué bit del chart toca cada carril (los bits que mueven las notas del chart
+    ; al carril de enfrente; la autopista dibuja con rev5, ver player_row_mask)
+    ldx #NUM_LANES - 1
+@chart_bit:
+    lda lane_bit,x
+    ldy opt_mirror
+    beq @bit_set
+    lda lane_bit_mirror,x
+@bit_set:
+    sta chart_bit,x
+    dex
+    bpl @chart_bit
+
+    ; PRACTICA: el bucle vuelve a empezar en practice_end = (song_end / 4) * opt_practice
+    lda song_end+1
+    lsr a
+    sta tmp+1
+    lda song_end
+    ror a
+    lsr tmp+1
+    ror a
+    sta tmp                 ; tmp = song_end / 4
+    lda #0
+    sta practice_end
+    sta practice_end+1
+    ldx opt_practice
+    beq @no_practice
+@loop_end:
+    clc
+    lda practice_end
+    adc tmp
+    sta practice_end
+    lda practice_end+1
+    adc tmp+1
+    sta practice_end+1
+    dex
+    bne @loop_end
+@no_practice:
 
 
     ; --- Cada jugador: su chart, marcador y carriles ---
@@ -114,6 +159,9 @@ enter_play:
     sta row_pending
     sta erase_count
     sta nmi_ready
+    sta speed_ctr
+    sta pad_latch
+    sta pad_latch+1
     lda #HIT_ROW
     sta cur_vrow
 
@@ -309,7 +357,9 @@ play_update:
     ora pad_pressed+1
     sta tmp+1
     lda paused
-    bne @paused
+    beq @playing
+    jmp @paused             ; (muy lejos para un bne)
+@playing:
 
     lda tmp+1
     and #BTN_START
@@ -321,6 +371,32 @@ play_update:
     jmp famistudio_update
 
 @run:
+    lda opt_speed           ; VELOCIDAD 75% / 50%: cada tanto el juego se salta un cuadro entero
+    beq @go                 ; (ni la canción ni las notas avanzan, y el sonido sigue donde iba)
+    inc speed_ctr
+    ldx opt_speed
+    lda speed_ctr
+    and speed_mask - 1,x
+    bne @go
+    lda pad_pressed         ; lo que presionaste en un cuadro saltado cuenta en el siguiente
+    ora pad_latch
+    and #<~BTN_START        ; (Start ya se atendió arriba)
+    sta pad_latch
+    lda pad_pressed+1
+    ora pad_latch+1
+    and #<~BTN_START
+    sta pad_latch+1
+    rts
+@go:
+    lda pad_latch
+    ora pad_pressed
+    sta pad_pressed
+    lda pad_latch+1
+    ora pad_pressed+1
+    sta pad_pressed+1
+    lda #0
+    sta pad_latch
+    sta pad_latch+1
     jsr advance_time        ; mover las notas y, si toca, preparar una fila nueva
 
     ldx #0                  ; cada jugador:
@@ -367,6 +443,18 @@ play_update:
     jsr scene_update        ; público y luces del escenario
     jsr update_music        ; motor de sonido (y silenciar a quien haya fallado)
     jsr compute_scroll
+
+    ; PRACTICA: al llegar a practice_end la canción vuelve a empezar (sin resultados)
+    lda opt_practice
+    beq @not_practice
+    lda song_frame
+    cmp practice_end
+    bne @not_practice
+    lda song_frame+1
+    cmp practice_end+1
+    bne @not_practice
+    jmp enter_play
+@not_practice:
 
     ; ¿Ya terminó? (un segundo después de que se detiene la música)
     lda song_frame
@@ -690,4 +778,6 @@ hide_pause:
 
 .segment "RODATA"
 txt_pause: .byte "PAUSA"
+; VELOCIDAD: el juego se salta el cuadro cuando (speed_ctr AND máscara) = 0: 75% -> 1 de cada 4, 50% -> 1 de cada 2
+speed_mask: .byte %11, %01
 .segment "CODE"

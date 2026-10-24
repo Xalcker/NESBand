@@ -55,6 +55,7 @@ enter_menu:
     PRINT MENU_LABEL_COL, MENU_FAIL_ROW - 1, txt_fail
     PRINT MENU_LABEL_COL, MENU_REC_ROW - 1, txt_record
     PRINT_CENTER 26, txt_menu_help
+    PRINT_CENTER 27, txt_menu_options
 
     ; Los valores se escriben con las mismas rutinas que al cambiarlos
     jsr select_song
@@ -101,6 +102,12 @@ menu_update:
     beq @no_start
     jmp enter_play          ; Start de cualquier control
 @no_start:
+    lda pad_pressed
+    ora pad_pressed+1
+    and #BTN_SELECT
+    beq @no_options
+    jmp enter_options       ; Select: modificadores y práctica (options.s)
+@no_options:
     lda pad_pressed
     and #BTN_B
     beq @no_back

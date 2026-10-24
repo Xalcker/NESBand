@@ -321,6 +321,21 @@ player_row_mask:
     jmp @seek
 
 @have_mask:
+    lda opt_mirror          ; ESPEJO: el chart dice carril 0 y se dibuja en el 4 (y al revés)
+    beq @not_mirrored
+    ldx row_mask
+    lda rev5,x
+    sta row_mask
+    ldx row_star
+    lda rev5,x
+    sta row_star
+    ldx tail_add
+    lda rev5,x
+    sta tail_add
+    ldx tail_rem
+    lda rev5,x
+    sta tail_rem
+@not_mirrored:
     lda tail_rem            ; cola de esta fila = las abiertas menos las que terminan aquí
     eor #$FF
     and tail_mask
@@ -559,6 +574,12 @@ write_attributes:
 ; Tablas por carril:     verde  rojo  amarillo  azul  naranja
 ; -----------------------------------------------------------------------------
 lane_bit:       .byte    %00001, %00010, %00100, %01000, %10000
+lane_bit_mirror: .byte   %10000, %01000, %00100, %00010, %00001   ; chart_bit con ESPEJO
+; rev5[m] = los 5 bits de m al revés (ESPEJO sobre una máscara de carriles)
+rev5:
+.repeat 32, i
+    .byte ((i & 1) << 4) | ((i & 2) << 2) | (i & 4) | ((i & 8) >> 2) | ((i & 16) >> 4)
+.endrepeat
 ; Solo hay 4 paletas de fondo y la 3 es del escenario (público, luces y marcador), así que los
 ; carriles comparten: verde + naranja (0), rojo + amarillo (1) y el azul solo (2). En cada pareja
 ; el segundo usa los tiles "B" (color 3 de la paleta).

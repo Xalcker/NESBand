@@ -220,7 +220,7 @@ lane_seek:
     ldy #1
     lda (ptr),y             ; carriles
     bmi @release            ; fin de cola (o el fin del chart): no es una nota
-    and lane_bit,x
+    and chart_bit,x         ; (con ESPEJO, el carril X toca las notas del carril de enfrente)
     bne @found
 @step:
     jsr chart_step
@@ -340,6 +340,8 @@ life_down:
 ; life_lose: A = puntos de vida que se pierden (y pierde si llega a 0)
 life_lose:
     ldx no_fail
+    bne @done
+    ldx opt_practice        ; la práctica es sin fallo
     bne @done
     ldx failed
     bne @done
@@ -624,7 +626,7 @@ hold_start:
 @event:
     cmp #CHART_END
     beq @done               ; no debería pasar: toda cola tiene su fin
-    and lane_bit,x
+    and chart_bit,x
     beq @scan               ; es el fin de la cola de otro carril
     lda seek_frame
     sta hold_end_lo,x

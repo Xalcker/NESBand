@@ -61,6 +61,14 @@ $kinds = @(
     # Co-Op con un caído: el jugador 2 cae y el 1 sigue; y el 1 lo revive con media barra de poder
     @('2p-coop-cae',   2, 'perfect', 0, 3, 'fail',    2, 3, 0, 0, 1, 0, 0, 1),
     @('2p-coop-revive', 2, 'perfect', 0, 3, 'fail',   2, 3, 0, 0, 1, 0, 0, 0, 1),
+    # Opciones (#6): el último texto son 4 dígitos = espejo (0-1), velocidad (0 = 100%, 1 = 75%, 2 = 50%),
+    # caída de notas (0 = auto, 1-4) y práctica (0 = no, 1-3 = hasta 1/4, 1/2, 3/4; 4 = toda)
+    @('1p-espejo',     1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '1000'),
+    @('1p-lenta75',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0100'),
+    @('1p-lenta50',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0200'),
+    @('1p-caida',      1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0010'),
+    @('1p-practica',   1, 'fail',    0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0001'),
+    @('2p-vs-espejo',  2, 'perfect', 0, 3, 'perfect', 0, 3, 0, 0, 0, 3, 0, 0, 0, '1000'),   # mismo chart y mismo espejo: empate
     # Récords (solo con la canción de ejemplo, y en este orden: el segundo usa lo que guardó el primero)
     @('1p-record1',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 1),
     @('1p-record2',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 2)
@@ -71,7 +79,8 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
     $songName = $songs[$s].Name
     if (-not ($Only | Where-Object { $songName -like $_ })) { continue }
     foreach ($kind in $kinds) {
-        $name, $players, $mode1, $inst1, $diff1, $mode2, $inst2, $diff2, $star, $record, $coop, $vs, $cut, $down, $revive = $kind
+        $name, $players, $mode1, $inst1, $diff1, $mode2, $inst2, $diff2, $star, $record, $coop, $vs, $cut, $down, $revive, $opts = $kind
+        if (-not $opts) { $opts = '0000' }   # espejo, velocidad, caída, práctica (ver los casos de opciones)
         if (-not $down) { $down = 0 }       # 1 = en Co-Op el jugador 2 cae y el 1 sigue hasta el final
         if (-not $revive) { $revive = 0 }   # 1 = y el jugador 1 lo revive con poder estelar
         if (-not $cut) { $cut = 0 }     # 1 = en VS la partida debe cortarse porque un jugador pierde
@@ -100,6 +109,10 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
         $env:AUTOPLAY_CUT = $cut
         $env:AUTOPLAY_DOWN = $down
         $env:AUTOPLAY_REVIVE = $revive
+        $env:AUTOPLAY_MIRROR = $opts[0]
+        $env:AUTOPLAY_SPEED = $opts[1]
+        $env:AUTOPLAY_FALL = $opts[2]
+        $env:AUTOPLAY_PRACTICE = $opts[3]
         $env:TEST_OUT = $out
         $p = Start-Process -FilePath $mesen -PassThru -Wait -NoNewWindow -ArgumentList @(
             '--testrunner', "`"$romPath`"", "`"$root\tests\autoplay.lua`"")

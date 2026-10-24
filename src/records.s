@@ -257,6 +257,10 @@ rec_check_new:
     sta new_record
     lda failed
     ora no_fail
+    ora opt_mirror              ; con opciones (espejo, velocidad, caída, práctica) no hay récord
+    ora opt_speed
+    ora opt_fall
+    ora opt_practice
     bne @done
     ldx #5                      ; ¿hizo algún punto?
     lda #0
