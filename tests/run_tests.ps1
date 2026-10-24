@@ -13,22 +13,32 @@
 # -Paralelo N corre N casos a la vez (cada uno es un Mesen con su propio ROM copiado a build\par, así que sus
 # .sav no se mezclan); con 6 núcleos,-Paralelo 6 baja la corrida completa de ~4 horas a ~45 minutos. Los casos de
 # récords van siempre de uno en uno, después. Sin -Paralelo corre de uno en uno.
-param([string[]]$Only = @('*'), [string]$Rom = '', [switch]$NoBuild, [switch]$Rapida, [int]$Paralelo = 1)   # (no puede llamarse $Songs: PowerShell no distingue mayúsculas y chocaría con $songs)
+param([string[]]$Only = @('*'), [string]$Rom = '', [switch]$NoBuild, [switch]$Rapida, [switch]$Release, [int]$Paralelo = 1)   # (no puede llamarse $Songs: PowerShell no distingue mayúsculas y chocaría con $songs)
 $ErrorActionPreference = 'Stop'
 # -Rapida: la demo y 3 canciones representativas (la de chart más grande, una densa y la más chica);
 # alcanza para cambios del motor. La corrida completa es para cambios de charts, generador o bancos.
 if ($Rapida) { $Only = @('nesband_demo', 'ddragon_mission1', 'cv3_clockwork', 'startropics_boss') }
 $root = Split-Path $PSScriptRoot -Parent
 
-$LASTEXITCODE = 0; if (-not $NoBuild) { & (Join-Path $root 'build.ps1') }
+# -Release prueba la ROM que se publica (build.ps1 -Release): solo con las canciones que están en git
+# (el orden del menú y los números de canción cambian, así que se listan solo esas). Sin -Rapida
+# prueba todas; con -Rapida, la demo y una original de cada estilo de instrumento.
+if ($Release -and $Rapida) { $Only = @('nesband_demo', 'tormenta', 'salto', 'carrera') }
+$LASTEXITCODE = 0
+if (-not $NoBuild) { if ($Release) { & (Join-Path $root 'build.ps1') -Release } else { & (Join-Path $root 'build.ps1') } }
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-$romPath = if ($Rom) { $Rom } else { Join-Path $root 'build\nesband.nes' }; $romName = [IO.Path]::GetFileNameWithoutExtension($romPath)   # -Rom permite probar una copia mientras se sigue compilando
+$version = (Get-Content (Join-Path $root 'VERSION') -TotalCount 1).Trim()
+$romPath = if ($Rom) { $Rom } elseif ($Release) { Join-Path $root "build\release\nesband-v$version.nes" } else { Join-Path $root 'build\nesband.nes' }; $romName = [IO.Path]::GetFileNameWithoutExtension($romPath)   # -Rom permite probar una copia mientras se sigue compilando
 $mesen = Join-Path $root 'tools\mesen\Mesen.exe'
 if (-not (Test-Path $mesen)) { Write-Host 'No encontre tools\mesen\Mesen.exe (ver README)' -ForegroundColor Red; exit 1 }
 
 # Canciones en el orden del menú (alfabético, como src/songs/list.s)
 $songs = @(Get-ChildItem (Join-Path $root 'src\songs') -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'song.s') } | Sort-Object Name)
+if ($Release) {
+    $versionadas = @(git -C $root ls-files 'src/songs' | Where-Object { $_ -match '^src/songs/[^/]+/song\.s$' } | ForEach-Object { ($_ -split '/')[2] })
+    $songs = @($songs | Where-Object { $versionadas -contains $_.Name })
+}
 
 # nombre, jugadores, modo J1, instrumento J1, dificultad J1, modo J2, instrumento J2, dificultad J2
 # (dificultad: 0 fácil .. 3 experto)

@@ -37,6 +37,39 @@ R: Absolutamente no.
 **P: ¿Por qué un NESBand?**
 R: Porque parecía lo correcto con las obras maestras que existen en la música del NES.
 
+## Descargar y jugar
+
+La ROM lista para jugar (con las diez canciones originales, sin música de juegos comerciales) se
+publica en [Releases](https://github.com/Xalcker/NESBand/releases) como `nesband-vX.Y.Z.nes`, junto a su
+suma de verificación (`.sha256`) y la licencia. Para comprobar que el archivo no se dañó:
+
+```bash
+sha256sum -c nesband-vX.Y.Z.nes.sha256
+```
+
+(En Windows: `Get-FileHash nesband-vX.Y.Z.nes -Algorithm SHA256` y comparar con el contenido del `.sha256`.)
+
+| Dónde | Cómo |
+|---|---|
+| **Mesen 2** (PC) | Abre el `.nes`. Los controles se asignan en Configuración → Entrada: cruz, B y A son los cinco carriles, Start pausa y Select abre las opciones o el poder estelar |
+| **Flash cart** (EverDrive N8 Pro y similares) | Copia el `.nes` a la tarjeta SD. Es un cartucho **MMC3 de 512 KB**: necesita un flash cart con ese tamaño de PRG |
+| **MiSTer** | Cópialo a `games/NES/` y cárgalo con el núcleo de NES (probado) |
+| **Otro emulador** | Cualquiera que emule el mapper MMC3 (mapper 4) con 512 KB de PRG |
+
+Para armar tú la misma ROM desde el código (solo con las canciones que están en git; los números de la
+versión salen del archivo `VERSION`):
+
+```bash
+.\build.ps1 -Release        # Windows: deja build\release\nesband-v<versión>.nes, su .sha256 y la licencia
+./build.sh --release        # macOS / Linux: lo mismo en build/release/
+```
+
+La compilación es reproducible: con las mismas herramientas (cc65) sale el mismo archivo, así que la suma
+de verificación coincide. Las canciones locales (importadas de NSF) nunca entran a esta ROM.
+
+**Aviso:** NESBand es un proyecto de aficionados, sin relación con Nintendo, Konami, Harmonix ni
+Activision, ni con Guitar Hero ni Rock Band. "NES" solo indica la plataforma para la que está hecho.
+
 ## Instalación
 
 ### Windows
