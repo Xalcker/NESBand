@@ -36,6 +36,8 @@ NUM_DIFFICULTIES = 4                   ; fácil, medio, difícil, experto
 CHART_ENTRY     = 2                    ; bytes por entrada del chart: cuadros desde la anterior, carriles
 CHART_END       = $FF                  ; carriles = $FF: fin del chart
 CHART_SUSTAIN   = $40                  ; en una nota: tiene cola (la nota sostenida)
+CHART_CYMBAL    = $40                  ; en una nota de la BATERIA el mismo bit significa "platillo" (no hay colas)
+INSTR_DRUMS     = 3                    ; el instrumento batería (guitarra 0, teclado 1, bajo 2)
 CHART_RELEASE   = $80                  ; entrada de fin de cola: sus bits 0-4 son los carriles que se sueltan
 CHART_STAR      = $20                  ; en una nota: forma parte de una frase de poder estelar
 STAR_MAX        = 80                   ; energía llena (px de la barra: 10 tiles de 8)
@@ -317,6 +319,7 @@ practice_end:   .res 2   ; cuadro de la canción donde vuelve a empezar el bucle
 practice_start: .res 2   ; cuadro pedido para empezar la práctica (practice_seek lo baja a una fila exacta)
 skip_frame:     .res 2   ; los charts empiezan en la primera nota de este cuadro en adelante (0 = desde el principio)
 chart_bit:      .res NUM_LANES ; bit del chart que toca cada carril (con ESPEJO, al revés)
+mirror_on:      .res 1   ; ESPEJO de verdad en esta partida: opt_mirror, salvo que alguien toque la batería (ver enter_play)
 
 ; -----------------------------------------------------------------------------
 ; Encabezado iNES: le dice al emulador qué tipo de cartucho es

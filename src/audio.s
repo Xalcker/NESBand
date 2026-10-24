@@ -144,6 +144,11 @@ apply_mute:
     tay
     lda #%00110000              ; pulso/ruido: volumen constante 0
     sta $4000,y
+    cpy #12                     ; ¿era el ruido ($400C)? es la batería: además hay que callar el DPCM
+    bne @pulse_done             ; (el bombo y la tarola suelen ser samples); sin su bit en $4015 deja de sonar
+    lda #%00001111              ; los otros cuatro canales siguen encendidos
+    sta APU_STATUS
+@pulse_done:
     jmp @next
 @back:
     ldx tmp

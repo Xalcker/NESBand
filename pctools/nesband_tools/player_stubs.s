@@ -5,6 +5,7 @@
 SONG_LEAD_IN = 128
 CHART_ENTRY  = 2
 APU_TRI_CTRL = $4008
+APU_STATUS   = $4015
 
 .segment "ZEROPAGE"
 tmp:         .res 1

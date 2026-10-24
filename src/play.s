@@ -96,10 +96,27 @@ enter_play:
 
     ; ESPEJO: qué bit del chart toca cada carril (los bits que mueven las notas del chart
     ; al carril de enfrente; la autopista dibuja con rev5, ver player_row_mask)
+    ; La batería no se espeja: su bombo (carril 4) iría a parar al carril del verde. Si alguno de los
+    ; jugadores la toca, ESPEJO se ignora en toda la partida (mirror_on = 0).
+    lda opt_mirror
+    sta mirror_on
+    ldx #0
+@mirror_check:
+    ldy player_offset,x
+    lda player_save + (cur_instrument - pstate),y
+    cmp #INSTR_DRUMS
+    bne @not_drums
+    lda #0
+    sta mirror_on
+@not_drums:
+    inx
+    cpx num_players
+    bne @mirror_check
+
     ldx #NUM_LANES - 1
 @chart_bit:
     lda lane_bit,x
-    ldy opt_mirror
+    ldy mirror_on
     beq @bit_set
     lda lane_bit_mirror,x
 @bit_set:

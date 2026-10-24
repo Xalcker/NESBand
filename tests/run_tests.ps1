@@ -57,6 +57,12 @@ $kinds = @(
     @('2p-vs-facil',   2, 'perfect', 0, 0, 'perfect', 2, 0, 0, 0, 0, 0),
     @('1p-fallo',      1, 'fail',    0, 3, 'perfect', 2, 3),
     # (el antiguo 2p-fallo, uno pierde y el otro sigue, ahora es 2p-vs-pierde2: en VS la partida se corta)
+    # Batería (instrumento 3): solo en las canciones con chart de batería (su drums.json); el bombo es una gema del carril naranja
+    @('1p-bateria',    1, 'perfect', 3, 3, 'perfect', 2, 3),
+    @('1p-bateria-facil', 1, 'perfect', 3, 0, 'perfect', 2, 0),
+    @('1p-bateria-idle', 1, 'idle',  3, 3, 'perfect', 2, 3),
+    @('1p-bateria-espejo', 1, 'perfect', 3, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '1000'),   # la batería no se espeja
+    @('2p-bateria',    2, 'perfect', 3, 3, 'perfect', 0, 3),
     @('1p-estrella',   1, 'perfect', 0, 3, 'perfect', 2, 3, 1),
     @('2p-estrella',   2, 'perfect', 0, 3, 'perfect', 2, 3, 1),
     # VS: quién gana (el último número: 1 = J1, 2 = J2, 3 = empate; 2p-mixto ya revisa que gane J1)
@@ -100,6 +106,9 @@ $trabajos = @()     # los que pueden correr a la vez (cada uno con su copia del 
 $registros = @()    # los de récords: se pasan el .sav uno al otro, así que van de uno en uno y en orden
 for ($s = 0; $s -lt $songs.Count; $s++) {
     $songName = $songs[$s].Name
+    # ¿tiene chart de batería? (el bit 3 de los instrumentos con chart de su ficha): el menú la ofrece o no
+    $ficha = Get-Content (Join-Path $songs[$s].FullName 'song.s') -Raw
+    $tieneBateria = $ficha -match '(?m)^\s*\.byte %0000(\d)(\d{3})\s*; instrumentos con chart' -and $Matches[1] -eq '1'
     if (-not ($Only | Where-Object { $songName -like $_ })) { continue }
     foreach ($kind in $kinds) {
         $name, $players, $mode1, $inst1, $diff1, $mode2, $inst2, $diff2, $star, $record, $coop, $vs, $cut, $down, $revive, $opts = $kind
@@ -112,6 +121,7 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
         if (-not $star) { $star = 0 }   # 1 = los jugadores perfectos activan el poder estelar con Select
         if (-not $record) { $record = 0 }   # 1 = escribe iniciales y comprueba el .sav, 2 = comprueba que sigue ahí
         if ($record -and $songName -ne 'nesband_demo') { continue }
+        if ($name -like '*bateria*' -and -not $tieneBateria) { continue }
         $caso = @{
             Nombre = "$songName/$name"
             Record = $record
@@ -120,7 +130,7 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
                 AUTOPLAY_SONG = "$s"; AUTOPLAY_PLAYERS = "$players"; AUTOPLAY_MODE = "$mode1"
                 AUTOPLAY_INSTRUMENT = "$inst1"; AUTOPLAY_DIFFICULTY = "$diff1"; AUTOPLAY_MODE2 = "$mode2"
                 AUTOPLAY_INSTRUMENT2 = "$inst2"; AUTOPLAY_DIFFICULTY2 = "$diff2"; AUTOPLAY_STAR = "$star"
-                AUTOPLAY_RECORD = "$record"; AUTOPLAY_COOP = "$coop"; AUTOPLAY_VS = "$vs"; AUTOPLAY_CUT = "$cut"
+                AUTOPLAY_DRUMS = "$([int]$tieneBateria)"; AUTOPLAY_RECORD = "$record"; AUTOPLAY_COOP = "$coop"; AUTOPLAY_VS = "$vs"; AUTOPLAY_CUT = "$cut"
                 AUTOPLAY_DOWN = "$down"; AUTOPLAY_REVIVE = "$revive"
                 AUTOPLAY_MIRROR = "$($opts[0])"; AUTOPLAY_SPEED = "$($opts[1])"
                 AUTOPLAY_FALL = "$($opts[2])"; AUTOPLAY_PRACTICE = "$($opts[3])"; AUTOPLAY_START = "$($opts[4])"

@@ -290,7 +290,8 @@ motor solo usa el sonido del NES, así que esas canciones se rechazan con un men
 el nombre del archivo: el *Castlevania 3 (Akumajou Densetsu)* incluido aquí es el arreglo para el NES
 normal y funciona.
 
-Se generan charts de **guitarra** (pulso 1), **teclado** (pulso 2) y **bajo** (triángulo), si el canal
+tiene notas. La **batería** (ruido y DPCM) se arma en el [editor de charts](#editor-de-charts): asignas un papel a cada
+grupo de golpes (`drums.json`) y `import-song`/`reimport` generan sus 4 charts; sin `drums.json` la canción no tiene batería.
 tiene notas. La **batería** (ruido) aún no: necesita su propio criterio.
 
 Qué hace, paso a paso:
@@ -424,9 +425,13 @@ Al cambiar un papel se rehacen al momento los charts de batería de las 4 dificu
   de los extremos) nunca juntos, porque ← y → no se pueden apretar a la vez; amarillo + naranja sí, el bombo es el pie.
 
 La asignación se guarda en `src/songs/<nombre>/drums.json` y las ediciones de los charts de batería en
-`edits.json`; las dos sobreviven a `reimport`. **El juego todavía no tiene modo batería** (la barra del bombo
-y los platillos piden cambios en el ROM, issue aparte), así que *Exportar chart.s* no escribe la batería y el
-menú del juego no la muestra.
+`edits.json`; las dos sobreviven a `reimport`, que con `drums.json` genera los charts de batería y enciende el instrumento
+en la ficha de la canción (*Exportar chart.s* del editor también ajusta `chart.s` y `song.s`). **En el juego (primera versión)** la
+batería se toca con los mismos botones: el bombo es una gema normal del carril naranja (la barra horizontal y el rombo del
+platillo, aún no: el bit `$40` se lee como platillo pero se dibuja como un tom), ESPEJO se ignora si alguien toca la batería
+y al fallar se callan el ruido y el DPCM. Pendiente: la barra del bombo, el rombo de los platillos y el orden de columnas de
+Rock Band (rojo, amarillo, azul, verde).
+
 
 Aún no tiene escuchar un solo grupo de golpes (el motor mezcla todo en cada canal; con M/S puedes aislar
 Ruido o DPCM). El [issue #15](https://github.com/Xalcker/NESBand/issues/15) sigue abierto por el modo batería del ROM.
@@ -586,7 +591,7 @@ configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el t
 1. ~~Prototipo: autopista, notas, aciertos, puntaje~~ ✅
 2. ~~Música de verdad: NSF → FamiStudio → motor de sonido, sincronizada al cuadro~~ ✅
 3. ~~Generador automático de charts por canal y dificultad~~ ✅ (primera versión)
-4. ~~Charts de bajo y teclado~~ ✅ · batería pendiente (necesita su propio criterio: bombo/tarola/platillo por tipo de ruido)
+4. ~~Charts de bajo y teclado~~ ✅ · ~~batería~~ ✅ primera versión (bombo como gema; barra y platillos pendientes)
 5. ~~Menús: título, selección de canción/instrumento/dificultad, pausa, resultados~~ ✅
    · ~~llamarada al acertar, notas sostenidas y poder estelar~~ ✅
 6. ~~Mapper con más espacio (MMC3) para muchas canciones~~ ✅ · pantalla de título ilustrada pendiente

@@ -223,24 +223,39 @@ def save_edits_from_page(src: SongSource, charts: dict[str, list[ChartNote]],
 
 
 def export_chart_s(src: SongSource, charts: dict[str, list[ChartNote]], assignment: dict | None = None) -> str:
-    """Guarda las ediciones y reescribe chart.s con el mismo formato y orden que `import-song`.
-    La batería no se exporta a chart.s todavía (el juego aún no tiene su modo): queda en drums.json y edits.json."""
+    """Guarda las ediciones y reescribe chart.s con el mismo formato y orden que `import-song`. Si la
+    canción tiene (o deja de tener) chart de batería, también ajusta su ficha song.s (ver patch_song_s)."""
     from . import cli
 
     save_edits_from_page(src, charts, assignment)
     blocks = []
     for instrument, _ in cli.INSTRUMENTS:
-        if instrument == "bateria":
-            continue
         for difficulty in DIFFICULTIES:
             key = f"{instrument}/{difficulty.name}"
             if key in charts:
                 blocks.append(chart_to_asm(f"chart_{src.name}_{instrument}_{difficulty.name}", charts[key]))
     source_name = Path(src.options["source"]).name
     cli.write_lf(src.song_dir / "chart.s", chart_file_text(source_name, blocks))
-    size = sum(chart_size(c) for key, c in charts.items() if not key.startswith("bateria/"))
-    return f"chart.s escrito ({size} bytes de charts)" + (
-        "; la batería queda en drums.json y edits.json hasta que el juego tenga su modo" if any(k.startswith("bateria/") for k in charts) else "")
+    song_s = src.song_dir / "song.s"
+    if song_s.exists():
+        patched = patch_song_s(song_s.read_text(encoding="utf-8"), src.name, any(k.startswith("bateria/") for k in charts))
+        cli.write_lf(song_s, patched)
+    return f"chart.s escrito ({sum(chart_size(c) for c in charts.values())} bytes de charts)"
+
+
+def patch_song_s(text: str, name: str, drums: bool) -> str:
+    """La ficha song.s con o sin batería: el bit 3 de los instrumentos con chart y su renglón de charts.
+    (Es lo único de la ficha que depende de la batería; lo demás lo deja `import-song`.)"""
+    mask = re.search(r"^(    \.byte %)([01]{8})(\s*; instrumentos con chart)", text, re.MULTILINE)
+    row = re.search(r"^    \.addr .*; bateria$", text, re.MULTILINE)
+    if not mask or not row:
+        raise ValueError("song.s no tiene el formato de import-song: corre `nesband reimport` para regenerarla")
+    bits = int(mask.group(2), 2)
+    bits = bits | 0b1000 if drums else bits & ~0b1000
+    labels = ", ".join(f"chart_{name}_bateria_{d.name}" for d in DIFFICULTIES) if drums else ", ".join("0" for _ in DIFFICULTIES)
+    text = text[:mask.start(2)] + f"{bits:08b}" + text[mask.end(2):]
+    row = re.search(r"^    \.addr .*; bateria$", text, re.MULTILINE)
+    return text[:row.start()] + f"    .addr {labels}  ; bateria" + text[row.end():]
 
 
 def render_page(payload: dict, template: Path = HTML_PATH) -> str:

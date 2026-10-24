@@ -627,6 +627,9 @@ hold_start:
     ldx lane
     lda #0
     sta hold_on,x
+    lda cur_instrument      ; batería: el bit $40 es un platillo, no una cola. (Si no saliéramos aquí,
+    cmp #INSTR_DRUMS        ; @scan recorrería todo el chart buscando un fin de cola que no existe.)
+    beq @done
     ldy #1
     lda (ptr),y
     and #CHART_SUSTAIN

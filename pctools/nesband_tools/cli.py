@@ -37,7 +37,7 @@ from .chart import (
     estimate_beat,
     merge_attacks,
 )
-from .drums import DRUMS_FILE
+from .drums import DRUMS_FILE, build_drum_chart, drum_hits, load_drums
 from .chartedit import EDITS_FILE, apply_edits, chart_file_text, load_edits, validate_chart
 from .m3u import find_playlist
 
@@ -142,6 +142,7 @@ def import_song(args: argparse.Namespace) -> None:
     # aplican a los charts automáticos y los archivos se vuelven a escribir
     kept = {n: (out_dir / n).read_text(encoding="utf-8") for n in (EDITS_FILE, DRUMS_FILE) if (out_dir / n).exists()}
     edits = load_edits(out_dir)
+    drums = load_drums(out_dir)
 
     def restore_manual_work() -> None:
         for file_name, text in kept.items():
@@ -149,7 +150,7 @@ def import_song(args: argparse.Namespace) -> None:
 
     # Convertir; si no cabe en el slot y es un NSF, grabar menos segundos y reintentar
     for _ in range(6):
-        result = convert(fs, source, name, song_index, duration, args.beat_frames, is_nsf, out_dir, work_dir, edits)
+        result = convert(fs, source, name, song_index, duration, args.beat_frames, is_nsf, out_dir, work_dir, edits, drums)
         restore_manual_work()
         if result.fits:
             break
@@ -270,7 +271,8 @@ class Converted:
 
 
 def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, beat_frames: int | None,
-            is_nsf: bool, out_dir: Path, work_dir: Path, edits: dict | None = None) -> Converted:
+            is_nsf: bool, out_dir: Path, work_dir: Path, edits: dict | None = None,
+            drums: dict | None = None) -> Converted:
     """Pasa la canción por FamiStudio, genera los charts y ve si todo cabe en un slot."""
     for d in (out_dir, work_dir):
         if d.exists():
@@ -318,9 +320,12 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
     chart_labels: list[str] = []
     instrument_mask = 0
     summary = []
+    # La batería sale de la asignación de papeles de drums.json (ver drums.py): sin ella, o si ningún grupo
+    # tiene papel, la canción no tiene chart de batería y el menú del juego no la ofrece
+    drum_notes = drum_hits(song, drums) if drums else []
     for index, (instrument, channel) in enumerate(INSTRUMENTS):
         notes = song.notes.get(channel, []) if channel else []
-        if not notes:
+        if not notes and not (instrument == "bateria" and drum_notes):
             chart_labels += ["0"] * len(DIFFICULTIES)
             summary.append(f"  {instrument:9} -")
             continue
@@ -328,8 +333,11 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
         counts = []
         for difficulty in DIFFICULTIES:
             label = f"chart_{name}_{instrument}_{difficulty.name}"
-            role, partner_channel = ROLE_OF[instrument]
-            chart = build_chart(notes, difficulty, grid, LEAD_IN, role, song.notes.get(partner_channel, []))
+            if instrument == "bateria":
+                chart = build_drum_chart(drum_notes, difficulty.name, grid, LEAD_IN)
+            else:
+                role, partner_channel = ROLE_OF[instrument]
+                chart = build_chart(notes, difficulty, grid, LEAD_IN, role, song.notes.get(partner_channel, []))
             key = f"{instrument}/{difficulty.name}"
             if edits and edits.get(key):
                 chart = apply_edits(chart, edits[key], warn=lambda text, key=key: print(f"  AVISO edits.json ({key}): {text}"))
@@ -337,7 +345,7 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
             charts.append((label, chart_to_asm(label, chart), chart_size(chart)))
             chart_labels.append(label)
             counts.append(f"{difficulty.name} {len(chart)}")
-        summary.append(f"  {instrument:9} ({channel}): " + ", ".join(counts))
+        summary.append(f"  {instrument:9} ({channel or 'ruido y DPCM'}): " + ", ".join(counts))
     if not instrument_mask:
         sys.exit("La canción no tiene notas en ningún canal melódico")
 

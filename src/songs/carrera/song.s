@@ -16,13 +16,13 @@ song_carrera:
     .byte 20              ; cuadros por tiempo (180 BPM)
     .word 128             ; cuadro del primer tiempo
     .addr song_carrera_title, song_carrera_game
-    .byte %00000111        ; instrumentos con chart (bit 0 = guitarra)
+    .byte %00001111        ; instrumentos con chart (bit 0 = guitarra)
     .byte SONG_SLOT_NUMBER
     ; charts: un renglón por instrumento, una columna por dificultad
     .addr chart_carrera_guitarra_facil, chart_carrera_guitarra_medio, chart_carrera_guitarra_dificil, chart_carrera_guitarra_experto  ; guitarra
     .addr chart_carrera_teclado_facil, chart_carrera_teclado_medio, chart_carrera_teclado_dificil, chart_carrera_teclado_experto  ; teclado
     .addr chart_carrera_bajo_facil, chart_carrera_bajo_medio, chart_carrera_bajo_dificil, chart_carrera_bajo_experto  ; bajo
-    .addr 0, 0, 0, 0  ; bateria
+    .addr chart_carrera_bateria_facil, chart_carrera_bateria_medio, chart_carrera_bateria_dificil, chart_carrera_bateria_experto  ; bateria
 
 song_carrera_title: .byte "CARRERA DE FUEGO", 0
 song_carrera_game:  .byte "NESBAND", 0

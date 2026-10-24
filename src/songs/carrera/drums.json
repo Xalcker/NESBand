@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "groups": {
+    "DPCM:C#1:Percusion": {"lane": "snare", "cymbal": false},
+    "DPCM:C1:Percusion": {"lane": "kick", "cymbal": false},
+    "Noise:G#3:Abierto": {"lane": "tom1", "cymbal": true},
+    "Noise:G#3:Platillo": {"lane": "tom3", "cymbal": true}
+  }
+}

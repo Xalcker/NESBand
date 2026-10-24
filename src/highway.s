@@ -290,6 +290,9 @@ player_row_mask:
     ora row_star
     sta row_star
 @not_star:
+    lda cur_instrument      ; batería: el bit $40 es un platillo, no una cola (no se abre cola)
+    cmp #INSTR_DRUMS
+    beq @skip
     lda (render_ptr),y
     and #CHART_SUSTAIN
     beq @skip
@@ -321,7 +324,7 @@ player_row_mask:
     jmp @seek
 
 @have_mask:
-    lda opt_mirror          ; ESPEJO: el chart dice carril 0 y se dibuja en el 4 (y al revés)
+    lda mirror_on           ; ESPEJO: el chart dice carril 0 y se dibuja en el 4 (y al revés)
     beq @not_mirrored
     ldx row_mask
     lda rev5,x

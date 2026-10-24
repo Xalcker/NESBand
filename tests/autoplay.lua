@@ -61,6 +61,7 @@ local num_players = tonumber(os.getenv("AUTOPLAY_PLAYERS") or "1")
 local modes = { os.getenv("AUTOPLAY_MODE") or "perfect", os.getenv("AUTOPLAY_MODE2") or "perfect" }
 local instruments = { tonumber(os.getenv("AUTOPLAY_INSTRUMENT") or "0"),
                       tonumber(os.getenv("AUTOPLAY_INSTRUMENT2") or "2") }
+local has_drums = os.getenv("AUTOPLAY_DRUMS") == "1"   -- la canción tiene chart de batería (instrumento 3): el menú la ofrece
 local difficulty = tonumber(os.getenv("AUTOPLAY_DIFFICULTY") or "3")   -- 0 fácil .. 3 experto
 local difficulty2 = tonumber(os.getenv("AUTOPLAY_DIFFICULTY2") or tostring(difficulty))
 local use_star = os.getenv("AUTOPLAY_STAR") == "1"
@@ -77,6 +78,8 @@ local opt_practice = tonumber(os.getenv("AUTOPLAY_PRACTICE") or "0")
 local opt_start = tonumber(os.getenv("AUTOPLAY_START") or "") or 0
 local PRACTICE_GRACE = 60       -- como en main.s: las notas de los primeros cuadros de una práctica con inicio se omiten
 local any_option = opt_mirror or opt_speed > 0 or opt_fall > 0 or opt_practice > 0
+-- ESPEJO de verdad: la batería no se espeja (su bombo, el carril 4, iría al del verde); basta que un jugador la toque
+local mirror_on = opt_mirror and not (instruments[1] == 3 or (num_players == 2 and instruments[2] == 3))
 local STAR_MAX, STAR_PHRASE, STAR_MIN = 80, 20, 40       -- como en main.s
 local outdir = os.getenv("TEST_OUT") or "."
 local mem = emu.memType.nesMemory
@@ -120,8 +123,8 @@ local PAUSE_AT, PAUSE_FRAMES = 1500, 90   -- song_frame en que se pausa, y cuán
 local NUM_LANES_SMASH_MAX = 5
 
 -- Registro de volumen del canal de cada instrumento, y lo que escribe apply_mute
-local MUTE_REG = { [0] = 0x4000, [1] = 0x4004, [2] = 0x4008 }
-local MUTE_VALUE = { [0] = 0x30, [1] = 0x30, [2] = 0x80 }
+local MUTE_REG = { [0] = 0x4000, [1] = 0x4004, [2] = 0x4008, [3] = 0x400C }   -- la batería: el ruido
+local MUTE_VALUE = { [0] = 0x30, [1] = 0x30, [2] = 0x80, [3] = 0x30 }
 
 local function digits(addr, n)
   local v = 0
@@ -148,12 +151,12 @@ add(0, "right", coop and 2 or num_players - 1)
 add(0, "down", 1)
 -- Lo que el menú hace con los instrumentos (menu.s): al entrar a VS el jugador 2 copia al 1; en
 -- Co-Op pasa al siguiente que no sea el del 1; y en VS cada instrumento que elige el 1 lo copia el 2.
--- presses_to: pulsaciones de "derecha" para ir de un instrumento a otro, saltando la batería (3, sin
--- chart) y el instrumento `taken` (-1 = ninguno: en VS pueden coincidir).
+-- presses_to: pulsaciones de "derecha" para ir de un instrumento a otro, saltando la batería (3) si la
+-- canción no tiene chart de batería (AUTOPLAY_DRUMS=1: sí tiene) y el instrumento `taken` (-1 = ninguno: en VS pueden coincidir).
 local function presses_to(from, target, taken)
   local pos, n = from, 0
   while pos ~= target do
-    repeat pos = (pos + 1) % 4 until pos ~= 3 and pos ~= taken
+    repeat pos = (pos + 1) % 4 until (pos ~= 3 or has_drums) and pos ~= taken
     n = n + 1
     if n > 8 then error("instrumento inalcanzable en el menú") end
   end
@@ -162,7 +165,7 @@ end
 local menu_p1, menu_p2 = 0, 2          -- lo que muestra el menú al encender
 if num_players == 2 then
   menu_p2 = menu_p1                     -- (pasa por VS)
-  if coop then repeat menu_p2 = (menu_p2 + 1) % 4 until menu_p2 ~= 3 and menu_p2 ~= menu_p1 end
+  if coop then repeat menu_p2 = (menu_p2 + 1) % 4 until (menu_p2 ~= 3 or has_drums) and menu_p2 ~= menu_p1 end
 end
 add(0, "right", presses_to(menu_p1, instruments[1], coop and menu_p2 or -1))
 if num_players == 2 and not coop then menu_p2 = instruments[1] end
@@ -227,7 +230,8 @@ local function read_chart(p)
       notes[#notes + 1] = { frame = frame, mask = mask, star = star }
       if star and not prev_star then star_runs = star_runs + 1 end
       prev_star = star
-      if raw & CHART_SUSTAIN ~= 0 then
+      -- (en la batería el bit $40 es un platillo, no una cola)
+      if raw & CHART_SUSTAIN ~= 0 and instruments[p] ~= 3 then
         for lane = 0, 4 do
           if (mask >> lane) & 1 == 1 then pending[lane] = frame end
         end
@@ -386,7 +390,7 @@ local function bot_input(p)
     -- Notas sostenidas: mantiene el botón desde la nota hasta el fin de su cola
     for _, h in ipairs(holds[p] or {}) do
       if next_frame >= h.first and next_frame < h.last then
-        input[LANE_KEYS[(opt_mirror and 4 - h.lane or h.lane) + 1]] = true   -- (el chart dice un carril; con espejo se toca el de enfrente)
+        input[LANE_KEYS[(mirror_on and 4 - h.lane or h.lane) + 1]] = true   -- (el chart dice un carril; con espejo se toca el de enfrente)
       end
     end
   end
@@ -410,6 +414,7 @@ for p = 1, num_players do
   end, emu.callbackType.write, MUTE_REG[instruments[p]], MUTE_REG[instruments[p]])
 end
 
+local prev_dpcm = {}       -- batería: el contador del canal DPCM del cuadro anterior
 local triggers, trigger_count, prev_counter, unmuted = {}, {}, {}, {}
 for p = 1, num_players do triggers[p], trigger_count[p], prev_counter[p], unmuted[p] = {}, 0, 0, 0 end
 local results_frames = 0
@@ -622,9 +627,12 @@ local function evaluate()
   -- Opciones (#6): sin récord, carriles invertidos, caída y velocidad como se pidieron
   if any_option then
     local ok = read8(field(1, "new_record")) == 0
-    if opt_mirror then
+    if opt_mirror then   -- con la batería el espejo se ignora (mirror_on = 0): los carriles quedan como están
       local cb = label("chart_bit")
-      for lane = 0, 4 do if read8(cb + lane) ~= (1 << (4 - lane)) then ok = false end end
+      for lane = 0, 4 do
+        local want_bit = mirror_on and (1 << (4 - lane)) or (1 << lane)
+        if read8(cb + lane) ~= want_bit then ok = false end
+      end
     end
     if opt_fall > 0 and read8(label("fpr")) ~= ({ 6, 5, 4, 3 })[opt_fall] then ok = false end
     local ratio = (speed_f1 and speed_f2) and (speed_f2 - speed_f1) / 1000 or nil   -- cuadros reales por cuadro de la canción
@@ -782,7 +790,15 @@ emu.addEventCallback(function()
       -- El contador del "ecualizador" del motor salta a 9 en cada nota nueva
       -- (un contador por canal: 0 = pulso 1, 1 = pulso 2, 2 = triángulo)
       local counter = read8(A_COUNTER + instruments[p])
-      if counter > prev_counter[p] then
+      local new_note = counter > prev_counter[p]
+      if instruments[p] == 3 then
+        -- La batería suena por dos canales: el ruido (contador 3) y el DPCM (contador 4). Un golpe nuevo
+        -- en cualquiera de los dos cuenta
+        local dpcm = read8(A_COUNTER + 4)
+        if dpcm > (prev_dpcm[p] or 0) then new_note = true end
+        prev_dpcm[p] = dpcm
+      end
+      if new_note then
         triggers[p][song_frame] = true
         trigger_count[p] = trigger_count[p] + 1
       end

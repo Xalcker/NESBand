@@ -183,6 +183,22 @@ def test_cymbal_edits_and_problems():
         validate_chart("bateria/experto", [ChartNote(10, 0b00101)])
 
 
+def test_patch_song_s_adds_and_removes_the_drum_charts():
+    from pathlib import Path
+
+    committed = (Path(__file__).resolve().parents[2] / "src" / "songs" / "carrera" / "song.s").read_text(encoding="utf-8")
+    original = editor.patch_song_s(committed, "carrera", False)   # la ficha sin batería, como la deja import-song sin drums.json
+    assert "%00000111" in original and "    .addr 0, 0, 0, 0  ; bateria" in original
+    with_drums = editor.patch_song_s(original, "carrera", True)
+    assert "%00001111" in with_drums
+    assert ("    .addr chart_carrera_bateria_facil, chart_carrera_bateria_medio, chart_carrera_bateria_dificil, "
+            "chart_carrera_bateria_experto  ; bateria") in with_drums
+    assert editor.patch_song_s(with_drums, "carrera", False) == original   # ida y vuelta exacta
+    assert editor.patch_song_s(with_drums, "carrera", True) == with_drums
+    with pytest.raises(ValueError, match="reimport"):
+        editor.patch_song_s("; otra cosa", "carrera", True)
+
+
 def make_drum_source(tmp_path):
     song = drum_song()
     song.notes["Square1"] = [Note(i * 10, 60 + (i % 5), 8) for i in range(40)]
@@ -231,9 +247,9 @@ def test_server_saves_assignment_and_rebuilds_charts(tmp_path):
         (tmp_path / "drums.json").unlink()
         call("/api/save", {"song": "prueba", "charts": charts})
         assert load_drums(tmp_path) is not None
-        # Exportar no escribe la batería en chart.s (el juego aún no tiene su modo)
+        # Exportar escribe también la batería en chart.s
         call("/api/export", {"song": "prueba", "charts": charts, "drums": assignment})
-        assert "bateria" not in (tmp_path / "chart.s").read_text(encoding="utf-8")
+        assert "chart_prueba_bateria_experto:" in (tmp_path / "chart.s").read_text(encoding="utf-8")
     finally:
         server.shutdown()
         server.server_close()

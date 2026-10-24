@@ -58,7 +58,7 @@ def test_every_committed_chart_reads_and_rewrites_identically():
     checked = 0
     for chart_s in sorted(SONGS.glob("*/chart.s")):
         for label, entries in parse_chart_asm(chart_s.read_text(encoding="utf-8")).items():
-            assert chart_entries(entries_to_chart(entries)) == entries, f"{chart_s.parent.name}/{label}"
+            assert chart_entries(entries_to_chart(entries, "_bateria_" in label)) == entries, f"{chart_s.parent.name}/{label}"
             checked += 1
     assert checked > 0
 
@@ -143,7 +143,7 @@ def test_chart_file_text_matches_committed_files():
         text = chart_s.read_text(encoding="utf-8")
         header = text.split("\n", 1)[0]
         source = header.split(" desde ")[1].removesuffix(" - no editar a mano")
-        blocks = [chart_to_asm(label, entries_to_chart(entries)) for label, entries in parse_chart_asm(text).items()]
+        blocks = [chart_to_asm(label, entries_to_chart(entries, "_bateria_" in label)) for label, entries in parse_chart_asm(text).items()]
         assert chart_file_text(source, blocks) == text, chart_s.parent.name
 
 
