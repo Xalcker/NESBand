@@ -110,6 +110,11 @@ de las variables y las etiquetas del código en lugar de direcciones sueltas.
 
 Compilar la ROM **no** necesita FamiStudio ni Python: la canción ya convertida vive en `src/songs/`.
 
+**Más canciones que slots:** el cartucho tiene 31 slots (ver `nes.cfg`). Si importaste más, compila un
+subconjunto con `.\build.ps1 -Solo mm1_*` (o `SOLO="mm1_*" ./build.sh`; acepta varios patrones separados por
+comas o espacios). Deja `build\nesband-solo.nes` (y su `.dbg`) sin pisar la ROM completa. `import-song` solo
+avisa cuando hay más de 31, no falla.
+
 **Opciones de compilación** (apagadas por defecto; se pasan al ensamblar):
 
 | Opción | Windows / macOS y Linux | Qué hace |
@@ -256,6 +261,11 @@ en la lista; de ahí salen el título, el juego y la duración:
 ```bash
 uv run nesband import-song "songs_src/Blaster Master [Chou Wakusei Senki - Metafight] (1988-06-17)(Sunsoft).nsf" --track 2 --name blaster_area1
 ```
+
+Algunos `.m3u` (los de tipo `#EXTINF:-1,Juego - Track 03 - Título` con `archivo.nsf::3`) traen los nombres
+pero **no las duraciones**: de ahí salen el título y el juego, y la duración se pide con `--duration`
+(si no, 120 s). Una forma de elegirla es medir el bucle de cada tema (en los de Mega Man 1 son de 20 a 40 s)
+y grabar dos o tres vueltas.
 
 Si el NSF **no** trae `.m3u`, primero escucha sus pistas para saber cuál es cuál:
 

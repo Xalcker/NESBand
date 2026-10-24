@@ -30,3 +30,19 @@ def test_parse_m3u():
 def test_to_nes_text():
     assert to_nes_text("Canción ñandú: ¡Área 1!") == "CANCION NANDU: AREA 1!"
     assert to_nes_text("Mission 1 [Billy & Jimmy]") == "MISSION 1 BILLY JIMMY"
+
+
+EXT_SAMPLE = """#EXTM3U
+#EXTINF:-1,Mega Man (NES) - Track 03 - Cut Man Stage
+mega-man-nes-[NSF-ID1961].nsf::3
+#EXTINF:-1,Mega Man (NES) - Track 11 - Dr. Wily's Castle Stage 1 & 2
+mega-man-nes-[NSF-ID1961].nsf::11
+"""
+
+
+def test_parse_extm3u_without_durations():
+    playlist = parse_m3u(EXT_SAMPLE)
+    assert playlist.game == "Mega Man (NES)"
+    assert playlist.tracks[3].title == "Cut Man Stage"
+    assert playlist.tracks[3].seconds is None
+    assert playlist.tracks[11].title == "Dr. Wily's Castle Stage 1 & 2"

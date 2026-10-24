@@ -384,7 +384,10 @@ def write_song_list() -> list[str]:
     if not names:
         sys.exit("No hay canciones en src/songs/")
     if len(names) > MAX_SONGS:
-        sys.exit(f"Hay {len(names)} canciones y el cartucho tiene {MAX_SONGS} slots (ver nes.cfg)")
+        # No es un error: puedes tener más canciones que slots y compilar un subconjunto (build.ps1 -Solo)
+        print(f"AVISO: hay {len(names)} canciones y el cartucho tiene {MAX_SONGS} slots (ver nes.cfg): "
+              "compila un subconjunto con `build.ps1 -Solo <patrón>` (o SOLO=<patrón> ./build.sh)")
+        return names
     includes = "\n".join(
         f'SONG_SLOT_NUMBER .set {slot}\n.include "songs/{n}/song.s"\n' for slot, n in enumerate(names)
     )

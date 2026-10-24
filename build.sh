@@ -3,6 +3,7 @@
 # Requiere cc65 en el PATH (macOS: brew install cc65)
 #
 #   ./build.sh                      compilación normal (todas las canciones de src/songs)
+#   SOLO="mm1_*" ./build.sh         solo las canciones que coincidan (build/nesband-solo.nes): hay 31 slots
 #   ./build.sh --release [versión]  ROM para publicar: solo con las canciones que están en git, en
 #                                   build/release/nesband-v<versión>.nes con su .sha256 y la licencia.
 #                                   La versión sale del archivo VERSION si no se indica.
@@ -19,7 +20,7 @@ fi
 BIN=tools/cc65/bin
 if [ -x "$BIN/ca65" ]; then CA65="$BIN/ca65"; LD65="$BIN/ld65"; else CA65=ca65; LD65=ld65; fi
 
-if [ "$RELEASE" -eq 1 ]; then OUT=build/release; BASE="nesband-v$VERSION"; else OUT=build; BASE=nesband; fi
+if [ "$RELEASE" -eq 1 ]; then OUT=build/release; BASE="nesband-v$VERSION"; elif [ -n "$SOLO" ]; then OUT=build; BASE=nesband-solo; else OUT=build; BASE=nesband; fi
 mkdir -p "$OUT"
 
 # Lista de canciones (src/songs/list.s): todas las carpetas de src/songs con un song.s, en orden
@@ -49,6 +50,11 @@ if [ "$RELEASE" -eq 1 ]; then
     names=$(for n in $todas; do printf '%s\n' "$versionadas" | grep -qx "$n" && echo "$n"; done || true)
 else
     names="$todas"
+fi
+# SOLO="mm1_* otra": solo las canciones que coincidan con algún patrón (para tener más canciones locales que slots)
+if [ -n "$SOLO" ]; then
+    names=$(for n in $names; do for p in $SOLO; do case "$n" in $p) echo "$n"; break ;; esac; done; done)
+    [ -n "$names" ] || { echo "Ninguna canción coincide con SOLO=$SOLO"; exit 1; }
 fi
 escribir_lista "$names"
 

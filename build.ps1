@@ -4,7 +4,7 @@
 # -Release arma la ROM para publicar: solo con las canciones que están en git (las importadas de
 # juegos comerciales no se distribuyen) y la deja en build\release\nesband-v<versión>.nes con su
 # suma de verificación (.sha256) y la licencia. La versión sale del archivo VERSION si no se indica.
-param([switch]$Release, [string]$Version = '', [switch]$LucesBateria, [switch]$MedidorTransparente)
+param([switch]$Release, [string]$Version = '', [switch]$LucesBateria, [switch]$MedidorTransparente, [string[]]$Solo = @())
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 if ($Release -and -not $Version) { $Version = (Get-Content (Join-Path $root 'VERSION') -TotalCount 1).Trim() }
@@ -23,7 +23,7 @@ New-Item -ItemType Directory -Force $out | Out-Null
 $songsDir = Join-Path $root 'src\songs'
 function Escribir-Lista($names) {
     if ($names.Count -eq 0) { Write-Host 'No hay canciones en src/songs' -ForegroundColor Red; exit 1 }
-    if ($names.Count -gt 31) { Write-Host "Hay $($names.Count) canciones y el cartucho tiene 31 slots" -ForegroundColor Red; exit 1 }
+    if ($names.Count -gt 31) { Write-Host "Hay $($names.Count) canciones y el cartucho tiene 31 slots: compila un subconjunto con -Solo <patron>[,<patron>] (ej. -Solo mm1_*)" -ForegroundColor Red; exit 1 }
     $list = "; Generado al compilar - lista de canciones de la ROM, en orden alfabetico`n"
     $list += "; Cada cancion va en su slot de 16 KB (ver nes.cfg)`nNUM_SONGS = $($names.Count)`n`n"
     for ($i = 0; $i -lt $names.Count; $i++) {
@@ -43,6 +43,11 @@ if ($Release) {
 } else {
     $names = $todas
 }
+# -Solo: solo las canciones que coincidan con algún patrón (ej. -Solo mm1_*), para tener más canciones locales que slots
+if ($Solo.Count -gt 0) {
+    $names = @($names | Where-Object { $n = $_; @($Solo | Where-Object { $n -like $_ }).Count -gt 0 })
+    if ($names.Count -eq 0) { Write-Host "Ninguna cancion coincide con -Solo $($Solo -join ', ')" -ForegroundColor Red; exit 1 }
+}
 Escribir-Lista $names
 
 # Opciones de compilación (apagadas por defecto; ver src/main.s): -LucesBateria, -MedidorTransparente
@@ -52,7 +57,7 @@ if ($MedidorTransparente) { $opciones += '-D', 'METER_FLICKER=1' }
 & $ca65 (Join-Path $root 'src\main.s') @opciones -g -I (Join-Path $root 'src') --bin-include-dir (Join-Path $root 'src') --bin-include-dir (Join-Path $root 'src\famistudio') -o "$out\main.o"
 if ($LASTEXITCODE -ne 0) { Write-Host 'Error al ensamblar' -ForegroundColor Red; exit 1 }
 
-$base = if ($Release) { "nesband-v$Version" } else { 'nesband' }
+$base = if ($Release) { "nesband-v$Version" } elseif ($Solo.Count -gt 0) { 'nesband-solo' } else { 'nesband' }   # (con -Solo: build\nesband-solo.nes, para no pisar la ROM completa)
 & $ld65 -C (Join-Path $root 'nes.cfg') "$out\main.o" -o "$out\$base.nes" --dbgfile "$out\$base.dbg" -m "$out\$base.map"
 if ($LASTEXITCODE -ne 0) { Write-Host 'Error al enlazar' -ForegroundColor Red; exit 1 }
 
@@ -65,5 +70,5 @@ if ($Release) {
     Write-Host "ROM de release ($($names.Count) canciones): $out\$base.nes" -ForegroundColor Green
     Write-Host "SHA-256: $hash"
 } else {
-    Write-Host "Listo: $out\nesband.nes" -ForegroundColor Green
+    Write-Host "Listo: $out\$base.nes" -ForegroundColor Green
 }

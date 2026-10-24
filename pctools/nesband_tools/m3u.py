@@ -41,9 +41,43 @@ def parse_duration(text: str) -> int | None:
     return math.ceil(seconds) if seconds > 0 else None
 
 
+_EXT_TITLE = re.compile(r"^#EXTINF:[-\d]+,\s*(.*?)\s*$")
+_EXT_ENTRY = re.compile(r"::(\d+)\s*$")
+_EXT_TRACK = re.compile(r"^(.*?)\s+-\s+Track\s+\d+\s+-\s+(.*)$")
+
+
+def parse_extm3u(text: str) -> Playlist:
+    """El otro formato de .m3u que traen algunos NSF (sin duraciones):
+
+        #EXTINF:-1,Mega Man (NES) - Track 03 - Cut Man Stage
+        mega-man-nes.nsf::3
+    """
+    game = None
+    tracks: dict[int, Track] = {}
+    title = None
+    for line in text.splitlines():
+        line = line.strip()
+        match = _EXT_TITLE.match(line)
+        if match:
+            title = match.group(1)
+            continue
+        entry = _EXT_ENTRY.search(line)
+        if entry and title is not None and not line.startswith("#"):
+            number = int(entry.group(1))
+            named = _EXT_TRACK.match(title)
+            if named:
+                game = game or named.group(1)
+                title = named.group(2)
+            tracks[number] = Track(number, title, None)
+            title = None
+    return Playlist(game, tracks)
+
+
 def parse_m3u(text: str) -> Playlist:
     game = None
     tracks: dict[int, Track] = {}
+    if "#EXTINF" in text and "::NSF," not in text:
+        return parse_extm3u(text)
     for line in text.splitlines():
         line = line.strip()
         if line.startswith("#"):
