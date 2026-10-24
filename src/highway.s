@@ -480,9 +480,15 @@ set_layout:
     sta player_base
     lda layout_p2-1,x
     sta player_base+1
+    lda drum_look           ; batería (un jugador): 4 carriles de 16 px en vez de 5, así que la autopista
+    beq @done               ; se corre 8 px a la derecha para quedar centrada en la pantalla
+    lda #DRUM_BASE
+    sta player_base
+@done:
     rts
 
 ;               1 jugador  2 jugadores
+DRUM_BASE = 12                      ; batería con 4 carriles: columnas 12-20 (centrada; el centro de la pantalla es la 16)
 layout_p1: .byte 10,        2       ; columnas 10-20 (centro) / 2-12 (izquierda)
 layout_p2: .byte 0,         20      ; -               / 20-30 (derecha)
 
