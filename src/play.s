@@ -15,7 +15,24 @@ enter_play:
     jsr ppu_off
     lda #STATE_PLAY
     sta game_state
+
+    ; Un solo jugador tocando la batería: la autopista se ve como batería (drum_look): columnas en el orden de
+    ; Rock Band, barra del bombo y paletas propias. Con dos jugadores no: los dos comparten las paletas.
+    lda #0
+    sta drum_look
+    lda num_players
+    cmp #1
+    bne @palettes
+    lda player_save + (cur_instrument - pstate)     ; instrumento del jugador 1
+    cmp #INSTR_DRUMS
+    bne @palettes
+    inc drum_look
+@palettes:
     ldx #PALETTES_PLAY
+    lda drum_look
+    beq @load_palettes
+    ldx #PALETTES_DRUMS
+@load_palettes:
     jsr load_palettes
 
     ; --- Datos de la canción (de su ficha, ver SONG_... en main.s) ---

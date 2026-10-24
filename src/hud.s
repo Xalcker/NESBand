@@ -168,6 +168,10 @@ queue_rings:
     ldx #0
 @lane:
     lda lane_ring_tile,x    ; aro vacío, mitad izquierda
+    ldy drum_look
+    beq @ring_tile
+    lda drum_ring_tile,x    ; batería: el aro del bombo es naranja
+@ring_tile:
     sta tmp+1
     lda rings_shown
     and lane_bit,x
@@ -177,7 +181,11 @@ queue_rings:
     adc #4
     sta tmp+1
 @empty:
-    txa                     ; posición: carril * 2
+    txa                     ; posición: carril * 2 (en la batería, su columna: drum_slot)
+    ldy drum_look
+    beq @position
+    lda drum_slot,x
+@position:
     asl a
     tay
     lda tmp+1

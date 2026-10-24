@@ -320,6 +320,8 @@ practice_start: .res 2   ; cuadro pedido para empezar la práctica (practice_see
 skip_frame:     .res 2   ; los charts empiezan en la primera nota de este cuadro en adelante (0 = desde el principio)
 chart_bit:      .res NUM_LANES ; bit del chart que toca cada carril (con ESPEJO, al revés)
 mirror_on:      .res 1   ; ESPEJO de verdad en esta partida: opt_mirror, salvo que alguien toque la batería (ver enter_play)
+drum_look:      .res 1   ; 1 = la autopista se ve como batería: columnas rojo-amarillo-azul-verde, barra del bombo y
+                         ;     paletas propias (solo con 1 jugador tocando la batería; ver enter_play y highway.s)
 
 ; -----------------------------------------------------------------------------
 ; Encabezado iNES: le dice al emulador qué tipo de cartucho es
@@ -746,6 +748,10 @@ nmi:
     lda #$0E
     sta PPUADDR
     lda scene_color
+    ldy drum_look           ; batería: el color 2 de la paleta 3 es el verde del tom 3 (ver palettes), fijo:
+    beq @light              ; sin luces que cambien de color (si no, las gemas verdes cambiarían con ellas)
+    lda #$2A
+@light:
     sta PPUDATA
 @no_scene:
     ; 5) Scroll, en todos los cuadros (la IRQ del cuadro anterior lo cambió).
@@ -842,6 +848,7 @@ irq:
 ; ver scene.s) y blanco; también la usan la barra de poder estelar y el puntaje.
 PALETTES_PLAY = 0
 PALETTES_MENU = 32
+PALETTES_DRUMS = 64
 palettes:
     .byte $0F, $10, $2A, $27   ; fondo 0: verde + naranja
     .byte $0F, $10, $16, $28   ; fondo 1: rojo + amarillo
@@ -860,6 +867,17 @@ palettes:
     .byte $0F, $27, $30, $16   ; sprites 1: cursor del jugador 2 (naranja)
     .byte $0F, $30, $27, $16
     .byte $0F, $30, $27, $16
+; Batería (drum_look): como en Rock Band, un pad por paleta y en todas el mismo naranja en el color 3, para
+; que la barra del bombo (que cruza las 4 paletas) sea naranja en cada carril. La paleta 3 es la del
+; escenario: en este modo el escenario se ve verde y naranja (las luces quedan fijas: ver la NMI)
+    .byte $0F, $10, $16, $27   ; fondo 0: rojo (tarola) + naranja
+    .byte $0F, $10, $28, $27   ; fondo 1: amarillo (tom 1 / hi-hat) + naranja
+    .byte $0F, $10, $12, $27   ; fondo 2: azul (tom 2 / ride) + naranja
+    .byte $0F, $10, $2A, $27   ; fondo 3: verde (tom 3 / crash) + naranja; también el escenario
+    .byte $0F, $30, $28, $27   ; sprites: los mismos que PALETTES_PLAY
+    .byte $0F, $30, $2C, $21
+    .byte $0F, $30, $16, $30
+    .byte $0F, $30, $2A, $30
 
 ; Las canciones (las genera `uv run nesband import-song`)
 .include "songs/list.s"

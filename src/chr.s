@@ -80,6 +80,7 @@ TILE_BAR        = $90   ; barra de poder estelar: + 0..8 píxeles llenos (blanco
 TILE_BAR_ON     = $A0   ; lo mismo con el poder activo (azul)
 TILE_BOLT       = $A9   ; rayo de las frases estelares: dos dibujos, $A9 y $AA
 TILE_METER      = $B0   ; medidor de vida: + 0..8 filas llenas
+TILE_KICK       = $23   ; tramo de la barra del bombo (batería), con el borde del carril; la derecha es $22
 TILE_TAIL_A     = $19  ; cola de nota sostenida (color 2): mitad izquierda; la derecha es $18 (el tile anterior)
 TILE_TAIL_B     = $1B   ; (color 3); la derecha es $1A. Con la línea del beat: +4 (ver TAIL_BEAT)
 TAIL_BEAT       = 4
@@ -159,6 +160,12 @@ TILE_AT ' '
 TILE "........", "........", "........", "........", "........", "........", "........", "........"
 ; !
 TILE "..11....", "..11....", "..11....", "..11....", "..11....", "........", "..11....", "........"
+; Barra del bombo (batería): un tramo de barra naranja (color 3) de 6 px de alto que cruza el carril.
+; Los números $22 y $23 no son letras de la fuente. Como las colas, [izquierda][derecha] se escribe con
+; el número de la derecha un tile antes: $22 derecha, $23 izquierda (con el borde del carril)
+TILE_AT $22
+TILE "........", "33333333", "33333333", "33333333", "33333333", "33333333", "33333333", "........"
+TILE "1.......", "13333333", "13333333", "13333333", "13333333", "13333333", "13333333", "1......."
 TILE_AT '%'
 TILE "11....1.", "11...11.", "....11..", "...11...", "..11....", ".11..11.", "11...11.", "........"
 TILE_AT $27   ; apóstrofo

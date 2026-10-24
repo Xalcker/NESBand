@@ -362,6 +362,8 @@ draw_player_lanes:
     lda inner_tile
     sta row_buf+1,x
     ldy lane
+    lda drum_look
+    bne @drum_lane          ; batería: pads, y la barra del bombo (más abajo)
     lda row_mask
     and lane_bit,y
     bne @gem
@@ -393,11 +395,50 @@ draw_player_lanes:
     clc
     adc #1                  ; la mitad derecha es el tile siguiente
     sta row_buf+1,x
+    jmp @next_lane
+
+    ; --- Batería --------------------------------------------------------------------------------
+    ; Los 4 pads (rojo, amarillo, azul, verde) son gemas como las de siempre, todas del color 2 de su
+    ; paleta. El bombo (carril 4) no es una gema sino una barra naranja que cruza la autopista entera:
+    ; en la fila de un bombo, cada carril que no tenga la gema de un pad lleva un tramo de barra
+    ; (TILE_KICK, color 3 de cada paleta = el mismo naranja en todas: ver palettes). Si el bombo
+    ; cae junto con un pad (un acorde), la gema del pad queda encima de la barra.
+@drum_lane:
+    cpy #4
+    beq @kick_lane          ; el carril del bombo: solo tiene la barra
+    lda row_mask
+    and lane_bit,y
+    bne @drum_gem           ; un pad con nota: su gema
+    lda row_mask            ; sin gema: ¿hay bombo en esta fila?
+    and #%10000
+    beq @next_lane
+    bne @bar                ; (siempre)
+@kick_lane:
+    lda row_mask
+    and #%10000
+    beq @next_lane
+@bar:
+    lda #TILE_KICK          ; mitad izquierda (con el borde del carril)
+    sta row_buf,x
+    lda #TILE_KICK - 1      ; y la derecha es el tile anterior (como en las colas)
+    sta row_buf+1,x
+    jmp @next_lane
+@drum_gem:
+    lda row_star
+    and lane_bit,y
+    bne @drum_star
+    lda #TILE_GEM_A
+    jmp @gem_tiles
+@drum_star:
+    lda #TILE_STAR_A
+    jmp @gem_tiles
 @next_lane:
     inc lane
     lda lane
     cmp #NUM_LANES
-    bne @lane
+    beq @lanes_done
+    jmp @lane               ; (el bloque de la batería alargó el lazo: ya no alcanza un salto corto)
+@lanes_done:
 
     ldx player              ; borde derecho del último carril
     lda player_base,x
@@ -411,8 +452,14 @@ draw_player_lanes:
 ; lane_column: A = columna donde empieza el carril `lane` del jugador actual
 ;              = player_base + lane * 2
 lane_column:
+    ldy lane
+    lda drum_look
+    beq @plain
+    lda drum_slot,y         ; batería: la columna de cada carril, en el orden de Rock Band
+    tay
+@plain:
     ldx player
-    lda lane
+    tya
     asl a
     clc
     adc player_base,x
@@ -498,7 +545,13 @@ write_attributes:
     lsr a
     tax
     ldy lane
+    lda drum_look
+    beq @plain_palette
+    lda drum_palette,y      ; batería: una paleta para cada pad (ver palettes en main.s)
+    jmp @palette_set
+@plain_palette:
     lda lane_palette,y
+@palette_set:
     sta attr_cols,x
     inc lane
     lda lane
@@ -590,3 +643,11 @@ lane_gem:       .byte    TILE_GEM_A, TILE_GEM_A, TILE_GEM_B, TILE_GEM_A, TILE_GE
 lane_star:      .byte    TILE_STAR_A, TILE_STAR_A, TILE_STAR_B, TILE_STAR_A, TILE_STAR_B
 lane_tail:      .byte   TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_B, TILE_TAIL_A, TILE_TAIL_B
 lane_palette:   .byte    0,      1,      1,      2,      0
+
+; La batería (drum_look) usa los mismos botones y carriles, pero el orden de las columnas es el de Rock Band:
+; rojo (tarola), amarillo (tom 1 / hi-hat), azul (tom 2 / ride), verde (tom 3 / crash) y, al final, el naranja
+; del bombo. Cada pad tiene su propia paleta de fondo (con el naranja de la barra en el color 3).
+;                verde  rojo  amarillo azul  naranja (bombo)
+drum_slot:      .byte 3,     0,     1,      2,     4      ; columna (0-4) de cada carril
+drum_palette:   .byte 3,     0,     1,      2,     0      ; paleta de fondo de cada carril
+drum_ring_tile: .byte TILE_RING_A, TILE_RING_A, TILE_RING_A, TILE_RING_A, TILE_RING_B   ; (el aro del bombo es naranja: color 3)

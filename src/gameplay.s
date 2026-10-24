@@ -736,7 +736,9 @@ score_add_hold:
 erase_gem:
     ldy erase_count
     cpy #MAX_ERASE
-    bcs @done
+    bcc @room               ; (rts aquí: @done quedó lejos con el bloque de la batería)
+    rts
+@room:
 
     ; La nota está a pocas filas de cur_row: d = su fila - cur_row cabe en un
     ; byte con signo, y su fila de nametable es cur_vrow - d (mod 30).
@@ -780,6 +782,13 @@ erase_gem:
 @have_vrow:
     jsr vrow_to_addr
 
+    lda drum_look
+    beq @one_gem
+    lda lane
+    cmp #4
+    beq @erase_bar          ; batería: el bombo es una barra de lado a lado, no una gema
+
+@one_gem:
     jsr lane_column         ; la gema ocupa las 2 columnas del carril
     clc
     adc addr
@@ -798,10 +807,79 @@ erase_gem:
     beq @tile
     lda lane_tail,x
 @tile:
+    ldy drum_look
+    beq @store_tile
+    ; Batería: si el bombo de este mismo acorde aún no se toca, la barra sigue pasando por este carril:
+    ; en vez del borde vacío queda su tramo de barra (lo borrará el bombo al tocarse)
+    pha
+    ldy #1
+    lda (ptr),y
+    and #%10000
+    beq @no_bar_here
+    lda lane_ptr_lo+4
+    cmp ptr
+    bne @no_bar_here
+    lda lane_ptr_hi+4
+    cmp ptr+1
+    bne @no_bar_here
+    pla
+    lda #TILE_KICK
+    jmp @store_tile
+@no_bar_here:
+    pla
+@store_tile:
     ldy erase_count
     sta erase_tile,y
     inc erase_count
 @done:
+    rts
+
+    ; Batería: se acertó un bombo. Se borra su barra en todos los carriles de la fila, menos donde esté la
+    ; gema de un pad del mismo acorde que aún no se toca (esa se borra cuando se toque). `lane` se usa
+    ; de contador porque lane_column lo lee: se restaura al final.
+@erase_bar:
+    ldy #1
+    lda (ptr),y
+    and #%00001111          ; los pads (carriles 0-3) que tiene esta entrada
+    sta tmp
+    lda lane
+    pha
+    lda #0
+    sta lane
+@bar_lane:
+    ldx lane
+    cpx #4
+    beq @bar_erase          ; el carril del bombo: siempre
+    lda lane_bit,x
+    and tmp
+    beq @bar_erase          ; este pad no está en la entrada: ahí solo había barra
+    lda lane_ptr_lo,x       ; está, pero ¿ya se tocó? (su carril ya pasó a otra nota)
+    cmp ptr
+    bne @bar_erase
+    lda lane_ptr_hi,x
+    cmp ptr+1
+    beq @bar_next           ; sigue pendiente: se queda su gema
+@bar_erase:
+    ldy erase_count
+    cpy #MAX_ERASE
+    bcs @bar_next
+    jsr lane_column
+    clc
+    adc addr
+    ldy erase_count
+    sta erase_lo,y
+    lda addr+1
+    sta erase_hi,y
+    lda #TILE_EDGE
+    sta erase_tile,y
+    inc erase_count
+@bar_next:
+    inc lane
+    lda lane
+    cmp #NUM_LANES
+    bne @bar_lane
+    pla
+    sta lane
     rts
 
 ; -----------------------------------------------------------------------------
