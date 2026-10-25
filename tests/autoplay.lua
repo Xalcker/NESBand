@@ -115,7 +115,8 @@ local A_SCENE_BANK, A_SCENE_COLOR = label("scene_bank"), label("scene_color")   
 local A_SCENE_PHASE, A_SCENE_ON = label("scene_phase"), label("scene_on")
 local A_BEAT_FRAMES, A_SONG_PTR = label("beat_frames"), label("song_ptr")
 local SONG_BEAT_FRAMES, SONG_FIRST_BEAT = 4, 5                                 -- campos de la ficha de la canción
-local prev_nmi, lag_frames = nil, {}
+local lag_frames, lag_count, split_nmi0, split_seen = {}, 0, nil, false   -- (atrasos: ver el final de play)
+local LAG_TOLERANCE = 2   -- misma tolerancia que el scroll parejo
 local A_COUNTER = label("famistudio_chn_note_counter")
 local A_SFX_PTR_HI = label("famistudio_sfx_base_addr") + 2   -- no 0 mientras suena un efecto
 
@@ -271,6 +272,9 @@ end
 
 local frame = 0
 local pause_frame, resume_frame = nil, nil
+-- Start del bot: se mantiene presionado hasta que `paused` llega al valor esperado (si el juego se atrasó, ese
+-- cuadro no leyó el control) y se suelta después; pause_ok_frame es el cuadro en que se vio la pausa puesta
+local start_expect, pause_ok_frame = nil, nil
 local rec_mode = os.getenv("AUTOPLAY_RECORD") or "0"   -- ver "Pruebas de récords" más abajo
 local rec_before = nil                                   -- (modo 2) el récord que ya había al encender
 local eval_ok, eval_lines, eval_frame = nil, nil, nil    -- resultado de las comprobaciones, y cuándo se hicieron
@@ -363,16 +367,26 @@ local function bot_input(p)
   elseif p == 1 and eval_frame then       -- flujo del récord, tras los resultados
     local key = (rec_mode == "1" and RECORD_STEPS or RECORD_STEPS_2)[frame - eval_frame]
     if key then input[key] = true end
+  elseif p == 1 and start_expect ~= nil then
+    -- Start sostenido hasta ver el cambio; al verlo se suelta (el juego detecta "recién presionado")
+    if read8(A_PAUSED) == start_expect then
+      if start_expect == 1 then pause_ok_frame = frame end
+      start_expect = nil
+    else
+      input.start = true
+    end
   elseif p == 1 and modes[1] == "perfect" and playing and not pause_frame
-         and read16(A_SONG_FRAME) == pause_at then
-    input.start = true                    -- pausar
+         and read16(A_SONG_FRAME) >= pause_at then
+    input.start = true                    -- pausar (>= porque a 125% song_frame salta valores)
+    start_expect = 1
     pause_frame = frame
     pause_song_frame = read16(A_SONG_FRAME)
-  elseif p == 1 and opt_mark > 0 and pause_frame and frame == pause_frame + 10 then
+  elseif p == 1 and opt_mark > 0 and pause_ok_frame and not mark_pressed_frame and frame >= pause_ok_frame + 10 then
     input[opt_mark == 1 and "a" or "b"] = true     -- en lugar de continuar: marcar el inicio o el final del bucle
     mark_pressed_frame = frame
-  elseif p == 1 and opt_mark == 0 and pause_frame and frame == pause_frame + PAUSE_FRAMES then
-    input.start = true                    -- continuar
+  elseif p == 1 and opt_mark == 0 and pause_ok_frame and not resume_frame and frame >= pause_ok_frame + PAUSE_FRAMES then
+    input.start = true                    -- continuar (se mantiene hasta que paused vuelva a 0)
+    start_expect = 0
     resume_frame = frame
   elseif p <= num_players and modes[p] == "smash" and playing and frame % 2 == 0 then
     for _, key in ipairs(LANE_KEYS) do input[key] = true end
@@ -581,6 +595,23 @@ local function find_record(key)
 end
 local record_key = instruments[1] * 4 + difficulty
 
+-- Ciclos por cuadro (#23, #25): desde el inicio del vblank (fin del cuadro de pantalla) hasta que main_loop deja
+-- nmi_ready = 1, que es lo que gastó la lógica del juego ese cuadro (un cuadro NTSC son 29780). Solo mientras se juega.
+-- (el valor escrito no llega al callback: A se lee del estado de la CPU)
+local cpu_n, cpu_sum, cpu_max, cpu_start = 0, 0, 0, nil
+do
+  local A_READY = label("nmi_ready")
+  local function cycles() return emu.getState()["cpu.cycleCount"] end
+  emu.addEventCallback(function() cpu_start = cycles() end, emu.eventType.endFrame)
+  emu.addMemoryCallback(function()
+    if not cpu_start or emu.getState()["cpu.a"] ~= 1 then return end
+    if read8(A_STATE) ~= STATE_PLAY or read8(label("split_on")) ~= 1 then return end
+    local busy = cycles() - cpu_start
+    cpu_n, cpu_sum = cpu_n + 1, cpu_sum + busy
+    if busy > cpu_max then cpu_max = busy end
+  end, emu.callbackType.write, A_READY, A_READY)
+end
+
 local function evaluate()
   local all_ok, lines = true, {}
   local sound_ok = title_notes > 0 and sfx_menu and sfx_play
@@ -664,6 +695,11 @@ local function evaluate()
     all_ok = all_ok and winner == vs_expect
     lines[#lines + 1] = string.format("VS ganador=%d (esperado %d)", winner, vs_expect)
   end
+  -- Cuadros atrasados (#25): la NMI no avanzó exactamente 1 por cuadro de pantalla mientras se jugaba
+  local lag_ok = lag_count <= LAG_TOLERANCE
+  all_ok = all_ok and lag_ok
+  lines[#lines + 1] = string.format("atrasos=%d cpu=%d/%d", lag_count,
+                                    cpu_n > 0 and math.floor(cpu_sum / cpu_n) or 0, cpu_max)
   return all_ok, lines
 end
 
@@ -838,8 +874,23 @@ emu.addEventCallback(function()
     end
     -- Diagnóstico: cuadros en que el juego se atrasó (la NMI avanzó dos veces en un cuadro de pantalla)
     local nmi = read8(A_NMI_COUNT)
-    if prev_nmi and (nmi - prev_nmi) % 256 ~= 1 and #lag_frames < 40 then lag_frames[#lag_frames + 1] = song_frame end
-    prev_nmi = nmi
+    -- Un cuadro atrasado es el vblank que llega con nmi_ready = 0: main_loop no terminó a tiempo, la NMI no copia nada
+    -- y el juego se salta un cuadro (frame_counter lo incrementa la NMI en cada vblank, así que no sirve para verlo).
+    -- Solo cuenta jugando de verdad: split_on = 1 y tras el primer avance de frame_counter (en el cuadro en que se
+    -- prende la pantalla la NMI aún no corrió y nmi_ready vale 0)
+    if state == STATE_PLAY and read8(label("split_on")) == 1 then
+      if split_nmi0 == nil then
+        split_nmi0 = nmi
+      elseif nmi ~= split_nmi0 then
+        split_seen = true
+      end
+      if split_seen and read8(label("nmi_ready")) == 0 then
+        lag_count = lag_count + 1
+        if #lag_frames < 40 then lag_frames[#lag_frames + 1] = song_frame end
+      end
+    else
+      split_nmi0, split_seen = nil, false
+    end
     if num_players == 2 then
       local failed2 = read8(field(2, "failed"))
       if prev_failed2 == 1 and failed2 == 0 then revived = revived + 1 end

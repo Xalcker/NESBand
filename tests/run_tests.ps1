@@ -100,6 +100,9 @@ $kinds = @(
     @('1p-lenta75',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0100'),
     @('1p-lenta50',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0200'),
     @('1p-rapida125',  1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0300'),
+    # (#25) 2 jugadores a 125%: el juego debe seguir el ritmo (hoy se atrasa: ver #23); el VS no exige ganador
+    @('2p-coop-rapida125', 2, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 1, 0, 0, 0, 0, '0300'),
+    @('2p-vs-rapida125', 2, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0300'),
     @('1p-caida',      1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0010'),
     @('1p-practica',   1, 'fail',    0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0001'),
     # (#16) el quinto dígito es el inicio de la práctica (0 = el principio, 1-3 = 1/4, 1/2, 3/4): hasta 3/4 desde 1/2,

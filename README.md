@@ -551,6 +551,11 @@ copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
     vuelve a empezar justo en el punto elegido. Con INICIO de la práctica, además: la canción arranca en
     la fila exacta del cuarto pedido (o del anterior al final, si no cabe) y desde ahí cada nota del chart
     suena en su cuadro (el motor de sonido se adelantó bien), con el escenario al compás.
+  - **2 jugadores a 125%** (Co-Op y VS): hoy fallan por cuadros atrasados (ver #23). En todos los casos se
+    cuentan los **cuadros atrasados** mientras se juega (el vblank llega sin que `main_loop` haya terminado:
+    la NMI no copia nada) y la prueba falla con más de 2; `resultado.txt` trae `atrasos=` y los ciclos de
+    lógica por cuadro (`cpu=promedio/máximo`, un cuadro NTSC son 29780). El Start del bot se mantiene
+    hasta que el juego pausa o continúa.
   - En todas, además: que suene la música del título y que suenen los efectos en el menú y al empezar,
     y el **escenario**: la fase de los tiempos debe cuadrar cuadro por cuadro con la canción, el público
     solo se anima (brazos arriba y saltos) cuando alguien lleva combo, las luces cambian con el poder
