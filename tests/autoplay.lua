@@ -53,8 +53,6 @@
 --   AUTOPLAY_MARK        0 = no (default); con práctica y un jugador perfecto, 1 o 2 = al pausar (a mitad de la
 --                        canción) presiona A (marca de inicio) o B (marca de final) en vez de continuar (#16):
 --                        la práctica debe reiniciar con esa marca y el bucle volver a empezar donde se marcó
---   AUTOPLAY_LAG_OK      0 = no (default); 1 = los atrasos se reportan (atrasos=N) pero no hacen fallar la prueba:
---                        límite conocido de VELOCIDAD 125% con 2 jugadores (#23), ver el README
 --   TEST_OUT            carpeta donde dejar resultado.txt y capturas .png
 --
 -- Requiere que Mesen tenga habilitado "AllowIoOsAccess" (escribir archivos) y
@@ -128,9 +126,6 @@ local A_BEAT_FRAMES, A_SONG_PTR = label("beat_frames"), label("song_ptr")
 local SONG_BEAT_FRAMES, SONG_FIRST_BEAT = 4, 5                                 -- campos de la ficha de la canción
 local lag_frames, lag_count, split_nmi0, split_seen = {}, 0, nil, false   -- (atrasos: ver el final de play)
 local LAG_TOLERANCE = 2   -- misma tolerancia que el scroll parejo
--- Límite conocido (#23): con 125% y 2 jugadores un cuadro de dos pasos con fila nueva puede pasarse del
--- cuadro. Esos casos (AUTOPLAY_LAG_OK=1) reportan atrasos=N sin fallar por ellos; no se sube la general.
-local lag_known = (os.getenv("AUTOPLAY_LAG_OK") or "") == "1"
 local A_COUNTER = label("famistudio_chn_note_counter")
 local A_SFX_PTR_HI = label("famistudio_sfx_base_addr") + 2   -- no 0 mientras suena un efecto
 
@@ -699,8 +694,7 @@ local function evaluate()
     if opt_speed > 0 and difficulty == 3 and opt_fall == 0 then
       -- (en experto la autopista baja 2.7 px por paso: a 50% son 1.3 px por cuadro y a 125% 3.3, nunca 0 ni más de 4;
       -- se perdonan un par de cuadros con atraso, en que la NMI avanza dos veces)
-      -- (con AUTOPLAY_LAG_OK las paradas son consecuencia de esos mismos atrasos, #23: se reportan sin fallar)
-      if not lag_known and (scroll_stalls > 0 or scroll_jumps > 2) then ok = false end
+      if scroll_stalls > 0 or scroll_jumps > 2 then ok = false end
       smooth = string.format(", scroll parejo: paradas=%d saltos=%d", scroll_stalls, scroll_jumps)
     end
     all_ok = all_ok and ok
@@ -712,10 +706,9 @@ local function evaluate()
     lines[#lines + 1] = string.format("VS ganador=%d (esperado %d)", winner, vs_expect)
   end
   -- Cuadros atrasados (#25): la NMI no avanzó exactamente 1 por cuadro de pantalla mientras se jugaba
-  local lag_ok = lag_known or lag_count <= LAG_TOLERANCE
+  local lag_ok = lag_count <= LAG_TOLERANCE
   all_ok = all_ok and lag_ok
-  lines[#lines + 1] = string.format("atrasos=%d%s cpu=%d/%d", lag_count,
-                                    (lag_known and lag_count > LAG_TOLERANCE) and " (tolerados: limite conocido, #23)" or "",
+  lines[#lines + 1] = string.format("atrasos=%d cpu=%d/%d", lag_count,
                                     cpu_n > 0 and math.floor(cpu_sum / cpu_n) or 0, cpu_max)
   return all_ok, lines
 end

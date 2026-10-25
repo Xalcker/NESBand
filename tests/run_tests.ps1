@@ -153,8 +153,6 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
                 AUTOPLAY_INSTRUMENT2 = "$inst2"; AUTOPLAY_DIFFICULTY2 = "$diff2"; AUTOPLAY_STAR = "$star"
                 AUTOPLAY_DRUMS = "$([int]$tieneBateria)"; AUTOPLAY_RECORD = "$record"; AUTOPLAY_COOP = "$coop"; AUTOPLAY_VS = "$vs"; AUTOPLAY_CUT = "$cut"
                 AUTOPLAY_DOWN = "$down"; AUTOPLAY_REVIVE = "$revive"
-                # Límite conocido (#23): a 125% con 2 jugadores el juego puede atrasarse algún cuadro; se reporta sin fallar
-                AUTOPLAY_LAG_OK = "$([int]($players -eq 2 -and $opts[1] -eq '3'))"
                 AUTOPLAY_MIRROR = "$($opts[0])"; AUTOPLAY_SPEED = "$($opts[1])"
                 AUTOPLAY_FALL = "$($opts[2])"; AUTOPLAY_PRACTICE = "$($opts[3])"; AUTOPLAY_START = "$($opts[4])"; AUTOPLAY_MARK = "$($opts[5])"
             }

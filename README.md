@@ -190,7 +190,7 @@ Valen para todos los jugadores y se quedan hasta que las cambies; Start juega y 
 | Opción | Qué hace |
 |---|---|
 | ESPEJO | Invierte los carriles: la nota verde sale en el carril naranja y al revés (y lo mismo con el rojo y el azul). El chart no cambia: se traduce al leerlo |
-| VELOCIDAD | 100%, 75%, 50% o 125%: la canción, las notas y el sonido avanzan más lento (el juego da 3 o 2 pasos cada 4 cuadros; el sonido se detiene en los cuadros sin paso, así que se oye más lento con el mismo tono) o más rápido (de cada 4 cuadros, uno da dos pasos). El scroll de la autopista avanza fracciones de paso en todos los cuadros, así que se ve parejo y no entrecortado; lo que va por pasos (el público, las llamaradas y los efectos de los instrumentos como el vibrato) sí se mueve a saltos. Con 2 jugadores a 125% el juego puede atrasarse algún cuadro en los pasajes densos (un cuadro de dos pasos con fila nueva) |
+| VELOCIDAD | 100%, 75%, 50% o 125%: la canción, las notas y el sonido avanzan más lento (el juego da 3 o 2 pasos cada 4 cuadros; el sonido se detiene en los cuadros sin paso, así que se oye más lento con el mismo tono) o más rápido (de cada 4 cuadros, uno da dos pasos). El scroll de la autopista avanza fracciones de paso en todos los cuadros, así que se ve parejo y no entrecortado; lo que va por pasos (el público, las llamaradas y los efectos de los instrumentos como el vibrato) sí se mueve a saltos. |
 | CAIDA DE NOTAS | Qué tan rápido bajan las notas, sin importar la dificultad (*hyperspeed*): AUTO usa la de la dificultad, o la de fácil, medio, difícil o experto |
 | PRACTICA | La canción se repite hasta 1/4, 1/2, 3/4 o el final: sin fallo y sin resultados. Select en la pausa regresa al menú. **Marcas:** en la pausa de una práctica, **A** hace que el bucle empiece 2 segundos antes de donde pausaste y **B** que termine donde pausaste (sin tocar el otro extremo); el bucle debe durar al menos 4 segundos, y si no, la marca se ignora. Las marcas reinician la práctica y valen hasta volver al menú |
 | INICIO DE LA PRACTICA | Dónde empieza la práctica: el principio, 1/4, 1/2 o 3/4 de la canción (nunca en o después de donde termina: empieza en el cuarto anterior). Para llegar ahí el juego adelanta el motor de sonido con la pantalla apagada, así que tarda unos segundos (más cuanto más adelante); las notas de los primeros segundos se omiten para dar tiempo de reaccionar |
@@ -551,8 +551,7 @@ copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
     vuelve a empezar justo en el punto elegido. Con INICIO de la práctica, además: la canción arranca en
     la fila exacta del cuarto pedido (o del anterior al final, si no cabe) y desde ahí cada nota del chart
     suena en su cuadro (el motor de sonido se adelantó bien), con el escenario al compás.
-  - **2 jugadores a 125%** (Co-Op y VS): hoy fallan por cuadros atrasados (ver #23). En todos los casos se
-    cuentan los **cuadros atrasados** mientras se juega (el vblank llega sin que `main_loop` haya terminado:
+  - En todos los casos se cuentan los **cuadros atrasados** mientras se juega (el vblank llega sin que `main_loop` haya terminado:
     la NMI no copia nada) y la prueba falla con más de 2; `resultado.txt` trae `atrasos=` y los ciclos de
     lógica por cuadro (`cpu=promedio/máximo`, un cuadro NTSC son 29780). El Start del bot se mantiene
     hasta que el juego pausa o continúa.
