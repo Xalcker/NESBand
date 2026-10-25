@@ -625,7 +625,7 @@ crea uno con esas opciones (Mesen completa lo demás con sus valores por defecto
    · ~~llamarada al acertar, notas sostenidas y poder estelar~~ ✅
 6. ~~Mapper con más espacio (MMC3) para muchas canciones~~ ✅ · pantalla de título ilustrada pendiente
    (ver [docs/ideas.md](docs/ideas.md))
-7. Editor visual de charts para retocar lo generado
+7. ~~Editor visual de charts para retocar lo generado~~ ✅ (`nesband edit-chart`, ver [Editor de charts](#editor-de-charts))
 8. ~~2 jugadores~~ ✅ · 4 jugadores con el Four Score (ver [docs/ideas.md](docs/ideas.md)); batería "pro"
    con la Power Pad; modo con rasgueo para un adaptador de guitarra
 
