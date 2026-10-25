@@ -282,6 +282,8 @@ hold_end_hi:    .res NUM_LANES
 lanes_seeking:  .res 1   ; carriles cuya búsqueda de la siguiente nota quedó a medias (un bit por carril; ver lane_seek)
 pstate_end:
 PSTATE_SIZE = pstate_end - pstate
+row_buf:        .res 32  ; una fila completa de la nametable (32 tiles); en zero page la copia de la NMI
+                         ; pesa 2 bytes y 3 ciclos por tile en vez de 3 y 4
 
 ; -----------------------------------------------------------------------------
 ; Resto de la RAM
@@ -297,7 +299,6 @@ attr_row:       .res 8   ; una fila de la tabla de atributos
 pad_buttons:    .res MAX_PLAYERS ; botones de cada control (control 1, control 2)
 pad_prev:       .res MAX_PLAYERS ; los del cuadro anterior
 pad_pressed:    .res MAX_PLAYERS ; los recién presionados
-row_buf:        .res 32  ; una fila completa de la nametable (32 tiles)
 fx_timer:       .res FX_SLOTS    ; llamaradas: cuadros que le quedan a cada una (0 = apagada)
 fx_x:           .res FX_SLOTS    ; y su posición X en pantalla
 bolt_timer:     .res MAX_PLAYERS ; rayo de cada jugador: cuadros que le quedan (0 = apagado)
