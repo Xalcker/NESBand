@@ -27,18 +27,19 @@
     sta ptr+1
 .endmacro
 
-; Escribe un texto fijo (render apagado)
+; Escribe un texto fijo (render apagado). Los parametros van en linea, justo
+; despues del jsr (ver print_at): 7 bytes por uso en vez de 19.
 .macro PRINT col, row, label
-    SET_ADDR col, row
-    SET_PTR label
-    jsr print_direct
+    jsr print_at
+    .byte col, row
+    .addr label
 .endmacro
 
-; Escribe un texto fijo centrado en la fila (render apagado)
+; Escribe un texto fijo centrado en la fila (render apagado): 6 bytes por uso
 .macro PRINT_CENTER row, label
-    SET_PTR label
-    lda #row
-    jsr print_centered
+    jsr print_center_at
+    .byte row
+    .addr label
 .endmacro
 
 ; -----------------------------------------------------------------------------
@@ -103,8 +104,65 @@ strlen:
     rts
 
 ; -----------------------------------------------------------------------------
-; print_centered: escribe el texto de ptr centrado en la fila A (render apagado)
+; print_at / print_center_at: lo que expanden PRINT y PRINT_CENTER. Los
+; parametros van como datos justo despues del jsr:
+;   jsr print_at         .byte col, row   .addr texto
+;   jsr print_center_at  .byte row        .addr texto
+; La direccion de retorno que dejo el jsr apunta a su ultimo byte, o sea que
+; los parametros empiezan en tmp + 1. Se arma addr y ptr, y se deja en la pila
+; como retorno la direccion del ultimo parametro: el rts de print_direct
+; sigue en la instruccion que viene despues de los datos.
+; Usa tmp; solo con el dibujo apagado.
 ; -----------------------------------------------------------------------------
+print_at:
+    pla
+    sta tmp
+    pla
+    sta tmp+1
+    ldy #4
+    lda (tmp),y             ; texto (alto)
+    sta ptr+1
+    dey
+    lda (tmp),y             ; texto (bajo)
+    sta ptr
+    dey
+    lda (tmp),y             ; fila
+    pha
+    dey
+    lda (tmp),y             ; columna
+    tax
+    pla
+    jsr text_addr
+    ldy #4                  ; largo de los parametros
+    bne print_ret           ; siempre
+print_center_at:
+    pla
+    sta tmp
+    pla
+    sta tmp+1
+    ldy #3
+    lda (tmp),y             ; texto (alto)
+    sta ptr+1
+    dey
+    lda (tmp),y             ; texto (bajo)
+    sta ptr
+    dey
+    lda (tmp),y             ; fila
+    jsr center_addr
+    ldy #3                  ; largo de los parametros
+print_ret:
+    tya                     ; retorno = tmp + largo (ultimo parametro)
+    clc
+    adc tmp
+    tax
+    lda tmp+1
+    adc #0
+    pha
+    txa
+    pha
+    jmp print_direct
+
+; print_centered: escribe el texto de ptr centrado en la fila A (render apagado)
 print_centered:
     jsr center_addr
     jmp print_direct
