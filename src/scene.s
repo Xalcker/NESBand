@@ -77,6 +77,11 @@ scene_update:
     sta scene_phase
     inc scene_beat          ; (sirve para cambiar de color con el poder estelar)
 @phase_ok:
+    lda step_count          ; el banco y el color se deciden una vez por cuadro: en un cuadro de
+    cmp #1                  ; dos pasos (VELOCIDAD 125%) el primero solo lleva el tiempo (#23)
+    beq @decide
+    rts
+@decide:
 
     ; 2) ¿Cómo va la banda? Quién sigue en pie, si alguien tiene combo y si hay poder estelar
     lda #0

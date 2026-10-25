@@ -653,7 +653,11 @@ play_update:
     jsr update_holds        ; puntos de las notas sostenidas
     jsr update_star         ; Select activa el poder estelar; la barra se vacía
 @no_judge:
+    lda step_count          ; el marcador solo se dibuja en el último paso del cuadro
+    cmp #1                  ; (hud_dirty y rings_shown acumulan, no se pierde nada)
+    bne @no_hud
     jsr update_hud          ; aros y marcador
+@no_hud:
     jsr store_player
     ldx player
     inx
@@ -678,12 +682,16 @@ play_update:
     beq @alive
     jmp enter_results
 @alive:
+    jsr scene_update        ; público y luces del escenario (lleva la fase del tiempo: cada paso)
+    jsr update_music        ; motor de sonido (y silenciar a quien haya fallado): cada paso
+    lda step_count          ; lo que solo prepara el dibujo va una vez por cuadro: en un cuadro
+    cmp #1                  ; de dos pasos el primero hace solo la lógica (VELOCIDAD 125%, #23)
+    bne @no_draw
     jsr update_meters       ; medidores de vida
     jsr update_fx           ; llamaradas de los aciertos
     jsr update_bolts        ; y los rayos de las notas estelares
-    jsr scene_update        ; público y luces del escenario
-    jsr update_music        ; motor de sonido (y silenciar a quien haya fallado)
     jsr update_rowpix_scroll
+@no_draw:
 
     ; PRACTICA: al llegar a practice_end la canción vuelve a empezar (sin resultados)
     lda opt_practice

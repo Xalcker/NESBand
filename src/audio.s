@@ -85,7 +85,10 @@ update_music:
     jsr famistudio_music_stop
 @not_end:
     jsr famistudio_update
-    ; continúa en apply_mute
+    lda step_count              ; en un cuadro de dos pasos (VELOCIDAD 125%) el primero no silencia:
+    cmp #1                      ; el motor reescribe los volúmenes en el siguiente update, así que
+    beq apply_mute              ; solo cuenta lo que quede escrito después del último (#23)
+    rts
 
 ; -----------------------------------------------------------------------------
 ; apply_mute: silencia el instrumento de cada jugador que haya fallado (como
