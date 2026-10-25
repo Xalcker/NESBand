@@ -215,10 +215,10 @@ build_row:
     ; 3) La autopista de cada jugador
     ldx #0
 @player:
-    jsr load_player
+    jsr load_render
     jsr player_row_mask
     jsr draw_player_lanes
-    jsr store_player
+    jsr store_render
     ldx player
     inx
     cpx num_players
@@ -231,6 +231,53 @@ build_row:
     sta row_addr
     lda addr+1
     sta row_addr+1
+    rts
+
+; -----------------------------------------------------------------------------
+; load_render / store_render: X = jugador. Versión mínima de load_player /
+; store_player para armar una fila: player_row_mask solo lee de pstate
+; cur_instrument, render_ptr, render_frame y tail_mask (y escribe los tres
+; últimos), y draw_player_lanes / draw_drum_lanes no leen pstate (usan player y
+; globales). Copiar el bloque completo (dos veces por jugador en cada fila nueva)
+; costaba ~6 000 ciclos con 2 jugadores. Dejan pstate mezclado (estos campos de
+; un jugador y el resto de otro): es seguro porque todo el que usa pstate hace
+; load_player antes (play_update, draw_strip, enter_results...).
+; -----------------------------------------------------------------------------
+PS_RENDER_INSTR = cur_instrument - pstate
+PS_RENDER_PTR   = render_ptr - pstate
+PS_RENDER_FRAME = render_frame - pstate
+PS_TAIL_MASK    = tail_mask - pstate
+
+load_render:
+    stx player
+    ldy player_offset,x
+    lda player_save + PS_RENDER_INSTR,y
+    sta cur_instrument
+    lda player_save + PS_RENDER_PTR,y
+    sta render_ptr
+    lda player_save + PS_RENDER_PTR + 1,y
+    sta render_ptr+1
+    lda player_save + PS_RENDER_FRAME,y
+    sta render_frame
+    lda player_save + PS_RENDER_FRAME + 1,y
+    sta render_frame+1
+    lda player_save + PS_TAIL_MASK,y
+    sta tail_mask
+    rts
+
+store_render:
+    ldx player
+    ldy player_offset,x
+    lda render_ptr
+    sta player_save + PS_RENDER_PTR,y
+    lda render_ptr+1
+    sta player_save + PS_RENDER_PTR + 1,y
+    lda render_frame
+    sta player_save + PS_RENDER_FRAME,y
+    lda render_frame+1
+    sta player_save + PS_RENDER_FRAME + 1,y
+    lda tail_mask
+    sta player_save + PS_TAIL_MASK,y
     rts
 
 ; -----------------------------------------------------------------------------

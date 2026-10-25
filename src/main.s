@@ -559,19 +559,31 @@ ppu_on:
 ; load_player: X = jugador. Copia su bloque guardado a pstate y deja en
 ; buttons/pressed los botones de su control.
 ; store_player: devuelve pstate a la copia guardada del jugador actual.
+;
+; Son de lo más pesado del cuadro (PSTATE_SIZE bytes, cuatro veces con 2 jugadores),
+; así que cada una lleva un bucle hacia abajo por jugador, con el origen/destino
+; indexado directo (13 ciclos por byte en vez de 17 con dos índices). Los dos
+; bucles son idénticos salvo por la base: player_save o player_save + PSTATE_SIZE.
 ; -----------------------------------------------------------------------------
 load_player:
     stx player
-    lda player_offset,x
-    tay
-    ldx #0
-@copy:
-    lda player_save,y
+    txa
+    bne @second
+    ldx #PSTATE_SIZE - 1
+@copy0:
+    lda player_save,x
     sta pstate,x
-    iny
-    inx
-    cpx #PSTATE_SIZE
-    bne @copy
+    dex
+    bpl @copy0
+    bmi @pads               ; (dex dejó X = $FF: siempre salta)
+@second:
+    ldx #PSTATE_SIZE - 1
+@copy1:
+    lda player_save + PSTATE_SIZE,x
+    sta pstate,x
+    dex
+    bpl @copy1
+@pads:
     ldx player
     lda pad_buttons,x
     sta buttons
@@ -580,19 +592,26 @@ load_player:
     rts
 
 store_player:
-    ldx player
-    lda player_offset,x
-    tay
-    ldx #0
-@copy:
+    lda player
+    bne @second
+    ldx #PSTATE_SIZE - 1
+@copy0:
     lda pstate,x
-    sta player_save,y
-    iny
-    inx
-    cpx #PSTATE_SIZE
-    bne @copy
+    sta player_save,x
+    dex
+    bpl @copy0
+    bmi @done
+@second:
+    ldx #PSTATE_SIZE - 1
+@copy1:
+    lda pstate,x
+    sta player_save + PSTATE_SIZE,x
+    dex
+    bpl @copy1
+@done:
     lda game_mode
     bne share_team          ; Co-Op: lo compartido también es del otro jugador
+    sec                     ; (el carry en 1, como lo deja share_team)
     rts
 
 ; -----------------------------------------------------------------------------
