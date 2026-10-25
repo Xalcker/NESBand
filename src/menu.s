@@ -42,6 +42,8 @@ enter_menu:
     jsr ppu_off
     lda #STATE_MENU
     sta game_state
+    lda #0
+    sta marks_on            ; las marcas de la práctica valen solo para la canción que se estaba tocando
 
     ldx #PALETTES_MENU
     jsr load_palettes

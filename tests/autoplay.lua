@@ -50,6 +50,9 @@
 --                        sin resultados; la prueba termina cuando la canción vuelve a empezar
 --   AUTOPLAY_START       0 = el principio (default), 1-3 = la práctica empieza en 1/4, 1/2 o 3/4 de la canción
 --                        (#16): se revisa en qué cuadro arranca y que la música cuadre con las notas desde ahí
+--   AUTOPLAY_MARK        0 = no (default); con práctica y un jugador perfecto, 1 o 2 = al pausar (a mitad de la
+--                        canción) presiona A (marca de inicio) o B (marca de final) en vez de continuar (#16):
+--                        la práctica debe reiniciar con esa marca y el bucle volver a empezar donde se marcó
 --   TEST_OUT            carpeta donde dejar resultado.txt y capturas .png
 --
 -- Requiere que Mesen tenga habilitado "AllowIoOsAccess" (escribir archivos) y
@@ -76,7 +79,10 @@ local opt_speed = tonumber(os.getenv("AUTOPLAY_SPEED") or "0")
 local opt_fall = tonumber(os.getenv("AUTOPLAY_FALL") or "0")
 local opt_practice = tonumber(os.getenv("AUTOPLAY_PRACTICE") or "0")
 local opt_start = tonumber(os.getenv("AUTOPLAY_START") or "") or 0
+local opt_mark = tonumber(os.getenv("AUTOPLAY_MARK") or "") or 0     -- 1 = marca de inicio (A) y 2 = de final (B) al pausar
 local PRACTICE_GRACE = 60       -- como en main.s: las notas de los primeros cuadros de una práctica con inicio se omiten
+local PRACTICE_BACK, PRACTICE_MIN = 120, 240   -- como en main.s: la marca de inicio va 2 s atrás; el bucle marcado dura al menos 4 s
+local mark_pressed_frame, mark_restarted, pause_song_frame = nil, false, nil
 local any_option = opt_mirror or opt_speed > 0 or opt_fall > 0 or opt_practice > 0
 -- ESPEJO de verdad: la batería no se espeja (su bombo, el carril 4, iría al del verde); basta que un jugador la toque
 local mirror_on = opt_mirror and not (instruments[1] == 3 or (num_players == 2 and instruments[2] == 3))
@@ -277,6 +283,7 @@ local star_shot_frame = nil   -- cuadro de la canción en que se captura una gem
 local scene_shots = {}          -- capturas del escenario que ya se tomaron (por banco y por color de luz)
 local scene_banks = {}          -- bancos de público que se vieron durante la canción
 local scene_lights = {}         -- colores de luz que se vieron (con poder estelar cambian cada tiempo)
+local prev_scroll, scroll_stalls, scroll_jumps = nil, 0, 0   -- scroll parejo con otra VELOCIDAD: cuadros sin moverse y con saltos
 local speed_f1, speed_f2 = nil, nil   -- cuadro real en que la canción llegó a su cuadro 200 y al 1200 (para medir la velocidad)
 local prev_song_frame, practice_done = nil, false
 local practice_first = nil      -- práctica con inicio: song_frame en el primer cuadro con la pantalla encendida
@@ -360,7 +367,11 @@ local function bot_input(p)
          and read16(A_SONG_FRAME) == pause_at then
     input.start = true                    -- pausar
     pause_frame = frame
-  elseif p == 1 and pause_frame and frame == pause_frame + PAUSE_FRAMES then
+    pause_song_frame = read16(A_SONG_FRAME)
+  elseif p == 1 and opt_mark > 0 and pause_frame and frame == pause_frame + 10 then
+    input[opt_mark == 1 and "a" or "b"] = true     -- en lugar de continuar: marcar el inicio o el final del bucle
+    mark_pressed_frame = frame
+  elseif p == 1 and opt_mark == 0 and pause_frame and frame == pause_frame + PAUSE_FRAMES then
     input.start = true                    -- continuar
     resume_frame = frame
   elseif p <= num_players and modes[p] == "smash" and playing and frame % 2 == 0 then
@@ -638,8 +649,15 @@ local function evaluate()
     local ratio = (speed_f1 and speed_f2) and (speed_f2 - speed_f1) / 1000 or nil   -- cuadros reales por cuadro de la canción
     local want = ({ 1, 4 / 3, 2, 0.8 })[opt_speed + 1]
     if not ratio or math.abs(ratio - want) > 0.05 then ok = false end
+    local smooth = ""
+    if opt_speed > 0 and difficulty == 3 and opt_fall == 0 then
+      -- (en experto la autopista baja 2.7 px por paso: a 50% son 1.3 px por cuadro y a 125% 3.3, nunca 0 ni más de 4;
+      -- se perdonan un par de cuadros con atraso, en que la NMI avanza dos veces)
+      if scroll_stalls > 0 or scroll_jumps > 2 then ok = false end
+      smooth = string.format(", scroll parejo: paradas=%d saltos=%d", scroll_stalls, scroll_jumps)
+    end
     all_ok = all_ok and ok
-    lines[#lines + 1] = string.format("opciones=%s (reloj x%s, esperado %.2f)", tostring(ok), ratio and string.format("%.2f", ratio) or "?", want)
+    lines[#lines + 1] = string.format("opciones=%s (reloj x%s, esperado %.2f%s)", tostring(ok), ratio and string.format("%.2f", ratio) or "?", want, smooth)
   end
   if vs_expect ~= 0 then
     local winner = read8(A_VS_RESULT)
@@ -734,6 +752,18 @@ emu.addEventCallback(function()
       mid_screenshot_frame = frame + 2000
     end
     local song_frame = read16(A_SONG_FRAME)
+    -- Scroll parejo (#16): con otra VELOCIDAD la autopista debe moverse un poco en cada cuadro real (sin parar ni dar
+    -- saltos), aunque el juego no dé un paso en él
+    if opt_speed > 0 and song_frame >= 300 and song_frame <= 1200 and read8(A_PAUSED) == 0 then
+      local sy = read8(label("scroll_y"))
+      if prev_scroll then
+        local d = (prev_scroll - sy) % 240
+        if d == 0 then scroll_stalls = scroll_stalls + 1 elseif d > 4 then scroll_jumps = scroll_jumps + 1 end
+      end
+      prev_scroll = sy
+    else
+      prev_scroll = nil
+    end
     if song_frame == 200 and not speed_f1 then speed_f1 = frame end
     if song_frame == 1200 and not speed_f2 then speed_f2 = frame end
     -- Práctica: la canción debe volver a empezar justo en practice_end, sin fallar, y ahí termina la prueba
@@ -741,9 +771,38 @@ emu.addEventCallback(function()
       if not practice_first and state == STATE_PLAY and read8(label("scene_on")) == 1 then
         practice_first = song_frame
       end
-      if prev_song_frame and song_frame + 100 < prev_song_frame then
+      if opt_mark > 0 and mark_pressed_frame and not mark_restarted and prev_song_frame
+         and song_frame + 100 < prev_song_frame then
+        -- La marca reinició la práctica: de aquí en adelante vale solo lo que pase desde el nuevo inicio
+        mark_restarted = true
+        practice_first = nil
+        for p = 1, num_players do triggers[p] = {} end
+      elseif prev_song_frame and song_frame + 100 < prev_song_frame then
         practice_done = true
         local expect = (read16(label("song_end")) >> 2) * opt_practice
+        local mark_text = ""
+        local mark_start_frame = nil
+        if opt_mark > 0 then
+          -- Marcas (#16): A = 2 s antes de donde se pausó, hasta donde terminaba el bucle (o el final de la canción, si
+          -- no queda al menos PRACTICE_MIN); B = hasta donde se pausó, desde donde empezaba (el principio)
+          local song_end = read16(label("song_end"))
+          local old_end = expect
+          local mstart, mend
+          if opt_mark == 1 then
+            mstart = math.max(0, pause_song_frame - PRACTICE_BACK)
+            mend = (old_end >= mstart + PRACTICE_MIN) and old_end or song_end
+          else
+            mstart, mend = 0, pause_song_frame
+          end
+          expect = mend
+          mark_start_frame = mstart
+          mark_text = string.format(" | marcas: on=%d inicio=%d (esperado %d) final=%d (esperado %d)", read8(label("marks_on")),
+                                    read16(label("mark_start")), mstart, read16(label("mark_end")), mend)
+          if read8(label("marks_on")) ~= 1 or read16(label("mark_start")) ~= mstart or read16(label("mark_end")) ~= mend
+             or not mark_restarted then
+            expect = -1       -- no cuadra: que falle
+          end
+        end
         local alive = true
         for p = 1, num_players do if read8(field(p, "failed")) ~= 0 then alive = false end end
         -- (el último cuadro que se alcanza a ver puede ser el anterior: el reinicio cae a media vuelta del cuadro)
@@ -756,6 +815,7 @@ emu.addEventCallback(function()
           local eff = math.min(opt_start, opt_practice - 1)
           local fpr = read8(label("fpr"))
           local start_frame = (((read16(label("song_end")) >> 2) * eff) // fpr) * fpr
+          if mark_start_frame then start_frame = (mark_start_frame // fpr) * fpr end
           local started = practice_first ~= nil and practice_first >= start_frame and practice_first <= start_frame + 2
           local missed, missed_frames = 0, {}
           for p = 1, num_players do
@@ -771,7 +831,7 @@ emu.addEventCallback(function()
                                      tostring(practice_first), start_frame, missed, table.concat(missed_frames, " "))
         end
         write_file("resultado.txt", string.format("cancion=%d practica: volvio a empezar desde %d (esperado %d), sin fallo=%s, desfase escenario=%d%s -> %s\n",
-                   song, prev_song_frame, expect, tostring(alive), scene_drift, start_text, ok and "OK" or "FALLA"))
+                   song, prev_song_frame, expect, tostring(alive), scene_drift, start_text .. mark_text, ok and "OK" or "FALLA"))
         emu.stop(ok and 0 or 1)
       end
       prev_song_frame = song_frame

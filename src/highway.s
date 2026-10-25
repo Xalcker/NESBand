@@ -69,12 +69,6 @@ advance_time:
     jsr step_next_row
 
 @same_row:
-    lda frame_in_row        ; cuántos pixeles ha bajado la fila (tabla de esta velocidad)
-    clc
-    adc rowpix_base
-    tax
-    lda rowpix_table,x
-    sta rowpix
     rts
 
 ; -----------------------------------------------------------------------------
@@ -99,20 +93,21 @@ set_speed:
 
 ;                       fácil  medio  difícil  experto
 speed_frames_per_row: .byte 6, 5,     4,       3
-speed_rowpix_base:    .byte 12, 7,    3,       0       ; dónde empieza su tabla en rowpix_table
+speed_rowpix_base:    .byte 48, 28,   12,      0       ; dónde empieza su tabla en rowpix_table
 
-; Cuántos pixeles ha bajado una fila según el cuadro dentro de ella:
-; round(cuadro * 8 / cuadros_por_fila), una tabla por velocidad
+; Cuántos pixeles ha bajado una fila según el cuarto de paso dentro de ella:
+; round(cuarto * 8 / (4 * cuadros_por_fila)), una tabla por velocidad (en el cuarto 0 de cada
+; cuadro es lo mismo que sin fracciones: round(cuadro * 8 / cuadros_por_fila))
 .macro ROWPIX_FOR frames
-    .repeat frames, i
-        .byte (i * 16 + frames) / (2 * frames)
+    .repeat frames * 4, j
+        .byte (j * 4 + frames) / (2 * frames)
     .endrepeat
 .endmacro
 rowpix_table:
     ROWPIX_FOR 3            ; base 0
-    ROWPIX_FOR 4            ; base 3
-    ROWPIX_FOR 5            ; base 7
-    ROWPIX_FOR 6            ; base 12
+    ROWPIX_FOR 4            ; base 12
+    ROWPIX_FOR 5            ; base 28
+    ROWPIX_FOR 6            ; base 48
 
 ; -----------------------------------------------------------------------------
 ; step_next_row: pasa a la siguiente fila por dibujar: next_k + 1,
@@ -541,6 +536,24 @@ vrow_to_addr:
     adc addr+1
     sta addr+1
     rts
+
+; -----------------------------------------------------------------------------
+; update_rowpix_scroll: cuántos pixeles ha bajado la fila actual (tabla de esta velocidad), según
+; el cuadro dentro de la fila y la fracción de paso en que va la VELOCIDAD (speed_sub, en cuartos
+; de paso), y de ahí el scroll: así la autopista avanza parejo en cada cuadro real, aunque el
+; juego no dé un paso en él. Sigue en compute_scroll.
+; -----------------------------------------------------------------------------
+update_rowpix_scroll:
+    lda frame_in_row
+    asl a
+    asl a
+    ora speed_sub           ; cuarto de paso dentro de la fila (cuadro * 4 + cuartos)
+    clc
+    adc rowpix_base
+    tax
+    lda rowpix_table,x
+    sta rowpix
+    ; continúa en compute_scroll
 
 ; -----------------------------------------------------------------------------
 ; compute_scroll: scroll_y = row_scroll - rowpix, dando la vuelta en 240

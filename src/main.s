@@ -87,6 +87,8 @@ LIFE_STAR       = 6                    ; completar una frase de poder estelar
 SONG_LEAD_IN    = 128                  ; cuadros de autopista antes de que arranque la música
 RESULTS_DELAY   = 60                   ; cuadros entre el fin de la música y los resultados
 PRACTICE_GRACE  = 60                   ; práctica desde un punto: las notas de los primeros cuadros se omiten (no da tiempo)
+PRACTICE_BACK   = 120                  ; marca de inicio (A en la pausa): 2 s antes de donde pausaste
+PRACTICE_MIN    = 240                  ; el bucle marcado debe durar al menos 4 s
 VBUF_SIZE       = 128                  ; bytes de la cola de textos para la NMI
 
 ; La autopista es un rollo de 30 filas en la nametable de $2000. Con mirroring
@@ -322,10 +324,13 @@ opt_fall:       .res 1   ; 0 = AUTO (la caída de la dificultad), 1-4 = la de f�
 opt_practice:   .res 1   ; 0 = no, 1-3 = bucle hasta 1/4, 1/2 o 3/4 de la canción, 4 = toda
 opt_start:      .res 1   ; 0 = el principio, 1-3 = la práctica empieza en 1/4, 1/2 o 3/4 de la canción
 opt_cursor:     .res 1   ; opción elegida en la pantalla de opciones
-speed_ctr:      .res 1   ; cuadros transcurridos (para saltarse uno de cada 4 o de cada 2)
+speed_sub:      .res 1   ; cuartos de paso que lleva el juego dentro de un paso (0..3): ver VELOCIDAD en play_update
 pad_latch:      .res MAX_PLAYERS ; botones presionados en cuadros saltados: se aplican en el siguiente
 practice_end:   .res 2   ; cuadro de la canción donde vuelve a empezar el bucle de práctica
 practice_start: .res 2   ; cuadro pedido para empezar la práctica (practice_seek lo baja a una fila exacta)
+marks_on:       .res 1   ; 1 = la práctica usa las marcas hechas en la pausa (A: inicio, B: final) en vez de INICIO y PRACTICA
+mark_start:     .res 2   ; ... cuadro donde empieza
+mark_end:       .res 2   ; ... y donde vuelve a empezar el bucle
 skip_frame:     .res 2   ; los charts empiezan en la primera nota de este cuadro en adelante (0 = desde el principio)
 chart_bit:      .res NUM_LANES ; bit del chart que toca cada carril (con ESPEJO, al revés)
 mirror_on:      .res 1   ; ESPEJO de verdad en esta partida: opt_mirror, salvo que alguien toque la batería (ver enter_play)

@@ -6,13 +6,15 @@
 ;
 ;   ESPEJO          invierte los carriles: la nota verde sale en el carril naranja y al revés
 ;                   (se traduce al leer el chart: ver chart_bit y rev5)
-;   VELOCIDAD       100%, 75%, 50% o 125%: la canción y las notas avanzan más lento (el juego se
-;                   salta 1 de cada 4, o 1 de cada 2, cuadros, sin tocar el motor de sonido) o más
-;                   rápido (de cada 4 cuadros, uno avanza dos pasos de juego): ver play_update
+;   VELOCIDAD       100%, 75%, 50% o 125%: la canción y las notas avanzan más lento (el juego da
+;                   3 o 2 pasos cada 4 cuadros, sin tocar el motor de sonido) o más rápido (de cada
+;                   4 cuadros, uno da dos pasos). El scroll avanza fracciones de paso en todos los
+;                   cuadros, así que se ve parejo: ver play_update y update_rowpix_scroll
 ;   CAIDA DE NOTAS  qué tan rápido bajan las notas, sin importar la dificultad (la de los charts no
 ;                   cambia): AUTO usa la de la dificultad, o la de fácil a experto (ver set_speed)
 ;   PRACTICA        la canción se repite hasta 1/4, 1/2, 3/4 o el final; sin fallo, sin
-;                   resultados y sin récord. Select en la pausa regresa al menú
+;                   resultados y sin récord. Select en la pausa regresa al menú; A y B ahí marcan
+;                   el inicio y el final del bucle (ver practice_mark)
 ;   INICIO          dónde empieza la práctica: el principio, 1/4, 1/2 o 3/4 de la canción (si no
 ;                   cae antes de donde termina, empieza en el cuarto anterior). El motor de
 ;                   sonido se adelanta hasta ahí (ver practice_seek) y tarda unos segundos

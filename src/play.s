@@ -159,6 +159,13 @@ enter_play:
     dex
     bne @loop_end
 @no_practice:
+    lda marks_on            ; con marcas (practice_mark) el bucle termina donde se marcó
+    beq @no_marks
+    lda mark_end
+    sta practice_end
+    lda mark_end+1
+    sta practice_end+1
+@no_marks:
 
     ; --- Variables de tiempo y scroll (las comparten todos) ---
     lda #0
@@ -173,11 +180,15 @@ enter_play:
     sta row_pending
     sta erase_count
     sta nmi_ready
-    sta speed_ctr
     sta pad_latch
     sta pad_latch+1
-    sta skip_frame          ; (practice_seek lo cambia si la práctica empieza más adelante)
+    sta practice_start      ; (practice_seek lo cambia si la práctica empieza más adelante)
+    sta practice_start+1
+    sta skip_frame
     sta skip_frame+1
+    ldx opt_speed           ; (con qué fracción de paso empieza: los cuadros sin paso caen al final de cada vuelta)
+    lda speed_sub_start,x
+    sta speed_sub
     lda #HIT_ROW
     sta cur_vrow
     lda #FILL_FIRST_VROW
@@ -311,6 +322,14 @@ practice_seek:
     bne @active
     rts
 @active:
+    lda marks_on            ; con marcas, el inicio es el marcado (practice_mark cuida que quede antes del final)
+    beq @quarter_start
+    lda mark_start
+    sta practice_start
+    lda mark_start+1
+    sta practice_start+1
+    jmp @row
+@quarter_start:
     ldx opt_start
     cpx opt_practice        ; no puede empezar donde termina (ni después)
     bcc @start_ok
@@ -399,12 +418,11 @@ practice_seek:
     lda song_frame+1
     sbc #>(SONG_LEAD_IN - 1)
     sta tmp+1
-    bcc @done               ; (no pasa: un cuarto de canción dura mucho más que la entrada)
+    bcc @done               ; antes de la entrada: update_music arranca la música sola
+    ora tmp
+    beq @done               ; (A = tmp+1) justo en la entrada: igual
     lda #0                  ; la canción 0 del archivo exportado
     jsr famistudio_music_play
-    lda tmp
-    ora tmp+1
-    beq @music_done
 @music:
     jsr famistudio_update
     lda #0
@@ -567,16 +585,31 @@ play_update:
     jmp famistudio_update
 
 @run:
-    lda opt_speed           ; VELOCIDAD 75% / 50%: cada tanto el juego se salta un cuadro entero
-    beq @go                 ; (ni la canción ni las notas avanzan, y el sonido sigue donde iba)
-    inc speed_ctr
+    ; VELOCIDAD: el juego avanza speed_rate cuartos de paso por cuadro real (100% = 4, 75% = 3, 50% = 2,
+    ; 125% = 5); cada 4 cuartos es un paso de juego completo (canción, notas y sonido). Con menos
+    ; de 4 por cuadro, algunos cuadros no dan paso (ni la canción ni las notas avanzan y el sonido
+    ; sigue donde iba); con 5, uno de cada 4 da dos. El scroll, en cambio, avanza los cuartos de
+    ; paso en todos los cuadros (update_rowpix), así que se ve parejo.
     ldx opt_speed
-    cpx #3
-    beq @fast
-    lda speed_ctr
-    and speed_mask - 1,x
+    lda speed_sub
+    clc
+    adc speed_rate,x
+    pha
+    and #%11
+    sta speed_sub
+    pla
+    lsr a
+    lsr a                   ; pasos de juego de este cuadro: 0, 1 o 2
+    beq @no_step
+    cmp #2
     bne @go
-    lda pad_pressed         ; lo que presionaste en un cuadro saltado cuenta en el siguiente
+    jsr @go                 ; dos pasos; el segundo no cuenta otra vez lo que se presionó
+    lda #0
+    sta pad_pressed
+    sta pad_pressed+1
+    beq @go                 ; (siempre)
+@no_step:
+    lda pad_pressed         ; lo que presionaste en un cuadro sin paso cuenta en el siguiente
     ora pad_latch
     and #<~BTN_START        ; (Start ya se atendió arriba)
     sta pad_latch
@@ -584,15 +617,7 @@ play_update:
     ora pad_latch+1
     and #<~BTN_START
     sta pad_latch+1
-    rts
-@fast:                      ; 125%: de cada 4 cuadros, uno avanza dos pasos de juego (canción, notas y
-    lda speed_ctr           ; sonido); el segundo paso no cuenta otra vez lo que se presionó
-    and #%11
-    bne @go
-    jsr @go
-    lda #0
-    sta pad_pressed
-    sta pad_pressed+1
+    jmp update_rowpix_scroll
 @go:
     lda pad_latch
     ora pad_pressed
@@ -648,7 +673,7 @@ play_update:
     jsr update_bolts        ; y los rayos de las notas estelares
     jsr scene_update        ; público y luces del escenario
     jsr update_music        ; motor de sonido (y silenciar a quien haya fallado)
-    jsr compute_scroll
+    jsr update_rowpix_scroll
 
     ; PRACTICA: al llegar a practice_end la canción vuelve a empezar (sin resultados)
     lda opt_practice
@@ -687,9 +712,99 @@ play_update:
     beq @still_paused
     jmp enter_menu          ; Select: salir al menú
 @still_paused:
+    lda opt_practice        ; en una práctica, A y B marcan el inicio y el final del bucle
+    beq @engine
+    lda tmp+1
+    and #BTN_A | BTN_B
+    beq @engine
+    jmp practice_mark
+@engine:
     ; El motor sigue corriendo en pausa (con el volumen en 0) pero la canción
     ; no avanza, así que al continuar sigue sincronizada con las notas
     jmp famistudio_update
+
+; -----------------------------------------------------------------------------
+; practice_mark: en la pausa de una práctica, A = botones presionados (A y B).
+;   A: el bucle empieza PRACTICE_BACK cuadros antes de donde pausaste (y termina donde terminaba)
+;   B: el bucle termina donde pausaste (y empieza donde empezaba)
+; Deja las marcas en mark_start / mark_end (marks_on = 1) y reinicia la práctica, ya con ellas.
+; Si el bucle quedaría de menos de PRACTICE_MIN cuadros, no hace nada (con A, si el final de
+; antes no deja ese tiempo, el bucle llega hasta el final de la canción). Siempre termina en
+; un salto: enter_play, o famistudio_update (la pausa sigue).
+; (Va en CODE2, el banco fijo de $E000: el de $8000 ya está lleno.)
+; -----------------------------------------------------------------------------
+.segment "CODE2"
+practice_mark:
+    and #BTN_A
+    beq @mark_end
+    sec                     ; mark_start = song_frame - PRACTICE_BACK (o 0, si no alcanza)
+    lda song_frame
+    sbc #<PRACTICE_BACK
+    sta mark_start
+    lda song_frame+1
+    sbc #>PRACTICE_BACK
+    sta mark_start+1
+    bcs @start_ok
+    lda #0
+    sta mark_start
+    sta mark_start+1
+@start_ok:
+    clc                     ; tmp = el final más cercano que deja PRACTICE_MIN cuadros
+    lda mark_start
+    adc #<PRACTICE_MIN
+    sta tmp
+    lda mark_start+1
+    adc #>PRACTICE_MIN
+    sta tmp+1
+    lda practice_end        ; ¿el final de antes alcanza?
+    cmp tmp
+    lda practice_end+1
+    sbc tmp+1
+    bcc @to_song_end
+    lda practice_end
+    sta mark_end
+    lda practice_end+1
+    sta mark_end+1
+    jmp @marked
+@to_song_end:
+    lda song_end            ; no: hasta el final de la canción (si ni ahí alcanza, no se marca)
+    cmp tmp
+    lda song_end+1
+    sbc tmp+1
+    bcc @refuse
+    lda song_end
+    sta mark_end
+    lda song_end+1
+    sta mark_end+1
+    jmp @marked
+@mark_end:
+    clc                     ; tmp = el final más cercano que deja PRACTICE_MIN cuadros desde el inicio
+    lda practice_start
+    adc #<PRACTICE_MIN
+    sta tmp
+    lda practice_start+1
+    adc #>PRACTICE_MIN
+    sta tmp+1
+    lda song_frame
+    cmp tmp
+    lda song_frame+1
+    sbc tmp+1
+    bcc @refuse
+    lda song_frame
+    sta mark_end
+    lda song_frame+1
+    sta mark_end+1
+    lda practice_start
+    sta mark_start
+    lda practice_start+1
+    sta mark_start+1
+@marked:
+    lda #1
+    sta marks_on
+    jmp enter_play
+@refuse:
+    jmp famistudio_update
+.segment "CODE"
 
 ; -----------------------------------------------------------------------------
 ; update_fx: dibuja las llamaradas encendidas y avanza su animación.
@@ -980,12 +1095,51 @@ show_pause:
     inx
     cpx #5
     bne @loop
+    lda opt_practice        ; en una práctica, también qué hacen A y B (con los sprites de las llamaradas,
+    beq @no_hints           ; que update_fx vuelve a dibujar en cuanto sigue el juego)
+    ldy #FX_SPRITE * 4
+    ldx #0
+@line:
+    lda pause_hints,x       ; línea: Y, X del primer carácter, el texto y un 0
+    beq @no_hints
+    sta tmp
+    inx
+    lda pause_hints,x
+    sta addr
+    inx
+@char:
+    lda pause_hints,x
+    inx
+    cmp #0
+    beq @line
+    cmp #' '
+    beq @space
+    sta ptr
+    lda tmp
+    sta oam,y
+    lda ptr
+    sta oam+1,y
+    lda #0
+    sta oam+2,y
+    lda addr
+    sta oam+3,y
+    iny
+    iny
+    iny
+    iny
+@space:
+    lda addr
+    clc
+    adc #8
+    sta addr
+    jmp @char
+@no_hints:
     rts
 
 hide_pause:
     lda #$FF
     ldy #PAUSE_SPRITE * 4
-    ldx #5
+    ldx #5 + PAUSE_HINT_SPRITES
 @loop:
     sta oam,y
     iny
@@ -998,6 +1152,13 @@ hide_pause:
 
 .segment "RODATA"
 txt_pause: .byte "PAUSA"
-; VELOCIDAD: el juego se salta el cuadro cuando (speed_ctr AND máscara) = 0: 75% -> 1 de cada 4, 50% -> 1 de cada 2
-speed_mask: .byte %11, %01
+; Letrero de la pausa en una práctica: Y, X, texto, 0 (los espacios no dibujan sprite); al final un 0
+pause_hints: .byte PAUSE_Y + 15, 12 * 8, "A INICIO", 0
+             .byte PAUSE_Y + 27, 12 * 8 + 4, "B FINAL", 0
+             .byte 0
+PAUSE_HINT_SPRITES = 13                 ; sprites que ocupa (7 + 6 letras): hide_pause los oculta
+; VELOCIDAD (100%, 75%, 50%, 125%): cuartos de paso de juego por cuadro real, y con cuál empieza speed_sub
+; (así los cuadros sin paso caen al final de cada vuelta de 4, y el de dos pasos también)
+speed_rate:      .byte 4, 3, 2, 5
+speed_sub_start: .byte 0, 3, 2, 0
 .segment "CODE"

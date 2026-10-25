@@ -93,6 +93,11 @@ $kinds = @(
     # y hasta 1/2 pidiendo que empiece en 3/4 (no puede: empieza en el cuarto anterior al final, o sea en 1/4)
     @('1p-inicio',     1, 'fail',    0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '00032'),
     @('1p-inicio-tope', 1, 'fail',   0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '00023'),
+    # (#16) el sexto dígito son las marcas de la pausa: 1 = A (inicio, 2 s antes de donde se pausó), 2 = B (final donde se pausó);
+    # el bot pausa a mitad de la canción, marca en vez de continuar, y el bucle (hasta 1/2) debe reiniciar con la marca
+    @('1p-pausa-practica', 1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '0002'),   # pausa en una práctica: captura con el letrero de las marcas
+    @('1p-marca-inicio', 1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '000201'),
+    @('1p-marca-final',  1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 0, 0, 0, 0, 0, 0, '000202'),
     @('2p-vs-espejo',  2, 'perfect', 0, 3, 'perfect', 0, 3, 0, 0, 0, 3, 0, 0, 0, '1000'),   # mismo chart y mismo espejo: empate
     # Récords (solo con la canción de ejemplo, y en este orden: el segundo usa lo que guardó el primero)
     @('1p-record1',    1, 'perfect', 0, 3, 'perfect', 2, 3, 0, 1),
@@ -133,7 +138,7 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
                 AUTOPLAY_DRUMS = "$([int]$tieneBateria)"; AUTOPLAY_RECORD = "$record"; AUTOPLAY_COOP = "$coop"; AUTOPLAY_VS = "$vs"; AUTOPLAY_CUT = "$cut"
                 AUTOPLAY_DOWN = "$down"; AUTOPLAY_REVIVE = "$revive"
                 AUTOPLAY_MIRROR = "$($opts[0])"; AUTOPLAY_SPEED = "$($opts[1])"
-                AUTOPLAY_FALL = "$($opts[2])"; AUTOPLAY_PRACTICE = "$($opts[3])"; AUTOPLAY_START = "$($opts[4])"
+                AUTOPLAY_FALL = "$($opts[2])"; AUTOPLAY_PRACTICE = "$($opts[3])"; AUTOPLAY_START = "$($opts[4])"; AUTOPLAY_MARK = "$($opts[5])"
             }
         }
         if ($record) { $registros += $caso } else { $trabajos += $caso }
