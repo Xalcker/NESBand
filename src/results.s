@@ -5,10 +5,10 @@
 ; instrumento, dificultad, puntaje, notas, precisión, combo máximo y estrellas.
 ; =============================================================================
 
-PS_NEW_RECORD   = new_record - pstate   ; posición dentro del bloque de un jugador (lo usa results_update)
-PS_NOTES_TOTAL  = notes_total - pstate
-PS_SCORE        = score_digits - pstate
-PS_STARS        = stars - pstate
+PSL_NEW_RECORD  = new_record - pslow    ; posición dentro del bloque lento de un jugador (player_slow)
+PSL_NOTES_TOTAL = notes_total - pslow
+PSL_STARS       = stars - pslow
+PS_SCORE        = score_digits - pstate ; y dentro del bloque de pstate (player_save)
 RES_WINNER_ROW  = 7      ; "GANA J1 POR 001230" (VS)
 RES_RECORD_ROW  = 8      ; "NUEVO RECORD"
 RES_INST_ROW    = 9
@@ -47,6 +47,7 @@ enter_results:
     ldx #0
 @player:
     jsr load_player
+    jsr load_slow
     jsr compute_stats
     lda game_mode
     beq @check
@@ -72,7 +73,8 @@ enter_results:
     lda #0
     sta new_record
 @checked:
-    jsr store_player        ; (percent y stars quedan guardados para las pruebas)
+    jsr store_player
+    jsr store_slow          ; (percent y stars quedan guardados para las pruebas)
     jsr draw_player_results
     ldx player
     inx
@@ -99,12 +101,12 @@ results_update:
     ora pad_pressed+1
     and #BTN_START
     beq @done
-    lda player_save + PS_NEW_RECORD     ; ¿alguien tiene récord nuevo? Primero escribe sus iniciales
+    lda player_slow + PSL_NEW_RECORD   ; ¿alguien tiene récord nuevo? Primero escribe sus iniciales
     bne @initials
     ldx num_players
     cpx #2
     bne @menu
-    lda player_save + PSTATE_SIZE + PS_NEW_RECORD
+    lda player_slow + PSLOW_SIZE + PSL_NEW_RECORD
     beq @menu
 @initials:
     jmp enter_initials
@@ -287,16 +289,17 @@ score_text:
 team_results:
     ldx #0
     jsr load_player         ; lo compartido es igual en los dos; las notas, se suman
+    jsr load_slow
     lda notes_total
     sta ptr
     lda notes_total+1
     sta ptr+1
     clc
     lda notes_total
-    adc player_save + PSTATE_SIZE + PS_NOTES_TOTAL
+    adc player_slow + PSLOW_SIZE + PSL_NOTES_TOTAL
     sta notes_total
     lda notes_total+1
-    adc player_save + PSTATE_SIZE + PS_NOTES_TOTAL + 1
+    adc player_slow + PSLOW_SIZE + PSL_NOTES_TOTAL + 1
     sta notes_total+1
     jsr compute_stars
     lda ptr                 ; y el jugador 1 conserva las suyas
@@ -304,8 +307,9 @@ team_results:
     lda ptr+1
     sta notes_total+1
     jsr store_player
+    jsr store_slow
     lda stars               ; el jugador 2 también guarda las estrellas de la banda (para las pruebas)
-    sta player_save + PSTATE_SIZE + PS_STARS
+    sta player_slow + PSLOW_SIZE + PSL_STARS
 
     lda new_record
     beq @no_record

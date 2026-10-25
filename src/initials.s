@@ -15,7 +15,7 @@ INI_LABEL_ROW    = 15
 INI_LETTERS_ROW  = 17
 INI_UNDER_ROW    = 18
 
-PS_INI_DONE      = ini_done - pstate
+PSL_INI_DONE     = ini_done - pslow
 
 enter_initials:
     jsr ppu_off
@@ -31,6 +31,7 @@ enter_initials:
     ldx #0
 @player:
     jsr load_player
+    jsr load_slow
     lda new_record
     bne @enters
     lda #1                  ; este jugador no tiene récord: ya terminó
@@ -74,6 +75,7 @@ enter_initials:
     jsr flush_vbuf          ; el dibujo está apagado: se puede copiar ya
 @store:
     jsr store_player
+    jsr store_slow
     ldx player
     inx
     cpx num_players
@@ -129,6 +131,7 @@ initials_update:
     ldx #0
 @player:
     jsr load_player
+    jsr load_slow
     lda new_record
     beq @next
     lda ini_done
@@ -136,17 +139,18 @@ initials_update:
     jsr initials_input
 @next:
     jsr store_player
+    jsr store_slow
     ldx player
     inx
     cpx num_players
     bne @player
 
-    lda player_save + PS_INI_DONE   ; ¿terminaron todos?
+    lda player_slow + PSL_INI_DONE  ; ¿terminaron todos?
     beq @wait
     ldx num_players
     cpx #2
     bne @all_done
-    lda player_save + PSTATE_SIZE + PS_INI_DONE
+    lda player_slow + PSLOW_SIZE + PSL_INI_DONE
     beq @wait
 @all_done:
     jmp enter_menu

@@ -105,6 +105,15 @@ local function read16(addr) return read8(addr) + read8(addr + 1) * 256 end
 local PSTATE, SAVE = label("pstate"), label("player_save")
 local PSTATE_SIZE = label("pstate_end") - PSTATE
 local function field(p, name) return SAVE + (p - 1) * PSTATE_SIZE + (label(name) - PSTATE) end
+-- Lo lento (chart_start, notes_total, percent, stars, new_record, ini_done) va en otro bloque: player_slow
+-- (Mesen guarda un solo símbolo por dirección y pslow comparte la de pstate_end, que va justo antes;
+-- main.s lo verifica con un .assert)
+local PSLOW, SLOW = label("pstate_end"), label("player_slow")
+local PSLOW_SIZE = label("pslow_end") - PSLOW
+local function slow_field(p, name)
+  local off = (name == "chart_start") and 0 or (label(name) - PSLOW)   -- (chart_start es el primer campo: su símbolo lo tapa pstate_end)
+  return SLOW + (p - 1) * PSLOW_SIZE + off
+end
 
 local A_STATE, A_SONG_FRAME, A_PAUSED = label("game_state"), label("song_frame"), label("paused")
 local A_VS_RESULT = label("vs_result")
@@ -224,7 +233,7 @@ local CHART_STAR = 0x20
 local function read_chart(p)
   local notes, holds, pending = {}, {}, {}
   local star_runs, prev_star = 0, false
-  local ptr = read16(field(p, "chart_start"))
+  local ptr = read16(slow_field(p, "chart_start"))
   local frame = 0
   while read8(ptr + 1) ~= CHART_END do
     frame = frame + read8(ptr)
@@ -493,8 +502,8 @@ local function check_player(p)
   end
   local score = digits(field(p, "score_digits"), 6)
   local combo = digits(field(p, "combo_digits"), 3)
-  local notes_hit, notes_total = read16(field(p, "notes_hit")), read16(field(p, "notes_total"))
-  local max_combo, percent, stars = read16(field(p, "max_combo")), read8(field(p, "percent")), read8(field(p, "stars"))
+  local notes_hit, notes_total = read16(field(p, "notes_hit")), read16(slow_field(p, "notes_total"))
+  local max_combo, percent, stars = read16(field(p, "max_combo")), read8(slow_field(p, "percent")), read8(slow_field(p, "stars"))
 
   -- Sincronía: notas del chart sin un disparo del motor en su mismo cuadro
   local off_sync, off_frames = 0, {}
@@ -508,7 +517,7 @@ local function check_player(p)
 
   local failed, no_fail = read8(field(p, "failed")), read8(field(p, "no_fail"))
   -- Récord nuevo: solo un jugador perfecto con el .sav vacío (en el modo 2, ya estaba el mismo puntaje)
-  local new_record = read8(field(p, "new_record"))
+  local new_record = read8(slow_field(p, "new_record"))
   local expect_record = ((modes[p] == "perfect" or modes[p] == "human90") and rec_mode ~= "2") and 1 or 0
   if coop and p == 2 then expect_record = 0 end     -- el récord de la banda es del jugador 1
   if cut or down then expect_record = 0 end         -- una partida cortada, o con un caído, no vale como récord
@@ -633,7 +642,8 @@ local function evaluate()
     local same = true
     for _, name in ipairs({ "score_digits", "combo_digits", "star_energy", "stars" }) do
       local n = (name == "score_digits") and 6 or (name == "combo_digits" and 3 or 1)
-      if digits(field(1, name), n) ~= digits(field(2, name), n) then same = false end
+      local f = (name == "stars") and slow_field or field
+      if digits(f(1, name), n) ~= digits(f(2, name), n) then same = false end
     end
     all_ok = all_ok and same
     lines[#lines + 1] = "banda compartida=" .. tostring(same)
@@ -673,7 +683,7 @@ local function evaluate()
                                     table.concat(banks, "/"), table.concat(lights, "/"), read8(A_SCENE_ON))
   -- Opciones (#6): sin récord, carriles invertidos, caída y velocidad como se pidieron
   if any_option then
-    local ok = read8(field(1, "new_record")) == 0
+    local ok = read8(slow_field(1, "new_record")) == 0
     if opt_mirror then   -- con la batería el espejo se ignora (mirror_on = 0): los carriles quedan como están
       local cb = label("chart_bit")
       for lane = 0, 4 do
@@ -730,7 +740,7 @@ local function record_flow(frames_since)
     if ok then
       ok = digits(a + 3, 6) == digits(field(1, "score_digits"), 6)
            and read8(a + 9) == string.byte("Z") and read8(a + 10) == string.byte("A")
-           and read8(a + 11) == string.byte("A") and read8(a + 12) == read8(field(1, "stars"))
+           and read8(a + 11) == string.byte("A") and read8(a + 12) == read8(slow_field(1, "stars"))
            and read8(0x6000) == string.byte("N")
     end
     local lines = eval_lines

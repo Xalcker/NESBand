@@ -236,49 +236,53 @@ build_row:
 ; -----------------------------------------------------------------------------
 ; load_render / store_render: X = jugador. Versión mínima de load_player /
 ; store_player para armar una fila: player_row_mask solo lee de pstate
-; cur_instrument, render_ptr, render_frame y tail_mask (y escribe los tres
-; últimos), y draw_player_lanes / draw_drum_lanes no leen pstate (usan player y
-; globales). Copiar el bloque completo (dos veces por jugador en cada fila nueva)
-; costaba ~6 000 ciclos con 2 jugadores. Dejan pstate mezclado (estos campos de
-; un jugador y el resto de otro): es seguro porque todo el que usa pstate hace
-; load_player antes (play_update, draw_strip, enter_results...).
+; cur_instrument (y de render_save, fuera de pstate, render_ptr, render_frame y
+; tail_mask, que escribe), y draw_player_lanes / draw_drum_lanes no leen pstate
+; (usan player y globales). Copiar el bloque completo (dos veces por jugador en
+; cada fila nueva) costaba ~6 000 ciclos con 2 jugadores. Dejan pstate mezclado
+; (cur_instrument de un jugador y el resto de otro): es seguro porque todo el que
+; usa pstate hace load_player antes (play_update, draw_strip, enter_results...).
 ; -----------------------------------------------------------------------------
 PS_RENDER_INSTR = cur_instrument - pstate
-PS_RENDER_PTR   = render_ptr - pstate
-PS_RENDER_FRAME = render_frame - pstate
-PS_TAIL_MASK    = tail_mask - pstate
+RENDER_PTR   = render_ptr - render_ptr      ; posición dentro de render_save
+RENDER_FRAME = render_frame - render_ptr
+RENDER_TAIL  = tail_mask - render_ptr
+.assert RENDER_TAIL + 1 = RENDER_SIZE, error, "RENDER_SIZE no coincide con render_ptr..tail_mask"
 
 load_render:
     stx player
     ldy player_offset,x
     lda player_save + PS_RENDER_INSTR,y
     sta cur_instrument
-    lda player_save + PS_RENDER_PTR,y
+    ldy render_offset,x
+    lda render_save + RENDER_PTR,y
     sta render_ptr
-    lda player_save + PS_RENDER_PTR + 1,y
+    lda render_save + RENDER_PTR + 1,y
     sta render_ptr+1
-    lda player_save + PS_RENDER_FRAME,y
+    lda render_save + RENDER_FRAME,y
     sta render_frame
-    lda player_save + PS_RENDER_FRAME + 1,y
+    lda render_save + RENDER_FRAME + 1,y
     sta render_frame+1
-    lda player_save + PS_TAIL_MASK,y
+    lda render_save + RENDER_TAIL,y
     sta tail_mask
     rts
 
 store_render:
     ldx player
-    ldy player_offset,x
+    ldy render_offset,x
     lda render_ptr
-    sta player_save + PS_RENDER_PTR,y
+    sta render_save + RENDER_PTR,y
     lda render_ptr+1
-    sta player_save + PS_RENDER_PTR + 1,y
+    sta render_save + RENDER_PTR + 1,y
     lda render_frame
-    sta player_save + PS_RENDER_FRAME,y
+    sta render_save + RENDER_FRAME,y
     lda render_frame+1
-    sta player_save + PS_RENDER_FRAME + 1,y
+    sta render_save + RENDER_FRAME + 1,y
     lda tail_mask
-    sta player_save + PS_TAIL_MASK,y
+    sta render_save + RENDER_TAIL,y
     rts
+
+render_offset: .byte 0, RENDER_SIZE
 
 ; -----------------------------------------------------------------------------
 ; player_row_mask: row_mask = carriles del jugador actual con nota en la

@@ -228,6 +228,13 @@ inner_tile:     .res 1
 ; copia su bloque aquí (load_player) y al terminar se devuelve (store_player).
 ; Así el código de juego trabaja con "el jugador actual" sin preocuparse de
 ; cuál es.
+;
+; Cada copia cuesta 13 ciclos por byte y se hacen cuatro por paso de juego, así
+; que aquí solo va lo que cambia en cada cuadro. Lo lento (el inicio de la
+; partida, resultados, iniciales y récords) está aparte, en pslow, y el estado
+; del dibujo de filas (render_*, tail_mask), en variables sueltas con su propia
+; copia (render_save). Los tres siguen siendo "del jugador actual", con el mismo
+; nombre, pero se cargan solo donde se usan (load_slow, load_render).
 ; -----------------------------------------------------------------------------
 pstate:
 cur_instrument: .res 1   ; elegido en el menú
@@ -253,35 +260,47 @@ life:           .res 1   ; vida (el medidor de rendimiento), 0..LIFE_MAX; al lle
 failed:         .res 1   ; 1 = ya perdiste: tu instrumento calla y dejas de jugar
 player_channel: .res 1   ; canal del APU que se silencia al fallar (0-3)
 player_muted:   .res 1   ; 1 = el jugador falló: su instrumento no suena hasta el siguiente acierto
-chart_start:    .res 2   ; chart elegido (instrumento + dificultad)
-render_ptr:     .res 2   ; puntero al chart para dibujar filas nuevas
-render_frame:   .res 2   ; cuadro de la entrada a la que apunta render_ptr
 lane_ptr_lo:    .res NUM_LANES   ; siguiente nota pendiente de cada carril
 lane_ptr_hi:    .res NUM_LANES
 lane_frame_lo:  .res NUM_LANES   ; y el cuadro en que suena
 lane_frame_hi:  .res NUM_LANES
-notes_total:    .res 2   ; gemas en el chart
 notes_hit:      .res 2   ; gemas acertadas
-percent:        .res 1   ; notas acertadas, en %
-score_pct:      .res 1   ; puntaje logrado / puntaje máximo posible, en %
-stars:          .res 1
 rings_shown:    .res 1   ; carriles con el aro relleno en pantalla (un bit por carril)
 hud_dirty:      .res 1   ; 1 = puntaje/combo cambiaron y hay que redibujarlos
-new_record:     .res 1   ; 1 = esta partida superó el récord guardado y puede grabar uno nuevo
-ini:            .res 3   ; iniciales que se están escribiendo (letras 'A'-'Z')
-ini_pos:        .res 1   ; cuál de las 3 letras se está cambiando
-ini_done:       .res 1   ; 1 = ya terminó de escribir las iniciales (y se grabó el récord)
 no_fail:        .res 1   ; 1 = "sin fallo": no pierde y no puede grabar récord (lo elige el menú: no se reinicia al jugar)
 star_failed:    .res 1   ; 1 = ya fallaste una nota de la frase estelar en curso
 life_grace:     .res 1   ; cuadros que faltan para que un fallo vuelva a quitar vida (ver life_lose)
 life_hit_frame: .res 1   ; byte bajo del cuadro en que un acierto sumó vida por última vez (los acordes suman una vez)
-tail_mask:      .res 1   ; carriles con una cola de nota sostenida en la parte ya dibujada de la autopista
 hold_on:        .res NUM_LANES   ; 1 = estás sosteniendo la nota de ese carril
 hold_end_lo:    .res NUM_LANES   ; cuadro en que termina su cola
 hold_end_hi:    .res NUM_LANES
 lanes_seeking:  .res 1   ; carriles cuya búsqueda de la siguiente nota quedó a medias (un bit por carril; ver lane_seek)
 pstate_end:
 PSTATE_SIZE = pstate_end - pstate
+
+; Lo lento del jugador (ver arriba): solo lo usan enter_play, enter_results,
+; enter_initials/initials_update y los récords. Cada jugador guarda su copia en
+; player_slow (load_slow / store_slow, igual que load_player / store_player).
+pslow:
+chart_start:    .res 2   ; chart elegido (instrumento + dificultad)
+notes_total:    .res 2   ; gemas en el chart
+percent:        .res 1   ; notas acertadas, en %
+score_pct:      .res 1   ; puntaje logrado / puntaje máximo posible, en %
+stars:          .res 1
+new_record:     .res 1   ; 1 = esta partida superó el récord guardado y puede grabar uno nuevo
+ini:            .res 3   ; iniciales que se están escribiendo (letras 'A'-'Z')
+ini_pos:        .res 1   ; cuál de las 3 letras se está cambiando
+ini_done:       .res 1   ; 1 = ya terminó de escribir las iniciales (y se grabó el récord)
+pslow_end:
+PSLOW_SIZE = pslow_end - pslow
+.assert pslow = pstate_end, error, "tests/autoplay.lua toma pstate_end como el inicio de pslow"
+
+; El estado del dibujo de filas (build_row): load_render / store_render lo copian
+; de render_save (RENDER_SIZE bytes por jugador), solo en los cuadros de fila nueva.
+render_ptr:     .res 2   ; puntero al chart para dibujar filas nuevas
+render_frame:   .res 2   ; cuadro de la entrada a la que apunta render_ptr
+tail_mask:      .res 1   ; carriles con una cola de nota sostenida en la parte ya dibujada de la autopista
+RENDER_SIZE = 5
 row_buf:        .res 32  ; una fila completa de la nametable (32 tiles); en zero page la copia de la NMI
                          ; pesa 2 bytes y 3 ciclos por tile en vez de 3 y 4
 
@@ -293,6 +312,8 @@ oam:            .res 256 ; 64 sprites x 4 bytes (Y, tile, atributos, X)
 
 .segment "BSS"
 player_save:    .res PSTATE_SIZE * MAX_PLAYERS   ; el bloque pstate de cada jugador
+player_slow:    .res PSLOW_SIZE * MAX_PLAYERS    ; el bloque pslow de cada jugador
+render_save:    .res RENDER_SIZE * MAX_PLAYERS   ; render_ptr, render_frame y tail_mask de cada jugador
 player_base:    .res MAX_PLAYERS ; columna donde empieza la autopista de cada jugador
 attr_cols:      .res 16  ; paleta de cada columna de 16 px (para write_attributes)
 attr_row:       .res 8   ; una fila de la tabla de atributos
@@ -616,6 +637,43 @@ store_player:
     lda game_mode
     bne share_team          ; Co-Op: lo compartido también es del otro jugador
     sec                     ; (el carry en 1, como lo deja share_team)
+    rts
+
+; -----------------------------------------------------------------------------
+; load_slow / store_slow: lo mismo para el bloque lento (pslow), del jugador
+; `player` (el que dejó load_player). No son de la ruta por cuadro: bucles sencillos.
+; Cambian A, X e Y.
+; -----------------------------------------------------------------------------
+load_slow:
+    jsr slow_offset
+@copy:
+    lda player_slow,y
+    sta pslow,x
+    iny
+    inx
+    cpx #PSLOW_SIZE
+    bne @copy
+    rts
+
+store_slow:
+    jsr slow_offset
+@copy:
+    lda pslow,x
+    sta player_slow,y
+    iny
+    inx
+    cpx #PSLOW_SIZE
+    bne @copy
+    rts
+
+; slow_offset: Y = dónde empieza la copia del jugador en player_slow, X = 0
+slow_offset:
+    ldy #0
+    ldx #0
+    lda player
+    beq @done
+    ldy #PSLOW_SIZE
+@done:
     rts
 
 ; -----------------------------------------------------------------------------

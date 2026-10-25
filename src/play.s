@@ -199,8 +199,11 @@ enter_play:
     ldx #0
 @player:
     jsr load_player
+    jsr load_slow
     jsr init_player
     jsr store_player
+    jsr store_slow          ; (chart_start y notes_total)
+    jsr store_render        ; y el estado del dibujo de filas
     ldx player
     inx
     cpx num_players
