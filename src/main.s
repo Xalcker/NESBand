@@ -145,6 +145,7 @@ MMC3_R7          = 7           ; banco en $A000
 ; -----------------------------------------------------------------------------
 .segment "ZEROPAGE"
 frame_counter:  .res 1   ; lo incrementa la NMI; main_loop lo usa para esperar al siguiente cuadro
+step_count:     .res 1   ; pasos de juego que faltan en este cuadro (VELOCIDAD 125%: 1 o 2; play_update)
 nmi_ready:      .res 1   ; 1 = main_loop ya dejó listo todo para que la NMI lo copie
 tmp:            .res 2   ; temporal de uso general
 addr:           .res 2   ; dirección de VRAM (resultado de vrow_to_addr, SET_ADDR, etc.)

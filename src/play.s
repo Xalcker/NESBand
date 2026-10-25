@@ -601,13 +601,8 @@ play_update:
     lsr a
     lsr a                   ; pasos de juego de este cuadro: 0, 1 o 2
     beq @no_step
-    cmp #2
-    bne @go
-    jsr @go                 ; dos pasos; el segundo no cuenta otra vez lo que se presionó
-    lda #0
-    sta pad_pressed
-    sta pad_pressed+1
-    beq @go                 ; (siempre)
+    sta step_count          ; si son dos, @done repite @go con jmp (no con jsr: si el primer paso
+    bne @go                 ; salta a enter_results/enter_play, el rts de ppu_on regresaría aquí)
 @no_step:
     lda pad_pressed         ; lo que presionaste en un cuadro sin paso cuenta en el siguiente
     ora pad_latch
@@ -696,6 +691,13 @@ play_update:
     bne @done
     jmp enter_results
 @done:
+    dec step_count
+    beq @rts
+    lda #0                  ; el segundo paso no cuenta otra vez lo que se presionó
+    sta pad_pressed
+    sta pad_pressed+1
+    jmp @go
+@rts:
     rts
 
 @paused:
