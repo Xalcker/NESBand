@@ -92,19 +92,32 @@ Activision, ni con Guitar Hero ni Rock Band. "NES" solo indica la plataforma par
 ### macOS
 
 ```bash
-brew install cc65 uv
+brew install cc65 uv dotnet powershell
 ```
 
-Mesen 2 y FamiStudio tienen versión para macOS en sus páginas de releases. Para FamiStudio, apunta la
-variable `FAMISTUDIO` al ejecutable.
+1. **Mesen 2**: descarga `Mesen_<versión>_macOS_ARM64_AppleSilicon.zip` (o `_x64_Intel`) de
+   [releases](https://github.com/SourMesen/Mesen2/releases); trae un `Mesen.app.zip` adentro: descomprímelo en
+   `tools/mesen/` (debe quedar `tools/mesen/Mesen.app`).
+2. **FamiStudio**: descarga `FamiStudio453-MacOS.zip` de la
+   [4.5.3](https://github.com/BleuBleu/FamiStudio/releases/tag/4.5.3) y descomprímelo en `tools/famistudio/`
+   (debe quedar `tools/famistudio/FamiStudio.app`). Las herramientas lo corren con el `dotnet` del PATH: pide
+   .NET 8, pero también sirve uno más nuevo. Si lo tienes en otro lado, apunta la variable `FAMISTUDIO` al `.app`.
+
+### Linux
+
+cc65 viene en los paquetes de casi todas las distribuciones (`sudo apt install cc65` en Debian/Ubuntu). uv y
+PowerShell (`pwsh`, solo para las pruebas en Mesen) se instalan con las instrucciones de cada uno. FamiStudio
+(`FamiStudio453-LinuxAMD64.zip`) se descomprime en `tools/famistudio/` (debe quedar `tools/famistudio/FamiStudio`)
+y necesita el runtime de .NET; Mesen 2 (`Mesen_<versión>_Linux_x64.zip`) es un solo archivo, `tools/mesen/Mesen`.
 
 ## Compilar y jugar
 
 ```bash
-.\build.ps1
+.\build.ps1          # Windows
+./build.sh           # macOS / Linux (o pwsh ./build.ps1, con las mismas opciones que en Windows)
 ```
 
-En macOS/Linux: `./build.sh`. El resultado es `build/nesband.nes`; ábrelo en Mesen.
+El resultado es `build/nesband.nes`; ábrelo en Mesen.
 Mesen carga solo `build/nesband.dbg`, así que en el depurador verás los nombres
 de las variables y las etiquetas del código en lugar de direcciones sueltas.
 
@@ -471,7 +484,8 @@ efecto, queda disponible en el código como `SFX_<NOMBRE>` (con `lda #SFX_... / 
 ## Pruebas
 
 ```bash
-.\tests\run_tests.ps1
+.\tests\run_tests.ps1           # Windows
+pwsh tests/run_tests.ps1        # macOS / Linux (mismas opciones)
 uv run pytest
 ```
 
@@ -525,9 +539,11 @@ copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
   el papel de cada instrumento).
 
 Requisitos del `settings.json` del Mesen de pruebas: `AllowIoOsAccess: true` (el script de Lua escribe
-archivos), `Nes.Port2.Type: "NesController"` (control 2 conectado) y `Nes.AutoConfigureInput: false`.
-Si `tools/mesen/` tiene su propio `settings.json`, Mesen corre en modo portable y no toca tu
-configuración normal. Ojo con la API de Lua de Mesen 2.1: el control va en el tercer argumento,
+archivos), `Nes.Port1.Type` y `Nes.Port2.Type: "NesController"` (los dos controles conectados) y
+`Nes.AutoConfigureInput: false`.
+Si junto al ejecutable de Mesen (`tools/mesen/`, o `tools/mesen/Mesen.app/Contents/MacOS/` en macOS) hay un
+`settings.json`, Mesen corre en modo portable y no toca tu configuración normal; si no hay, `run_tests.ps1`
+crea uno con esas opciones (Mesen completa lo demás con sus valores por defecto). Ojo con la API de Lua de Mesen 2.1: el control va en el tercer argumento,
 `emu.setInput(botones, 0, control)`.
 
 ## Cómo está organizado el código

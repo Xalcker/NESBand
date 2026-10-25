@@ -26,7 +26,7 @@ def find_famistudio(root: Path) -> Path:
     env = os.environ.get("FAMISTUDIO")
     if env:
         return Path(env)
-    exe = "FamiStudio.exe" if platform.system() == "Windows" else "FamiStudio"
+    exe = {"Windows": "FamiStudio.exe", "Darwin": "FamiStudio.app"}.get(platform.system(), "FamiStudio")
     candidate = root / "tools" / "famistudio" / exe
     if candidate.exists():
         return candidate
@@ -35,8 +35,20 @@ def find_famistudio(root: Path) -> Path:
     )
 
 
+def _command(famistudio: Path) -> list[str]:
+    """Cómo lanzar FamiStudio. En macOS es un .app de .NET cuyo lanzador manda la salida a un log, así que se
+    corre su FamiStudio.dll con el dotnet del PATH."""
+    if famistudio.suffix.lower() == ".app":
+        famistudio = famistudio / "Contents" / "MacOS" / "FamiStudio.dll"
+    if famistudio.suffix.lower() == ".dll":
+        return ["dotnet", str(famistudio)]
+    return [str(famistudio)]
+
+
 def run(famistudio: Path, args: list[str]) -> str:
-    result = subprocess.run([str(famistudio), *args], capture_output=True, text=True)
+    # FamiStudio pide .NET 8; con roll-forward también corre con uno más nuevo si el 8 no está instalado
+    env = {**os.environ, "DOTNET_ROLL_FORWARD": os.environ.get("DOTNET_ROLL_FORWARD", "Major")}
+    result = subprocess.run([*_command(famistudio), *args], capture_output=True, text=True, env=env)
     output = result.stdout + result.stderr
     if result.returncode != 0 or "Error" in output:
         raise RuntimeError(f"FamiStudio falló ({' '.join(args)}):\n{output}")

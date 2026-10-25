@@ -53,7 +53,7 @@ else
 fi
 # SOLO="mm1_* otra": solo las canciones que coincidan con algún patrón (para tener más canciones locales que slots)
 if [ -n "$SOLO" ]; then
-    names=$(for n in $names; do for p in $SOLO; do case "$n" in $p) echo "$n"; break ;; esac; done; done)
+    names=$(for n in $names; do for p in $SOLO; do case "$n" in ($p) echo "$n"; break ;; esac; done; done)
     [ -n "$names" ] || { echo "Ninguna canción coincide con SOLO=$SOLO"; exit 1; }
 fi
 escribir_lista "$names"
@@ -75,5 +75,5 @@ if [ "$RELEASE" -eq 1 ]; then
     echo "ROM de release ($(printf '%s\n' "$names" | grep -c .) canciones): $OUT/$BASE.nes"
     echo "SHA-256: $SUM"
 else
-    echo "Listo: build/nesband.nes"
+    echo "Listo: $OUT/$BASE.nes"
 fi

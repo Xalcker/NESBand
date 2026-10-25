@@ -15,6 +15,7 @@
 # récords van siempre de uno en uno, después. Sin -Paralelo corre de uno en uno.
 param([string[]]$Only = @('*'), [string]$Rom = '', [switch]$NoBuild, [switch]$Rapida, [switch]$Release, [int]$Paralelo = 1)   # (no puede llamarse $Songs: PowerShell no distingue mayúsculas y chocaría con $songs)
 $ErrorActionPreference = 'Stop'
+$Only = @($Only | ForEach-Object { $_ -split '[,\s]+' } | Where-Object { $_ })   # (con pwsh -File, "a,b" llega como un solo texto)
 # -Rapida: la demo y 3 canciones representativas (la de chart más grande, una densa y la más chica);
 # alcanza para cambios del motor. La corrida completa es para cambios de charts, generador o bancos.
 if ($Rapida) { $Only = @('nesband_demo', 'ddragon_mission1', 'cv3_clockwork', 'startropics_boss') }
@@ -29,12 +30,24 @@ if (-not $NoBuild) { if ($Release) { & (Join-Path $root 'build.ps1') -Release } 
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 $version = (Get-Content (Join-Path $root 'VERSION') -TotalCount 1).Trim()
-$romPath = if ($Rom) { $Rom } elseif ($Release) { Join-Path $root "build\release\nesband-v$version.nes" } else { Join-Path $root 'build\nesband.nes' }; $romName = [IO.Path]::GetFileNameWithoutExtension($romPath)   # -Rom permite probar una copia mientras se sigue compilando
-$mesen = Join-Path $root 'tools\mesen\Mesen.exe'
-if (-not (Test-Path $mesen)) { Write-Host 'No encontre tools\mesen\Mesen.exe (ver README)' -ForegroundColor Red; exit 1 }
+$romPath = if ($Rom) { $Rom } elseif ($Release) { Join-Path $root "build/release/nesband-v$version.nes" } else { Join-Path $root 'build/nesband.nes' }; $romName = [IO.Path]::GetFileNameWithoutExtension($romPath)   # -Rom permite probar una copia mientras se sigue compilando
+# Mesen en tools/mesen según el sistema (las rutas van con /, que Windows también acepta, para correr con pwsh en
+# macOS y Linux). $IsMacOS/$IsLinux no existen en Windows PowerShell 5.1: ahí valen $null y queda el .exe
+$mesenRel = if ($IsMacOS) { 'tools/mesen/Mesen.app/Contents/MacOS/Mesen' } elseif ($IsLinux) { 'tools/mesen/Mesen' } else { 'tools/mesen/Mesen.exe' }
+$mesen = Join-Path $root $mesenRel
+if (-not (Test-Path $mesen)) { Write-Host "No encontre $mesenRel (ver README)" -ForegroundColor Red; exit 1 }
+# Con un settings.json junto al ejecutable Mesen corre en modo portable (no toca tu configuración normal). Si no
+# hay, se crea uno con lo que necesitan las pruebas; Mesen pone los valores por defecto en lo demás
+$mesenDir = Split-Path $mesen -Parent
+$settings = Join-Path $mesenDir 'settings.json'
+if (-not (Test-Path $settings)) {
+    # (sin AutoConfigureInput, un settings.json nuevo deja el puerto 1 sin control: hay que declarar los dos)
+    [IO.File]::WriteAllText($settings, '{"Debug":{"ScriptWindow":{"AllowIoOsAccess":true}},"Nes":{"AutoConfigureInput":false,"Port1":{"Type":"NesController"},"Port2":{"Type":"NesController"}}}')
+    Write-Host "Cree $settings (Mesen portable para las pruebas)"
+}
 
 # Canciones en el orden del menú (alfabético, como src/songs/list.s)
-$songs = @(Get-ChildItem (Join-Path $root 'src\songs') -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'song.s') } | Sort-Object Name)
+$songs = @(Get-ChildItem (Join-Path $root 'src/songs') -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'song.s') } | Sort-Object Name)
 if ($Release) {
     $versionadas = @(git -C $root ls-files 'src/songs' | Where-Object { $_ -match '^src/songs/[^/]+/song\.s$' } | ForEach-Object { ($_ -split '/')[2] })
     $songs = @($songs | Where-Object { $versionadas -contains $_.Name })
@@ -130,7 +143,7 @@ for ($s = 0; $s -lt $songs.Count; $s++) {
         $caso = @{
             Nombre = "$songName/$name"
             Record = $record
-            Out = Join-Path $root "build\test-$songName-$name"
+            Out = Join-Path $root "build/test-$songName-$name"
             Env = [ordered]@{
                 AUTOPLAY_SONG = "$s"; AUTOPLAY_PLAYERS = "$players"; AUTOPLAY_MODE = "$mode1"
                 AUTOPLAY_INSTRUMENT = "$inst1"; AUTOPLAY_DIFFICULTY = "$diff1"; AUTOPLAY_MODE2 = "$mode2"
@@ -150,16 +163,17 @@ function Iniciar-Caso($caso, $rom) {
     foreach ($k in $caso.Env.Keys) { Set-Item -Path "env:$k" -Value $caso.Env[$k] }
     $env:TEST_OUT = $caso.Out
     New-Item -ItemType Directory -Force $caso.Out | Out-Null
-    Remove-Item "$($caso.Out)\resultado.txt" -ErrorAction SilentlyContinue
-    $p = Start-Process -FilePath $mesen -PassThru -WindowStyle Hidden `
-        -RedirectStandardOutput "$($caso.Out)\mesen.log" -RedirectStandardError "$($caso.Out)\mesen_err.log" `
-        -ArgumentList @('--testrunner', "`"$rom`"", "`"$root\tests\autoplay.lua`"")
+    Remove-Item "$($caso.Out)/resultado.txt" -ErrorAction SilentlyContinue
+    $ventana = if ($IsMacOS -or $IsLinux) { @{} } else { @{ WindowStyle = 'Hidden' } }   # (-WindowStyle solo existe en Windows)
+    $p = Start-Process -FilePath $mesen -PassThru @ventana `
+        -RedirectStandardOutput "$($caso.Out)/mesen.log" -RedirectStandardError "$($caso.Out)/mesen_err.log" `
+        -ArgumentList @('--testrunner', "`"$rom`"", "`"$root/tests/autoplay.lua`"")
     $null = $p.Handle    # (sin esto, PowerShell 5.1 pierde el código de salida de un proceso que no se espera)
     return $p
 }
 
 function Informar-Caso($caso, $codigo) {
-    $archivo = "$($caso.Out)\resultado.txt"
+    $archivo = "$($caso.Out)/resultado.txt"
     $resultado = if (Test-Path $archivo) { (Get-Content $archivo -Raw).Trim() } else { 'sin resultado' }
     Write-Host "[$($caso.Nombre)] $resultado (exit $codigo)"
     if ($codigo -ne 0) { $script:failed = $true }
@@ -167,8 +181,8 @@ function Informar-Caso($caso, $codigo) {
 
 # 1) Los casos independientes, de a $Paralelo a la vez. Cada ranura tiene su copia del ROM (y su .dbg,
 #    que Mesen busca junto a él) para que los .sav de récords de uno no se mezclen con los de otro
-$saves = Join-Path $root 'tools\mesen\Saves'
-$parDir = Join-Path $root 'build\par'
+$saves = Join-Path $mesenDir 'Saves'
+$parDir = Join-Path $root 'build/par'
 $dbgOrigen = [IO.Path]::ChangeExtension($romPath, '.dbg')
 if ($trabajos.Count -gt 0) {
     New-Item -ItemType Directory -Force $parDir | Out-Null
