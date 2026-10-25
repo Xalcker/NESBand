@@ -158,7 +158,13 @@ TILE "1.....33", "1.....33", "1.....33", "11111133", "1.....33", "1.....33", "1.
 ; Las letras, los números y la puntuación salen de una fuente de 8x8 (por defecto Bongo-8 Mono, CC0: ver
 ; assets/fonts/) que `nesband build-font` convierte en src/font.s; ahí también van los símbolos propios del
 ; juego (* < >) y la barra del bombo ($22-$23, TILE_KICK). Cada tile tiene el número de su código ASCII.
+; Con PRIVATE_FONT (build.ps1 -Fuente / FUENTE=... ./build.sh) se usa build/font_private.s: una fuente que solo
+; está en tu equipo (por ejemplo de Fonts_MiSTer); el build de release nunca la usa.
+.ifdef PRIVATE_FONT
+.include "font_private.s"
+.else
 .include "font.s"
+.endif
 
 ; --- Escenario: tiles fijos que se repiten con el scroll (los genera `nesband build-scene`) ---
 SCENE_CHR_LOW

@@ -21,6 +21,9 @@ src/songs/*
 !src/songs/cumbia/
 !src/songs/amanecer/
 
+# Fuentes privadas (#21): las de Fonts_MiSTer y otras con derechos de autor, solo para tu copia (-Fuente / FUENTE=)
+fonts_private/
+
 # Referencias visuales con marcas de terceros (logos de Nintendo, etc.)
 docs/referencias/
 

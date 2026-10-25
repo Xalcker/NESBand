@@ -117,7 +117,14 @@ y necesita el runtime de .NET; Mesen 2 (`Mesen_<versión>_Linux_x64.zip`) es un 
 ./build.sh           # macOS / Linux (o pwsh ./build.ps1, con las mismas opciones que en Windows)
 ```
 
-El resultado es `build/nesband.nes`; ábrelo en Mesen.
+El resultado es `build/nesband.nes`; ábrelo en Mesen. Desde la terminal:
+
+```bash
+tools\mesen\Mesen.exe build\nesband.nes                              # Windows
+open tools/mesen/Mesen.app --args "$PWD/build/nesband.nes"           # macOS (la ruta debe ser absoluta)
+tools/mesen/Mesen build/nesband.nes                                  # Linux
+```
+
 Mesen carga solo `build/nesband.dbg`, así que en el depurador verás los nombres
 de las variables y las etiquetas del código en lugar de direcciones sueltas.
 
@@ -125,7 +132,7 @@ Compilar la ROM **no** necesita FamiStudio ni Python: la canción ya convertida 
 
 **Más canciones que slots:** el cartucho tiene 31 slots (ver `nes.cfg`). Si importaste más, compila un
 subconjunto con `.\build.ps1 -Solo mm1_*` (o `SOLO="mm1_*" ./build.sh`; acepta varios patrones separados por
-comas o espacios). Deja `build\nesband-solo.nes` (y su `.dbg`) sin pisar la ROM completa; con `-Nombre megaman2` (o `NOMBRE=megaman2`) el archivo es `build\nesband-megaman2.nes`. `import-song` solo
+comas o espacios). Deja `build\nesband-solo.nes` (y su `.dbg`) sin pisar la ROM completa; con `-Nombre megaman2` (o `NOMBRE=megaman2`) el archivo es `build\nesband-megaman2.nes`. `-Nombre` sirve también sin `-Solo`, para tener otra ROM junto a la normal (por ejemplo una con fuente privada, ver abajo). `import-song` solo
 avisa cuando hay más de 31, no falla.
 
 **Opciones de compilación** (apagadas por defecto; se pasan al ensamblar):
@@ -134,6 +141,20 @@ avisa cuando hay más de 31, no falla.
 |---|---|---|
 | Luces de la batería | `.\build.ps1 -LucesBateria` / `LUCES_BATERIA=1 ./build.sh` | Con la batería, las luces del escenario cambian el color de fondo (negro, azul oscuro al latir con el combo, gris en el destello estelar). Apagada, la batería no tiene luces que cambien: la paleta del escenario es la del tom verde. |
 | Medidor semitransparente | `.\build.ps1 -MedidorTransparente` / `MEDIDOR_TRANSPARENTE=1 ./build.sh` | El medidor de vida se dibuja un cuadro sí y uno no (parpadeo a 30 Hz que parece transparencia; puede molestar a quien sea sensible a los parpadeos). |
+| Fuente privada | `.\build.ps1 -Fuente fonts_private\x.pf` / `FUENTE=fonts_private/x.pf ./build.sh` | Las letras del juego salen de una fuente de 8x8 de tu equipo en vez de Bongo-8 Mono (ver abajo). |
+
+**Fuente privada (solo para uso personal):** puedes compilar tu copia con otra fuente de 8x8, por ejemplo
+una de [Fonts_MiSTer](https://github.com/MiSTer-devel/Fonts_MiSTer) (tipografías de arcades y computadoras
+en formato `.pf`) o cualquier `.ttf` de 8 px. Guárdala en `fonts_private/` (está en `.gitignore`) y pasa su
+ruta con `-Fuente` / `FUENTE`; se convierte a `build/font_private.s` sin tocar `src/font.s`. Para compararla
+con la normal, dale otro nombre: `FUENTE=fonts_private/x.pf NOMBRE=x ./build.sh` (o `.\build.ps1 -Fuente
+fonts_private\x.pf -Nombre x`) deja `build/nesband-x.nes` y `build/nesband.nes` sigue con Bongo-8. Necesita uv
+(y Pillow para las `.ttf`, que uv baja solo). Los símbolos propios del juego (la estrella, el cursor y la barra
+del bombo) se quedan como están. **Por qué solo personal:** el repositorio de Fonts_MiSTer no tiene licencia y
+casi todas sus fuentes salen de juegos y computadoras con derechos de autor (Capcom, Konami, Sega, IBM…):
+igual que los NSF comerciales, sirven para tu ROM pero **no se suben a git ni a los Releases**. Por eso
+`-Release` / `--release` ignoran siempre la fuente privada, y además revisan en el `.dbg` que no haya entrado
+a la ROM (si entrara, borran la ROM y fallan).
 
 ### Controles
 
@@ -536,7 +557,8 @@ copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
     estelar y al salir del juego el fondo vuelve a su banco de gráficos de siempre.
   - Las capturas de cada pantalla quedan en `build/test-<canción>-<caso>/`.
 - `pytest` prueba el generador de charts (lectura de FamiStudio, tempo, reducción, carriles, acordes y
-  el papel de cada instrumento).
+  el papel de cada instrumento) y el conversor de fuentes (`.pf` y `.ttf`; con `uv run --with pillow pytest`
+  comprueba además que `src/font.s` sea lo que sale de Bongo-8 Mono).
 
 Requisitos del `settings.json` del Mesen de pruebas: `AllowIoOsAccess: true` (el script de Lua escribe
 archivos), `Nes.Port1.Type` y `Nes.Port2.Type: "NesController"` (los dos controles conectados) y
@@ -645,6 +667,8 @@ pruebas y la música y efectos originales de `audio/`. **No** cubre:
 - **La fuente de las letras** (`assets/fonts/Bongo-8_Mono.ttf` y los tiles de `src/font.s` que salen de ella):
   *Bongo-8 Mono* de Caffinate (Nathan Scott), de dominio público (CC0 1.0). No exige crédito, pero se
   agradece. Se regenera con `uv run --with pillow nesband build-font` (Pillow solo hace falta para eso).
+  Las fuentes privadas (`-Fuente`, ver [Compilar y jugar](#compilar-y-jugar)) no entran al repositorio ni a
+  los Releases.
 - **Las canciones convertidas de juegos comerciales** (`src/songs/`): la música es de sus compañías
   (Capcom, Konami, Sunsoft, Technos Japan…). Están aquí para un proyecto fan; la licencia de NESBand no
   te da ningún derecho sobre ellas.

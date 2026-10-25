@@ -469,14 +469,17 @@ def build_scene(args: argparse.Namespace) -> None:
 def build_font(args: argparse.Namespace) -> None:
     from . import fontgen
 
-    ttf = args.ttf or ROOT / "assets" / "fonts" / "Bongo-8_Mono.ttf"
+    font = args.fuente or ROOT / "assets" / "fonts" / "Bongo-8_Mono.ttf"
     try:
-        glyphs = fontgen.glyphs_from_ttf(ttf)
+        glyphs = fontgen.glyphs_from(font)
     except ImportError:
-        sys.exit("Falta Pillow: corre `uv run --with pillow nesband build-font` (solo hace falta para generar la fuente)")
-    out = ROOT / "src" / "font.s"
-    write_lf(out, fontgen.build_font_s(glyphs, ttf.name))
-    print(f"{out.relative_to(ROOT)} generado desde {ttf.name}")
+        sys.exit("Falta Pillow: corre `uv run --with pillow nesband build-font` (solo hace falta para las fuentes TTF)")
+    except (OSError, ValueError) as e:
+        sys.exit(str(e))
+    out = args.out or ROOT / "src" / "font.s"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    write_lf(out, fontgen.build_font_s(glyphs, font.name))
+    print(f"{out} generado desde {font.name}")
 
 
 def list_songs(args: argparse.Namespace) -> None:
@@ -540,8 +543,10 @@ def main() -> None:
     p = sub.add_parser("build-audio", help="Exporta la música del título y los efectos (audio/*.txt) a src/audio/")
     p.set_defaults(func=build_audio)
 
-    p = sub.add_parser("build-font", help="Genera src/font.s: las letras del juego desde una fuente TTF de 8 px (necesita Pillow)")
-    p.add_argument("--ttf", type=Path, help="fuente a usar (default: Bongo-8 Mono, assets/fonts/)")
+    p = sub.add_parser("build-font", help="Genera src/font.s: las letras del juego desde una fuente de 8x8 (.ttf con Pillow, o .pf)")
+    p.add_argument("--fuente", "--ttf", dest="fuente", type=Path,
+                   help="fuente a usar: .ttf de 8 px o .pf de Fonts_MiSTer (default: Bongo-8 Mono, assets/fonts/)")
+    p.add_argument("--out", type=Path, help="archivo a generar (default: src/font.s; las fuentes privadas van a build/font_private.s)")
     p.set_defaults(func=build_font)
 
     p = sub.add_parser("build-scene", help="Genera src/scene_art.s: el público, las luces y las torres del escenario")

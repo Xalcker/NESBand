@@ -7,6 +7,10 @@ generarla hace falta Pillow, que el proyecto no usa en ningún otro lado:
     uv run --with pillow nesband build-font --ttf otra_fuente.ttf    (cualquier TTF de 8 px)
 
 src/font.s se versiona ya generado, así que compilar la ROM no necesita Pillow ni Python.
+
+También lee los .pf de Fonts_MiSTer (sin Pillow), pero esos tienen derechos de autor: son solo para la copia
+personal, con `build.ps1 -Fuente` / `FUENTE=... ./build.sh`, que generan build/font_private.s (con --out) y
+nunca tocan src/font.s ni la ROM de release.
 """
 
 from __future__ import annotations
@@ -43,6 +47,31 @@ def glyphs_from_ttf(path: Path, size: int = 8) -> dict[str, list[str]]:
         draw.text((0, 0), ch, font=font, fill=255)
         glyphs[ch] = ["".join("1" if image.getpixel((x, y)) else "." for x in range(8)) for y in range(8)]
     return glyphs
+
+
+PF_SIZE = 96 * 8   # un .pf (Fonts_MiSTer): los 96 caracteres ASCII de 32 a 127, 8 bytes cada uno
+
+
+def glyphs_from_pf(path: Path) -> dict[str, list[str]]:
+    """Los glifos de FONT_CHARS de un .pf: un byte por fila, el bit más alto es la columna de la izquierda."""
+    data = path.read_bytes()
+    if len(data) != PF_SIZE:
+        raise ValueError(f"{path.name} tiene {len(data)} bytes; un .pf de 8x8 tiene {PF_SIZE} (ASCII 32 a 127)")
+    glyphs = {}
+    for ch in FONT_CHARS:
+        start = (ord(ch) - 32) * 8
+        glyphs[ch] = [format(byte, "08b").replace("0", ".") for byte in data[start:start + 8]]
+    return glyphs
+
+
+def glyphs_from(path: Path) -> dict[str, list[str]]:
+    """Los glifos de una fuente .pf o .ttf (la TTF necesita Pillow)."""
+    suffix = path.suffix.lower()
+    if suffix == ".pf":
+        return glyphs_from_pf(path)
+    if suffix == ".ttf":
+        return glyphs_from_ttf(path)
+    raise ValueError(f"{path.name}: solo se aceptan fuentes .pf (Fonts_MiSTer) o .ttf de 8 px")
 
 
 def build_font_s(glyphs: dict[str, list[str]], source: str) -> str:
