@@ -937,16 +937,8 @@ update_bolts:
     bne @sprite
     jmp @next
 @hide:
-    lda #$FF
     ldx #BOLT_LEN
-@hide_loop:
-    sta oam,y
-    iny
-    iny
-    iny
-    iny
-    dex
-    bne @hide_loop
+    jsr hide_oam            ; oculta X sprites desde el byte Y de la OAM
 @next:
     ldx tmp
     inx
@@ -1061,16 +1053,8 @@ update_meters:
     bne @segment
     jmp @next
 @hide:
-    lda #$FF
     ldx #METER_SEGMENTS
-@hide_loop:
-    sta oam,y
-    iny
-    iny
-    iny
-    iny
-    dex
-    bne @hide_loop
+    jsr hide_oam            ; oculta X sprites desde el byte Y de la OAM
 @next:
     ldx lane
     inx
@@ -1154,9 +1138,13 @@ show_pause:
     rts
 
 hide_pause:
-    lda #$FF
     ldy #PAUSE_SPRITE * 4
     ldx #5 + PAUSE_HINT_SPRITES
+    ; (sigue en hide_oam)
+
+; hide_oam: oculta X sprites a partir del byte Y de la OAM (Y avanza 4 por sprite)
+hide_oam:
+    lda #$FF
 @loop:
     sta oam,y
     iny

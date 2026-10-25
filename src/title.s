@@ -64,23 +64,8 @@ LOGO_ROWS  = 4
 LOGO_COL   = (32 - LOGO_WIDTH) / 2
 
 draw_logo:
-    ; addr = $2000 + fila * 32 + LOGO_COL
-    sta addr
-    lda #0
-    sta addr+1
-    ldx #5
-@shift:
-    asl addr
-    rol addr+1
-    dex
-    bne @shift
-    lda addr
-    clc
-    adc #LOGO_COL
-    sta addr
-    lda addr+1
-    adc #$20
-    sta addr+1
+    ldx #LOGO_COL           ; addr = $2000 + fila * 32 + LOGO_COL
+    jsr text_addr
 
     ldx #0                  ; índice dentro de logo_tiles
     lda #LOGO_ROWS

@@ -43,12 +43,12 @@
 .endmacro
 
 ; -----------------------------------------------------------------------------
-; clear_nametable: llena $2000 con espacios y sus atributos con paleta 0
-; (render apagado)
+; fill_blank: llena de espacios (30 filas de 32 tiles) la nametable cuyo byte
+; alto es A, dejando la PPU lista para seguir escribiendo (render apagado).
+; La comparten clear_nametable y draw_strip.
 ; -----------------------------------------------------------------------------
-clear_nametable:
+fill_blank:
     bit PPUSTATUS
-    lda #$20
     sta PPUADDR
     lda #$00
     sta PPUADDR
@@ -62,6 +62,15 @@ clear_nametable:
     bne @col
     dey
     bne @row
+    rts
+
+; -----------------------------------------------------------------------------
+; clear_nametable: llena $2000 con espacios y sus atributos con paleta 0
+; (render apagado)
+; -----------------------------------------------------------------------------
+clear_nametable:
+    lda #$20
+    jsr fill_blank
     lda #0                  ; 64 bytes de atributos
     ldx #64
 @attr:

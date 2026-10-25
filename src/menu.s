@@ -546,16 +546,9 @@ menu_draw_difficulty:
     lda player_save + (cur_difficulty - pstate),y
     jsr ptr_difficulty_name
 @write:
-    ldx player_drawn
-    lda #<($2000 + MENU_DIFF_ROW * 32)
-    clc
-    adc menu_value_col,x
-    sta addr
-    lda #>($2000 + MENU_DIFF_ROW * 32)
-    adc #0
-    sta addr+1
-    lda #MENU_VALUE_WIDTH
-    jmp vbuf_text
+    lda #MENU_DIFF_ROW
+    ldx #MENU_VALUE_WIDTH
+    jmp menu_write_value
 
 ; mark_record_dirty: hay que redibujar el récord del jugador actual
 mark_record_dirty:
@@ -634,16 +627,9 @@ menu_draw_record:
     sta numstr+13
     SET_PTR numstr
 @write:
-    ldx player_drawn
-    lda #<($2000 + MENU_REC_ROW * 32)
-    clc
-    adc menu_value_col,x
-    sta addr
-    lda #>($2000 + MENU_REC_ROW * 32)
-    adc #0
-    sta addr+1
-    lda #MENU_REC_WIDTH
-    jmp vbuf_text
+    lda #MENU_REC_ROW
+    ldx #MENU_REC_WIDTH
+    jmp menu_write_value
 
 ; "CON FALLO" / "SIN FALLO" del jugador X
 menu_draw_fail:
@@ -658,16 +644,9 @@ menu_draw_fail:
     lda fail_names+1,x
     sta ptr+1
 @write:
-    ldx player_drawn
-    lda #<($2000 + MENU_FAIL_ROW * 32)
-    clc
-    adc menu_value_col,x
-    sta addr
-    lda #>($2000 + MENU_FAIL_ROW * 32)
-    adc #0
-    sta addr+1
-    lda #MENU_VALUE_WIDTH
-    jmp vbuf_text
+    lda #MENU_FAIL_ROW
+    ldx #MENU_VALUE_WIDTH
+    jmp menu_write_value
 
 menu_draw_instrument:
     jsr menu_value_ptr
@@ -676,15 +655,19 @@ menu_draw_instrument:
     lda player_save + PS_INSTRUMENT,y
     jsr ptr_instrument_name
 @write:
-    ldx player_drawn
-    lda #<($2000 + MENU_INST_ROW * 32)
-    clc
-    adc menu_value_col,x
-    sta addr
-    lda #>($2000 + MENU_INST_ROW * 32)
-    adc #0
-    sta addr+1
-    lda #MENU_VALUE_WIDTH
+    lda #MENU_INST_ROW
+    ldx #MENU_VALUE_WIDTH
+    jmp menu_write_value
+
+; menu_write_value: pone en la cola el texto de ptr en la columna de valores del
+; jugador player_drawn, fila A, rellenando hasta X caracteres. (La cola comun
+; de las cuatro menu_draw_*.)
+menu_write_value:
+    stx tmp                 ; ancho (text_addr no toca tmp)
+    ldy player_drawn
+    ldx menu_value_col,y
+    jsr text_addr           ; A = fila, X = columna
+    lda tmp
     jmp vbuf_text
 
 ; menu_value_ptr: X = jugador. Si no está jugando, ptr = texto vacío y

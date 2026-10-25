@@ -784,8 +784,14 @@ score_add_hold:
     lda hud_dirty
     ora #HUD_SCORE
     sta hud_dirty
-    ldx #4                  ; dígito de las decenas
     lda #1
+    ; (sigue en score_add_tens)
+
+; score_add_tens: puntaje += A * 10, sumando A al dígito de las decenas y
+; llevando el acarreo hacia arriba. Compartida por score_add y score_add_hold;
+; no toca Y.
+score_add_tens:
+    ldx #4                  ; dígito de las decenas
 @digit:
     clc
     adc score_digits,x
@@ -1019,22 +1025,8 @@ score_add:
     jsr eff_multiplier      ; (las estrellas solo cuentan el multiplicador del combo)
     tay
 @times:
-    ldx #4                  ; dígito de las decenas
     lda #5
-@digit:
-    clc
-    adc score_digits,x
-    cmp #10
-    bcc @store
-    sbc #10                 ; (carry = 1 por el cmp)
-    sta score_digits,x
-    lda #1                  ; lo que se lleva al siguiente dígito
-    dex
-    bpl @digit
-    jmp @next               ; se pasó de 999999: se pierde
-@store:
-    sta score_digits,x
-@next:
+    jsr score_add_tens
     dey
     bne @times
     rts

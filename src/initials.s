@@ -64,17 +64,7 @@ enter_initials:
     SET_PTR txt_score
     lda #INI_SCORE_LABEL
     jsr res_print
-    ldx #5
-@score:
-    lda score_digits,x
-    clc
-    adc #'0'
-    sta numstr,x
-    dex
-    bpl @score
-    lda #0
-    sta numstr+6
-    SET_PTR numstr
+    jsr score_text          ; ptr = los 6 dígitos (results.s)
     lda #INI_SCORE_LABEL + 1
     jsr res_print
     SET_PTR txt_initials

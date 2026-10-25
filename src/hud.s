@@ -36,21 +36,8 @@ HUD_STAR     = %100
 ; -----------------------------------------------------------------------------
 draw_strip:
     ; Nametable de $2400 en blanco (espacios); los atributos los pone write_attributes
-    bit PPUSTATUS
     lda #>STRIP_NT
-    sta PPUADDR
-    lda #<STRIP_NT
-    sta PPUADDR
-    lda #' '
-    ldy #30
-@row:
-    ldx #32
-@col:
-    sta PPUDATA
-    dex
-    bne @col
-    dey
-    bne @row
+    jsr fill_blank
 
     ; El público del escenario: las filas SPLIT_ROW .. 29 a los lados de los marcadores
     ; (scene_strip trae 5 filas de 32 columnas por distribución: 1 jugador, 2 jugadores)
