@@ -447,7 +447,7 @@ en la ficha de la canción (*Exportar chart.s* del editor también ajusta `chart
 
 
 Aún no tiene escuchar un solo grupo de golpes (el motor mezcla todo en cada canal; con M/S puedes aislar
-Ruido o DPCM). El [issue #15](https://github.com/Xalcker/NESBand/issues/15) sigue abierto por el modo batería del ROM.
+Ruido o DPCM). El [issue #15](https://github.com/Xalcker/NESBand/issues/15) ya está cerrado: el modo batería del ROM existe.
 
 ## Música del título y efectos de sonido
 
