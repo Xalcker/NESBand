@@ -89,6 +89,20 @@ judge_lanes:
     sta lane
 @lane_loop:
     ldx lane
+    lda lanes_seeking       ; ¿este carril aún busca su siguiente nota (lane_seek por partes)?
+    and lane_bit,x
+    beq @judge
+    lda lane_ptr_lo,x       ; sí: sigue buscando desde donde se quedó y no juzga nada este cuadro
+    sta ptr
+    lda lane_ptr_hi,x
+    sta ptr+1
+    lda lane_frame_lo,x
+    sta seek_frame
+    lda lane_frame_hi,x
+    sta seek_frame+1
+    jsr lane_seek
+    jmp @next
+@judge:
     lda lane_ptr_lo,x
     sta ptr
     lda lane_ptr_hi,x
@@ -227,8 +241,20 @@ chart_step:
 ; lane_seek: a partir de ptr/seek_frame, busca la siguiente nota que use el
 ; carril X (o el final del chart) y la guarda en lane_ptr/lane_frame.
 ; No modifica X.
+;
+; Revisa a lo más SEEK_BUDGET entradas por llamada: en un chart con huecos largos
+; en un carril, recorrerlo entero en un solo cuadro costaba ~12 000 ciclos (un cuadro
+; atrasado). Si no la encuentra en ese presupuesto, deja en lane_ptr/lane_frame la
+; entrada por revisar (ya avanzada) y marca el carril en lanes_seeking; judge_lanes
+; la continúa en los cuadros siguientes. Las notas de un chart están a 5 cuadros o
+; más una de otra, así que la búsqueda termina mucho antes de que la nota llegue a la
+; ventana de juicio. Al encontrarla (o el fin del chart) limpia el bit.
 ; -----------------------------------------------------------------------------
+SEEK_BUDGET = 24
+
 lane_seek:
+    lda #SEEK_BUDGET
+    sta seek_left
 @check:
     ldy #1
     lda (ptr),y             ; carriles
@@ -236,13 +262,36 @@ lane_seek:
     and chart_bit,x         ; (con ESPEJO, el carril X toca las notas del carril de enfrente)
     bne @found
 @step:
-    jsr chart_step
-    jmp @check
+    clc                     ; chart_step en línea (sin jsr/rts: este bucle es el que más se repite)
+    lda ptr
+    adc #CHART_ENTRY
+    sta ptr
+    bcc @no_carry
+    inc ptr+1
+@no_carry:
+    ldy #0
+    lda (ptr),y             ; cuadros desde la entrada anterior
+    clc
+    adc seek_frame
+    sta seek_frame
+    bcc @no_carry2
+    inc seek_frame+1
+@no_carry2:
+    dec seek_left
+    bne @check
+    lda lanes_seeking       ; se acabó el presupuesto: queda pendiente
+    ora lane_bit,x
+    sta lanes_seeking
+    bne @save               ; (siempre)
 @release:
     cmp #CHART_END
-    beq @found              ; fin del chart
-    bne @step               ; (siempre)
+    bne @step
 @found:
+    lda lane_bit,x          ; la encontró: ya no está buscando
+    eor #$FF
+    and lanes_seeking
+    sta lanes_seeking
+@save:
     lda ptr
     sta lane_ptr_lo,x
     lda ptr+1

@@ -151,6 +151,7 @@ tmp:            .res 2   ; temporal de uso general
 addr:           .res 2   ; dirección de VRAM (resultado de vrow_to_addr, SET_ADDR, etc.)
 ptr:            .res 2   ; puntero de uso general (chart, textos)
 seek_frame:     .res 2   ; cuadro de la entrada a la que apunta ptr (ver chart_step)
+seek_left:      .res 1   ; entradas que le quedan a lane_seek en esta llamada (SEEK_BUDGET)
 lane:           .res 1   ; carril que se está procesando (0-4)
 fill_count:     .res 1
 vbuf_len:       .res 1   ; bytes ocupados en vbuf (la cola de textos para la NMI)
@@ -278,6 +279,7 @@ tail_mask:      .res 1   ; carriles con una cola de nota sostenida en la parte y
 hold_on:        .res NUM_LANES   ; 1 = estás sosteniendo la nota de ese carril
 hold_end_lo:    .res NUM_LANES   ; cuadro en que termina su cola
 hold_end_hi:    .res NUM_LANES
+lanes_seeking:  .res 1   ; carriles cuya búsqueda de la siguiente nota quedó a medias (un bit por carril; ver lane_seek)
 pstate_end:
 PSTATE_SIZE = pstate_end - pstate
 
@@ -364,13 +366,14 @@ drum_look:      .res 1   ; 1 = la autopista se ve como batería: columnas rojo-a
 .include "title.s"
 .include "menu.s"
 .include "play.s"
-; results.s va en el banco fijo de $E000 (segmento CODE2): el de $8000 (CODE) ya está lleno
+; results.s va en el banco fijo de $E000 (segmento CODE2): el de $8000 (CODE) ya está lleno.
+; Ahí van también options, records e initials: ninguno es de la ruta por cuadro de la partida.
 .segment "CODE2"
 .include "results.s"
 .include "options.s"
 .include "records.s"            ; (también en CODE2: el modo batería agrandó el código de la autopista y el banco de $8000 se llenó)
-.segment "CODE"
 .include "initials.s"
+.segment "CODE"
 
 ; =============================================================================
 ; reset: lo primero que se ejecuta al encender o al presionar Reset

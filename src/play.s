@@ -502,11 +502,26 @@ init_player:
     sta multiplier
     jsr count_notes
 
-    ; Cada carril busca su primera nota
+    ; Cada carril busca su primera nota (la pantalla está apagada: lane_seek sigue hasta encontrarla)
     ldx #0
+    stx lanes_seeking
 @lanes:
     jsr chart_first
+@seek:
     jsr lane_seek
+    lda lanes_seeking
+    and lane_bit,x
+    beq @sought
+    lda lane_ptr_lo,x       ; quedó pendiente: continúa desde donde se quedó
+    sta ptr
+    lda lane_ptr_hi,x
+    sta ptr+1
+    lda lane_frame_lo,x
+    sta seek_frame
+    lda lane_frame_hi,x
+    sta seek_frame+1
+    jmp @seek
+@sought:
     inx
     cpx #NUM_LANES
     bne @lanes
