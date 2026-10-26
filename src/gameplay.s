@@ -344,8 +344,7 @@ note_hit:
     jmp score_add
 
 note_miss:
-    jsr miss_feedback
-    jsr combo_break
+    jsr combo_break         ; sin sonido ni efecto (como en Rock Band): solo se calla tu instrumento
     jmp life_down           ; y pierdes vida (según la dificultad)
 
 air_hit:
@@ -355,7 +354,8 @@ air_hit:
     jmp life_lose
 
 ; -----------------------------------------------------------------------------
-; miss_feedback: te equivocaste (una nota que se pasó o un golpe al aire). Suena
+; miss_feedback: te equivocaste al rasguear (un golpe al aire; una nota que se pasó
+; sin tocarla solo calla el instrumento, como en Rock Band). Suena
 ; un "clank" y, con un jugador, la autopista tiembla y la pantalla se pone roja
 ; unos cuadros (ver update_miss_fx). Mientras dura miss_fx (el efecto y su
 ; enfriamiento) los fallos que siguen no lo repiten: en una racha de fallos no

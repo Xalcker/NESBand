@@ -18,8 +18,8 @@
 ;   INICIO          dónde empieza la práctica: el principio, 1/4, 1/2 o 3/4 de la canción (si no
 ;                   cae antes de donde termina, empieza en el cuarto anterior). El motor de
 ;                   sonido se adelanta hasta ahí (ver practice_seek) y tarda unos segundos
-;   EFECTO AL       SI, SOLO SONIDO o NO: al fallar suena un "clank" y, con un jugador, la autopista
-;   FALLAR          tiembla y la pantalla se pone roja (ver miss_feedback y update_miss_fx)
+;   EFECTO AL       SI, SOLO SONIDO o NO: al rasguear en falso suena un "clank" y, con un jugador, la
+;   FALLAR          autopista tiembla y la pantalla se pone roja (ver miss_feedback y update_miss_fx)
 ;
 ; Con cualquier opción distinta de la normal no se guardan récords (salvo EFECTO AL FALLAR, que
 ; no cambia el juego).
