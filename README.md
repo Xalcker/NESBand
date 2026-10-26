@@ -194,8 +194,9 @@ Valen para todos los jugadores y se quedan hasta que las cambies; Start juega y 
 | CAIDA DE NOTAS | Qué tan rápido bajan las notas, sin importar la dificultad (*hyperspeed*): AUTO usa la de la dificultad, o la de fácil, medio, difícil o experto |
 | PRACTICA | La canción se repite hasta 1/4, 1/2, 3/4 o el final: sin fallo y sin resultados. Select en la pausa regresa al menú. **Marcas:** en la pausa de una práctica, **A** hace que el bucle empiece 2 segundos antes de donde pausaste y **B** que termine donde pausaste (sin tocar el otro extremo); el bucle debe durar al menos 4 segundos, y si no, la marca se ignora. Las marcas reinician la práctica y valen hasta volver al menú |
 | INICIO DE LA PRACTICA | Dónde empieza la práctica: el principio, 1/4, 1/2 o 3/4 de la canción (nunca en o después de donde termina: empieza en el cuarto anterior). Para llegar ahí el juego adelanta el motor de sonido con la pantalla apagada, así que tarda unos segundos (más cuanto más adelante); las notas de los primeros segundos se omiten para dar tiempo de reaccionar |
+| EFECTO AL FALLAR | SI, SOLO SONIDO o NO. Al fallar (una nota que se pasó o un golpe al aire) suena un efecto, uno de tres al azar que nunca se repite dos veces seguidas, y con **un jugador** la autopista tiembla y la pantalla se tiñe de rojo unos cuadros (con dos no, porque se movería también la autopista del otro). En una racha de fallos se repite a lo más 3 veces por segundo. SOLO SONIDO quita el temblor y el rojo |
 
-Con cualquier opción distinta de la normal **no se guardan récords**.
+Con cualquier opción distinta de la normal **no se guardan récords** (salvo EFECTO AL FALLAR, que no cambia el juego).
 
 **Juego** (modo "tap", un botón por carril, cada jugador con su control):
 
@@ -490,7 +491,10 @@ Son originales de NESBand y viven como proyectos de FamiStudio en formato texto:
 - `audio/titulo.txt`: la pista del título (La menor, 150 BPM, 8 compases que se repiten: melodía en
   el pulso 1, arpegios en el pulso 2, bajo en el triángulo y batería en el ruido).
 - `audio/efectos.txt`: los efectos. Cada "canción" del proyecto es un efecto: *Mover* (cursor del
-  menú), *Aceptar* (Start) y *Volver* (B).
+  menú), *Aceptar* (Start) y *Volver* (B), y los tres de fallo (*Clank*, *Thud* y *Bwomp*). Cada
+  efecto de fallo va dos veces, en el pulso 1 y en el pulso 2, y deben quedar en ese orden (*Clank1*,
+  *Clank2*, *Thud1*...): el juego toca el del pulso que no sea el canal de quien falló, porque ese canal
+  se calla al fallar (ver `miss_feedback` en `src/gameplay.s`).
 
 Para editarlos, ábrelos en FamiStudio (con *Open* o *Import*, según tu versión, eligiendo el `.txt`), y
 guárdalos de nuevo como texto (*Export → FamiStudio Text*) sobre el mismo archivo. Luego:

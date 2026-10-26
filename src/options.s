@@ -18,12 +18,15 @@
 ;   INICIO          dónde empieza la práctica: el principio, 1/4, 1/2 o 3/4 de la canción (si no
 ;                   cae antes de donde termina, empieza en el cuarto anterior). El motor de
 ;                   sonido se adelanta hasta ahí (ver practice_seek) y tarda unos segundos
+;   EFECTO AL       SI, SOLO SONIDO o NO: al fallar suena un "clank" y, con un jugador, la autopista
+;   FALLAR          tiembla y la pantalla se pone roja (ver miss_feedback y update_miss_fx)
 ;
-; Con cualquier opción distinta de la normal no se guardan récords.
+; Con cualquier opción distinta de la normal no se guardan récords (salvo EFECTO AL FALLAR, que
+; no cambia el juego).
 ; =============================================================================
 
-OPT_ITEMS       = 5
-OPT_ROW0        = 9      ; fila del valor de la primera opción; cada una va 3 filas más abajo
+OPT_ITEMS       = 6
+OPT_ROW0        = 7      ; fila del valor de la primera opción; cada una va 3 filas más abajo
 OPT_VALUE_COL   = 4
 OPT_VALUE_WIDTH = 16
 PRACTICE_LOOP_MAX = 4    ; el valor más alto de PRACTICA (4 = toda la canción)
@@ -35,15 +38,16 @@ enter_options:
     ldx #PALETTES_MENU
     jsr load_palettes
     jsr clear_nametable
-    PRINT_CENTER 4, txt_options
+    PRINT_CENTER 3, txt_options
     PRINT MENU_LABEL_COL, OPT_ROW0 - 1, txt_opt_mirror
     PRINT MENU_LABEL_COL, OPT_ROW0 + 2, txt_opt_speed
     PRINT MENU_LABEL_COL, OPT_ROW0 + 5, txt_opt_fall
     PRINT MENU_LABEL_COL, OPT_ROW0 + 8, txt_opt_practice
     PRINT MENU_LABEL_COL, OPT_ROW0 + 11, txt_opt_start
-    PRINT_CENTER 23, txt_opt_note1
-    PRINT_CENTER 24, txt_opt_note2
-    PRINT_CENTER 26, txt_menu_help
+    PRINT MENU_LABEL_COL, OPT_ROW0 + 14, txt_opt_miss_fx
+    PRINT_CENTER 24, txt_opt_note1
+    PRINT_CENTER 25, txt_opt_note2
+    PRINT_CENTER 27, txt_menu_help
     ldx #OPT_ITEMS - 1
 @draw:
     txa
@@ -150,22 +154,29 @@ options_place_cursor:
 
 .segment "RODATA"
 
-opt_count:      .byte 2, 4, 5, PRACTICE_LOOP_MAX + 1, 4
+opt_count:      .byte 2, 4, 5, PRACTICE_LOOP_MAX + 1, 4, 3
 opt_cursor_y:   .byte OPT_ROW0 * 8 - 1, (OPT_ROW0 + 3) * 8 - 1, (OPT_ROW0 + 6) * 8 - 1, (OPT_ROW0 + 9) * 8 - 1
-                .byte (OPT_ROW0 + 12) * 8 - 1
+                .byte (OPT_ROW0 + 12) * 8 - 1, (OPT_ROW0 + 15) * 8 - 1
 opt_addr_lo:    .byte <($2000 + OPT_ROW0 * 32 + OPT_VALUE_COL), <($2000 + (OPT_ROW0 + 3) * 32 + OPT_VALUE_COL)
                 .byte <($2000 + (OPT_ROW0 + 6) * 32 + OPT_VALUE_COL), <($2000 + (OPT_ROW0 + 9) * 32 + OPT_VALUE_COL)
-                .byte <($2000 + (OPT_ROW0 + 12) * 32 + OPT_VALUE_COL)
+                .byte <($2000 + (OPT_ROW0 + 12) * 32 + OPT_VALUE_COL), <($2000 + (OPT_ROW0 + 15) * 32 + OPT_VALUE_COL)
 opt_addr_hi:    .byte >($2000 + OPT_ROW0 * 32 + OPT_VALUE_COL), >($2000 + (OPT_ROW0 + 3) * 32 + OPT_VALUE_COL)
                 .byte >($2000 + (OPT_ROW0 + 6) * 32 + OPT_VALUE_COL), >($2000 + (OPT_ROW0 + 9) * 32 + OPT_VALUE_COL)
-                .byte >($2000 + (OPT_ROW0 + 12) * 32 + OPT_VALUE_COL)
+                .byte >($2000 + (OPT_ROW0 + 12) * 32 + OPT_VALUE_COL), >($2000 + (OPT_ROW0 + 15) * 32 + OPT_VALUE_COL)
+.assert opt_cursor_y - opt_count = OPT_ITEMS, error, "opt_count debe tener un valor por opción"
 
 opt_lists:      .addr opt_names_mirror, opt_names_speed, opt_names_fall, opt_names_practice, opt_names_start
+                .addr opt_names_miss_fx
 opt_names_mirror:   .addr txt_no, txt_yes
 opt_names_speed:    .addr txt_speed_100, txt_speed_75, txt_speed_50, txt_speed_125
 opt_names_fall:     .addr txt_auto, txt_easy, txt_medium, txt_hard, txt_expert
 opt_names_practice: .addr txt_no, txt_loop_1, txt_loop_2, txt_loop_3, txt_loop_4
 opt_names_start:    .addr txt_start_0, txt_start_1, txt_start_2, txt_start_3
+opt_names_miss_fx:  .addr txt_yes, txt_sound_only, txt_no   ; (en el orden de opt_miss_fx)
+
+; Los textos van en el banco fijo de $8000 (CODE): el de $E000 se llenó con los
+; efectos de sonido de fallo
+.segment "CODE"
 
 txt_options:     .byte "OPCIONES", 0
 txt_opt_mirror:  .byte "ESPEJO", 0
@@ -173,6 +184,8 @@ txt_opt_speed:   .byte "VELOCIDAD", 0
 txt_opt_fall:    .byte "CAIDA DE NOTAS", 0
 txt_opt_practice: .byte "PRACTICA", 0
 txt_opt_start:   .byte "INICIO DE LA PRACTICA", 0
+txt_opt_miss_fx: .byte "EFECTO AL FALLAR", 0
+txt_sound_only:  .byte "SOLO SONIDO", 0
 txt_opt_note1:   .byte "PRACTICA: SIN FALLO NI RECORD", 0
 txt_opt_note2:   .byte "CON OPCIONES NO HAY RECORD", 0
 txt_menu_options: .byte "SELECT: OPCIONES", 0

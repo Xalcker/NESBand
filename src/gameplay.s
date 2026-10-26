@@ -344,13 +344,96 @@ note_hit:
     jmp score_add
 
 note_miss:
+    jsr miss_feedback
     jsr combo_break
     jmp life_down           ; y pierdes vida (según la dificultad)
 
 air_hit:
+    jsr miss_feedback
     jsr combo_break
     lda #LIFE_AIR           ; un golpe al aire cuesta menos que perder una nota
     jmp life_lose
+
+; -----------------------------------------------------------------------------
+; miss_feedback: te equivocaste (una nota que se pasó o un golpe al aire). Suena
+; un "clank" y, con un jugador, la autopista tiembla y la pantalla se pone roja
+; unos cuadros (ver update_miss_fx). Mientras dura miss_fx (el efecto y su
+; enfriamiento) los fallos que siguen no lo repiten: en una racha de fallos no
+; parpadea más de 3 veces por segundo.
+;
+; Hay tres sonidos (clank, thud y bwomp) para que no suene siempre igual: cada
+; fallo toca uno de los otros dos que el anterior, elegido con el bit 0 del
+; contador de cuadros, así que nunca se repite dos veces seguidas.
+;
+; El efecto va en un pulso que no sea tu canal, porque apply_mute calla tu canal
+; justo después del motor de sonido y también callaría el efecto. Cada sonido
+; viene en dos versiones seguidas en sfx.s: la del pulso 1 y la del pulso 2.
+; -----------------------------------------------------------------------------
+MISS_FX_FRAMES   = 6                ; cuadros con temblor y rojo
+MISS_FX_COOLDOWN = 14               ; y cuadros después sin repetirlo (6 + 14 = 20: 3 por segundo)
+MISS_FX_SOUND    = 1                ; valores de opt_miss_fx (0 = todo)
+MISS_FX_OFF      = 2
+MISS_SOUNDS      = 3                ; clank, thud y bwomp
+.assert SFX_CLANK2 = SFX_CLANK1 + 1 && SFX_THUD1 = SFX_CLANK1 + 2 && SFX_BWOMP1 = SFX_CLANK1 + 4 && SFX_BWOMP2 = SFX_CLANK1 + 5, error, "Los efectos de fallo deben ir en orden en audio/efectos.txt: Clank1, Clank2, Thud1, Thud2, Bwomp1, Bwomp2"
+
+miss_feedback:
+    lda miss_fx
+    bne @done               ; todavía dura el anterior
+    lda opt_miss_fx
+    cmp #MISS_FX_OFF
+    beq @done
+    lda #MISS_FX_FRAMES + MISS_FX_COOLDOWN
+    sta miss_fx
+    lda frame_counter       ; miss_sound + 1 o + 2 (sin repetir el anterior), de 0 a 2
+    and #1
+    sec
+    adc miss_sound
+    cmp #MISS_SOUNDS
+    bcc @sound
+    sbc #MISS_SOUNDS        ; (el carry está en 1: resta justo MISS_SOUNDS)
+@sound:
+    sta miss_sound
+    asl a                   ; dos versiones por sonido
+    adc #SFX_CLANK1         ; (el carry quedó en 0) en el pulso 1...
+    ldx player_channel
+    bne @play
+    adc #1                  ; ...salvo que el pulso 1 sea tu canal: entonces en el pulso 2
+@play:
+    jmp play_sfx
+@done:
+    rts
+
+; update_miss_fx: en cada cuadro del juego (también en la pausa, para que el efecto
+; se termine). Los primeros MISS_FX_FRAMES cuadros de miss_fx mueven el scroll X
+; (la NMI lo escribe) y prenden el énfasis de rojo de $2001. Solo con un jugador:
+; con dos, el scroll y el rojo moverían y teñirían también la autopista del otro.
+; La franja de abajo no tiembla, porque la IRQ pone su X en 0. El scroll solo va
+; hacia la derecha (X = 1 o 2): del lado derecho asoman 2 pixeles de la nametable
+; de $2400, que en esas filas está vacía.
+update_miss_fx:
+    ldx #0                  ; X = scroll horizontal
+    ldy #PPUMASK_ON         ; Y = $2001
+    lda miss_fx
+    beq @set
+    dec miss_fx
+    cmp #MISS_FX_COOLDOWN + 1
+    bcc @set                ; (A = antes de restar) ya en el enfriamiento
+    lda opt_miss_fx
+    bne @set                ; SOLO SONIDO
+    lda num_players
+    cmp #2
+    beq @set
+    ldy #PPUMASK_ON | PPUMASK_RED
+    lda miss_fx             ; MISS_FX_COOLDOWN .. MISS_FX_COOLDOWN + MISS_FX_FRAMES - 1
+    sec
+    sbc #MISS_FX_COOLDOWN
+    tax
+    lda miss_shake,x
+    tax
+@set:
+    stx scroll_x
+    sty ppu_mask
+    rts
 
 combo_break:
     lda #0
@@ -437,6 +520,10 @@ life_lose:
 ; vida se sostiene acertando 1 de cada 2 notas en fácil y 2 de cada 3 en las demás.
 ;                 fácil medio difícil experto
 life_penalty:  .byte 1,    2,    2,      2
+
+; Scroll X del temblor al fallar, cuadro por cuadro (update_miss_fx lo lee del último al primero)
+miss_shake:    .byte 0, 1, 0, 2, 0, 2
+.assert * - miss_shake = MISS_FX_FRAMES, error, "miss_shake debe tener un valor por cuadro del efecto"
 
 ; -----------------------------------------------------------------------------
 ; start_fx: enciende la llamarada del carril `lane` del jugador actual.

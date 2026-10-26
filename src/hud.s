@@ -6,8 +6,10 @@
 ; tiles de fondo:
 ;   fila SPLIT_ROW      los 5 aros (rellenos mientras mantienes el botón)
 ;   fila SPLIT_ROW + 1  barra de poder estelar
-;   fila SPLIT_ROW + 2  puntaje y multiplicador   "000000 X4"
-;   fila SPLIT_ROW + 3  combo                      "COMBO 123"
+;   fila SPLIT_ROW + 2  puntaje y multiplicador   "000000  X4"
+;   fila SPLIT_ROW + 3  combo                      "COMBO  123"
+; Los textos ocupan los 10 tiles, de borde a borde de la autopista: con 9 no se
+; podrían centrar (habría que moverlos medio tile).
 ; Con sprites no se podría: dos jugadores son 10 aros en la misma línea y el
 ; PPU solo dibuja 8 sprites por línea.
 ;
@@ -208,11 +210,11 @@ queue_score:
     dex
     bpl @digit
     lda #'X'
-    sta strip_buf+7
+    sta strip_buf+8
     jsr eff_multiplier      ; x2..x8 con el poder estelar activo
     clc
     adc #'0'
-    sta strip_buf+8
+    sta strip_buf+9
     lda #<(STRIP_NT + SCORE_ROW * 32)
     jmp queue_strip_buf
 
@@ -252,7 +254,7 @@ queue_star:
     lda #<(STRIP_NT + STAR_ROW * 32)
     jmp queue_strip_buf
 
-; "COMBO 123", o "FALLASTE" si el jugador ya perdió
+; "COMBO  123", o "FALLASTE" si el jugador ya perdió
 queue_combo:
     lda failed
     beq @combo
@@ -265,7 +267,7 @@ queue_combo:
     lda #<(STRIP_NT + COMBO_ROW * 32)
     jmp queue_strip_buf
 @combo:
-    ldx #5
+    ldx #STRIP_WIDTH - 4
 @label:
     lda txt_combo,x
     sta strip_buf,x
@@ -276,11 +278,9 @@ queue_combo:
     lda combo_digits,x
     clc
     adc #'0'
-    sta strip_buf+6,x
+    sta strip_buf+STRIP_WIDTH-3,x
     dex
     bpl @digit
-    lda #' '
-    sta strip_buf+9
     lda #<(STRIP_NT + COMBO_ROW * 32)
     ; sigue en queue_strip_buf
 
@@ -311,6 +311,7 @@ clear_strip_buf:
 ;                     verde        rojo         amarillo     azul         naranja
 lane_ring_tile: .byte TILE_RING_A, TILE_RING_A, TILE_RING_B, TILE_RING_A, TILE_RING_B   ; (ver lane_gem)
 
-txt_combo:      .byte "COMBO "
-txt_failed:     .byte "FALLASTE  "        ; STRIP_WIDTH (10) caracteres
-.assert .strlen("FALLASTE  ") = STRIP_WIDTH, error, "txt_failed debe medir lo que la franja"
+txt_combo:      .byte "COMBO  "           ; y los 3 dígitos: STRIP_WIDTH (10)
+.assert .strlen("COMBO  ") + 3 = STRIP_WIDTH, error, "txt_combo y sus 3 dígitos deben medir lo que la franja"
+txt_failed:     .byte " FALLASTE "        ; STRIP_WIDTH (10) caracteres, centrado
+.assert .strlen(" FALLASTE ") = STRIP_WIDTH, error, "txt_failed debe medir lo que la franja"

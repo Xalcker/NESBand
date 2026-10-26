@@ -106,6 +106,7 @@ FILL_FIRST_VROW = HIT_ROW - FILL_FIRST_ROW
 
 PPUCTRL_BASE    = %10001000            ; NMI encendida, fondo en $0000, sprites en $1000 (ver irq)
 PPUMASK_ON      = %00011110            ; mostrar fondo y sprites (incluida la columna izquierda)
+PPUMASK_RED     = %00100000            ; énfasis de rojo: tiñe toda la pantalla (el efecto al fallar)
 
 ; Estados del juego (índices de state_handlers)
 STATE_TITLE     = 0
@@ -193,6 +194,10 @@ rowpix:         .res 1   ; cuántos pixeles ha bajado la fila actual (0..7)
 cur_vrow:       .res 1   ; en qué fila de la nametable (0..59) está cur_row
 row_scroll:     .res 1   ; scroll vertical al inicio de la fila actual (0..232)
 scroll_y:       .res 1   ; valor final para $2005
+scroll_x:       .res 1   ; scroll horizontal para $2005: 0, salvo en el temblor al fallar (update_miss_fx)
+ppu_mask:       .res 1   ; lo que la NMI escribe en $2001 (ppu_off lo deja en 0 y ppu_on en PPUMASK_ON)
+miss_fx:        .res 1   ; cuadros que le quedan al efecto de fallo y a su enfriamiento (ver miss_feedback)
+miss_sound:     .res 1   ; el último sonido de fallo que se tocó (0 clank, 1 thud, 2 bwomp)
 scroll_nt:      .res 1   ; nametable para $2000 (bits 0-1)
 split_on:       .res 1   ; 1 = dividir la pantalla en SPLIT_Y (solo en el juego)
 
@@ -348,6 +353,7 @@ opt_speed:      .res 1   ; 0 = 100%, 1 = 75%, 2 = 50% (cuadros que se salta el j
 opt_fall:       .res 1   ; 0 = AUTO (la caída de la dificultad), 1-4 = la de fácil a experto
 opt_practice:   .res 1   ; 0 = no, 1-3 = bucle hasta 1/4, 1/2 o 3/4 de la canción, 4 = toda
 opt_start:      .res 1   ; 0 = el principio, 1-3 = la práctica empieza en 1/4, 1/2 o 3/4 de la canción
+opt_miss_fx:    .res 1   ; EFECTO AL FALLAR: 0 = sí, 1 = solo sonido, 2 = no (MISS_FX_SOUND / MISS_FX_OFF)
 opt_cursor:     .res 1   ; opción elegida en la pantalla de opciones
 speed_sub:      .res 1   ; cuartos de paso que lleva el juego dentro de un paso (0..3): ver VELOCIDAD en play_update
 pad_latch:      .res MAX_PLAYERS ; botones presionados en cuadros saltados: se aplican en el siguiente
@@ -553,6 +559,8 @@ ppu_off:
     sta split_on
     sta PPUCTRL             ; sin NMI: nadie toca la PPU mientras dibujamos
     sta PPUMASK
+    sta ppu_mask            ; (para que la NMI de ppu_on no prenda el dibujo antes de tiempo)
+    sta scroll_x            ; y sin el temblor de un fallo
     sta row_pending         ; descartar lo que el juego dejó pendiente para la NMI,
     sta erase_count         ; o se escribiría encima de la pantalla nueva
     sta scene_on            ; fuera del escenario: el fondo vuelve a su banco de siempre
@@ -578,6 +586,7 @@ ppu_on:
     sta OAMDMA              ; los sprites nuevos desde el primer cuadro
     lda #PPUMASK_ON
     sta PPUMASK
+    sta ppu_mask            ; desde aquí lo escribe la NMI en cada cuadro
     rts
 
 ; -----------------------------------------------------------------------------
@@ -880,10 +889,13 @@ nmi:
 @no_scene:
     ; 5) Scroll, en todos los cuadros (la IRQ del cuadro anterior lo cambió).
     ; Va al final porque escribir en $2006 descompone el scroll.
+    ; El efecto al fallar (update_miss_fx) cambia el $2001 (rojo) y el X (temblor).
+    lda ppu_mask
+    sta PPUMASK
     lda #PPUCTRL_BASE
     ora scroll_nt
     sta PPUCTRL
-    lda #0
+    lda scroll_x
     sta PPUSCROLL           ; X
     lda scroll_y
     sta PPUSCROLL           ; Y

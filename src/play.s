@@ -170,6 +170,7 @@ enter_play:
     ; --- Variables de tiempo y scroll (las comparten todos) ---
     lda #0
     sta paused
+    sta miss_fx             ; (al repetir la práctica, sin el efecto de un fallo anterior)
     sta song_frame
     sta song_frame+1
     sta cur_row
@@ -584,6 +585,7 @@ count_notes:
 ; play_update: un cuadro de juego
 ; =============================================================================
 play_update:
+    jsr update_miss_fx      ; el temblor y el rojo de un fallo (en todos los cuadros reales)
     ; Start/Select de cualquiera de los dos controles
     lda pad_pressed
     ora pad_pressed+1

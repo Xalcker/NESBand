@@ -27,7 +27,7 @@ OUT = ROOT / "src" / "scene_art.s"
 PERIOD = 24  # alto del dibujo que se repite en el scroll (3 filas de tiles; 30 filas = 10 repeticiones)
 SIDE_W = 88  # ancho de un costado (11 tiles; el lado izquierdo usa solo 10)
 CROWD_ROWS = 5  # alto del público: filas 25-29 de la pantalla (la franja fija)
-CROWD_COLS = 11
+CROWD_COLS = 12  # lo que ocupa a la derecha de la franja con 1 jugador (columnas 20-31)
 CROWD_H = CROWD_ROWS * 8
 SCREEN_COLS = 32
 VROWS = 30
@@ -37,6 +37,7 @@ LOW_FIRST = 0x5B  # la fuente termina en la Z ($5A)
 LOW_LAST = 0x7F
 HIGH_STATIC = list(range(0x80, 0x90)) + list(range(0xA9, 0xC0))  # tiles fijos que no cupieron en la parte baja
 CROWD_FIRST = 0xC0  # + fila * CROWD_COLS + columna
+assert CROWD_FIRST + CROWD_ROWS * CROWD_COLS <= 0x100, "El público no cabe en los tiles $C0-$FF"
 BLANK = 0x00
 SPACE = 0x20  # el espacio de la fuente: lo que lleva la franja donde no hay nada
 
@@ -46,6 +47,13 @@ RIGHT_COLS = range(21, 32)
 # 2 jugadores: autopistas en 2-12 y 20-30; el centro (13-19) y los bordes (0-1 y 31) quedan libres
 CENTER_COLS = range(13, 20)
 EDGE_COLS = (0, 1, 31)
+# En la franja fija, el público también cubre la columna del borde derecho de cada autopista (la
+# 20 con 1 jugador, la 12 y la 30 con 2): ahí solo están los textos de 10 tiles, y sin público
+# quedaba un hueco negro junto al marcador
+STRIP_RIGHT_COLS = range(20, 32)
+STRIP_CENTER_COLS = range(12, 20)
+STRIP_EDGE_COLS = (0, 1, 30, 31)
+assert len(STRIP_RIGHT_COLS) == CROWD_COLS and len(STRIP_CENTER_COLS) + len(STRIP_EDGE_COLS) == CROWD_COLS
 
 
 class Canvas:
@@ -196,7 +204,7 @@ def center_canvas() -> Canvas:
 # El público (franja fija, 5 filas de tiles): tres poses
 # -----------------------------------------------------------------------------
 FRONT = [8, 28, 48, 67, 85]  # centros de las personas de adelante
-BACK = [18, 38, 58, 76]  # y de atrás (más chicas)
+BACK = [18, 38, 58, 76, 94]  # y de atrás (más chicas; la última queda cortada en la orilla)
 
 
 def person_mask(cx: float, head_y: float, scale: float, arms: tuple[int, int], arm_dx: float) -> set[tuple[int, int]]:
@@ -320,12 +328,12 @@ def build() -> str:
             if layout == 1:
                 for c, col in enumerate(LEFT_COLS):
                     line[col] = crowd_id(r, c)
-                for c, col in enumerate(RIGHT_COLS):
+                for c, col in enumerate(STRIP_RIGHT_COLS):
                     line[col] = crowd_id(r, c)
-            else:
-                for c, col in enumerate(CENTER_COLS):
+            else:  # el centro con el principio del dibujo y las orillas con el resto
+                for c, col in enumerate(STRIP_CENTER_COLS):
                     line[col] = crowd_id(r, c)
-                for c, col in zip((8, 9, 10), EDGE_COLS):
+                for c, col in enumerate(STRIP_EDGE_COLS, start=len(STRIP_CENTER_COLS)):
                     line[col] = crowd_id(r, c)
             strip.append(line)
 
