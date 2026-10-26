@@ -12,6 +12,7 @@ tmp:         .res 1
 song_frame:  .res 2
 song_end:    .res 2
 num_players: .res 1
+step_count:  .res 1   ; (lo lee update_music desde el #23)
 
 .segment "BSS"
 pstate:
