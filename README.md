@@ -33,7 +33,7 @@ menú incluye todas las canciones que haya en `src/songs/`.
 </p>
 
 Menú, guitarra, poder estelar, batería (el bombo es la barra), dos jugadores en Co-Op y resultados.
-Capturas de la ROM v0.3.2 en el emulador Mesen 2.
+Capturas de la ROM v0.3.3 en el emulador Mesen 2.
 
 ## Sobre este proyecto
 
