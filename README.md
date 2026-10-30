@@ -21,6 +21,20 @@ La música de juegos comerciales tiene copyright y no se incluye: cada quien imp
 propios NSF con `nesband import-song` (ver [Importar canciones](#importar-canciones)). Al compilar, el
 menú incluye todas las canciones que haya en `src/songs/`.
 
+<p align="center">
+  <img src="docs/img/menu.png" width="256" alt="Menú: canción, jugadores, instrumento y dificultad">
+  <img src="docs/img/guitarra.png" width="256" alt="Guitarra en Carrera de Fuego">
+  <img src="docs/img/estrella.png" width="256" alt="Poder estelar">
+</p>
+<p align="center">
+  <img src="docs/img/bateria.png" width="256" alt="Batería en Tormenta de Neón: el bombo es la barra naranja">
+  <img src="docs/img/coop.png" width="256" alt="Dos jugadores en Co-Op (guitarra y bajo)">
+  <img src="docs/img/resultados.png" width="256" alt="Resultados con estrellas y récord">
+</p>
+
+Menú, guitarra, poder estelar, batería (el bombo es la barra), dos jugadores en Co-Op y resultados.
+Capturas de la ROM v0.3.2 en el emulador Mesen 2.
+
 ## Sobre este proyecto
 
 Todo el código de NESBand lo escribió una IA (Claude). Yo solo pongo las ideas.
