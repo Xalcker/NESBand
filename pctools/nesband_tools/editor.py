@@ -66,15 +66,15 @@ PROFILE = {
     "exportTitle": "Guarda y reescribe chart.s con el formato de siempre",
     "playerTitle": "Toca la canción con el motor de sonido del juego",
     "import": {
-        "label": "Archivo a importar (NSF, FamiStudio o FamiTracker)",
+        "label": "Archivo a importar (NSF, VGM del NES, FamiStudio o FamiTracker)",
         "placeholder": "C:\\ruta\\cancion.nsf o songs_src\\cancion.nsf",
         "hint": "Importar usa FamiStudio y genera música, charts y ficha en "
                 "<code>src/songs/&lt;identificador&gt;/</code>. Puede tardar un poco.",
         "status": "Importando con FamiStudio…",
         "tracks": True,
-        "durationLabel": "Segundos a grabar (NSF)",
+        "durationLabel": "Segundos a grabar (NSF o VGM)",
         "durationPlaceholder": "del .m3u, o 120",
-        "durationPattern": r"\.nsfe?$",
+        "durationPattern": r"\.(nsfe?|vgz?)$",
     },
 }
 # nesplayer.js corre el motor de sonido del juego (el servidor lo ensambla con la música) desde el inicio de la canción
@@ -302,7 +302,7 @@ def render_page(payload: dict, template: Path = HTML_PATH) -> str:
 
 # --- Menú Archivo: canciones disponibles, fuentes para importar y la canción abierta -----------
 
-SOURCE_SUFFIXES = (".nsf", ".nsfe", ".fms", ".ftm")
+SOURCE_SUFFIXES = (".nsf", ".nsfe", ".vgm", ".vgz", ".fms", ".ftm")
 
 
 def list_songs() -> list[dict]:
@@ -338,7 +338,7 @@ def resolve_source(text: str) -> Path:
     path = Path(text.strip().strip('"'))
     path = path if path.is_absolute() else cli.ROOT / path
     if path.suffix.lower() not in SOURCE_SUFFIXES or not path.is_file():
-        raise ValueError(f"no encontré un archivo .nsf, .nsfe, .fms o .ftm en {path}")
+        raise ValueError(f"no encontré un archivo .nsf, .nsfe, .vgm, .vgz, .fms o .ftm en {path}")
     return path
 
 

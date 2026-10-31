@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import shutil
 import sys
@@ -117,9 +118,19 @@ def import_song(args: argparse.Namespace) -> None:
     if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
         sys.exit("--name debe ser minúsculas, números y _ (empezando con letra)")
     is_nsf = source.suffix.lower() in (".nsf", ".nsfe")
+    is_vgm = source.suffix.lower() in (".vgm", ".vgz")
 
     # Pista, título, juego y duración: de las opciones o del .m3u junto al NSF
     song_index, title, game, duration = args.song, args.title, args.game, args.duration
+    vgm_data = None
+    if is_vgm:  # VGM del NES: título y juego de su etiqueta GD3; dura una vuelta (con la introducción)
+        from bandcore.vgm import read_vgm
+
+        vgm_data = read_vgm(source)
+        if "nes_apu" not in vgm_data.clocks:
+            sys.exit(f"{source.name} no es música del NES: solo se importan VGM del APU del NES")
+        title, game = title or vgm_data.title or None, game or vgm_data.game or None
+        duration = duration or math.ceil(vgm_data.total_samples / 44100)
     if args.track is not None:
         playlist = find_playlist(source) if is_nsf else None
         song_index = args.track - 1  # el .m3u cuenta desde 1; FamiStudio desde 0
@@ -148,14 +159,16 @@ def import_song(args: argparse.Namespace) -> None:
         for file_name, text in kept.items():
             write_lf(out_dir / file_name, text)
 
-    # Convertir; si no cabe en el slot y es un NSF, grabar menos segundos y reintentar
+    # Convertir; si no cabe en el slot y es un NSF o un VGM, grabar menos segundos y reintentar
     for _ in range(6):
-        result = convert(fs, source, name, song_index, duration, args.beat_frames, is_nsf, out_dir, work_dir, edits, drums)
+        project_source = vgm_project(vgm_data, name, duration, title) if is_vgm else source
+        result = convert(fs, project_source, name, song_index, duration, args.beat_frames, is_nsf, out_dir, work_dir,
+                         edits, drums)
         restore_manual_work()
         if result.fits:
             break
         shutil.rmtree(out_dir)
-        if not is_nsf:
+        if not (is_nsf or is_vgm):
             out_dir.mkdir(parents=True)
             restore_manual_work()
             if not kept:
@@ -268,6 +281,27 @@ class Converted:
     chart_labels: list[str] = field(default_factory=list)
     instrument_mask: int = 0
     summary: list[str] = field(default_factory=list)
+
+
+def vgm_project(data, name: str, duration: int, title: str | None) -> Path:
+    """Un VGM del NES como proyecto de texto de FamiStudio (el que importa convert): sus escrituras pasan por el APU
+    emulado de bandcore y cada nota conserva su duty y su envolvente de volumen. El DPCM y el canal del Famicom Disk
+    System se pierden (con aviso)."""
+    from bandcore import famistudio as projects
+    from bandcore import nesapu
+
+    total = round(duration * 44100)
+    if data.loop_write is None:
+        total = min(total, data.total_samples)
+    rec, fds = nesapu.record_vgm(data, total)
+    path = WORK_DIR / f"{name}_vgm" / "fuente.txt"
+    info = projects.write_recording_project(rec, path, title or name, "NESBand")
+    print(f"  VGM: {duration} s, {info['instruments']} instrumentos (envolventes de hasta {info['envelope_frames']} cuadros)")
+    if info["dpcm_lost"]:
+        print(f"  AVISO: {info['dpcm_lost']} golpes de DPCM no se pasan (sus samples no van en el proyecto de texto)")
+    if fds:
+        print(f"  AVISO: el VGM usa el canal del Famicom Disk System ({fds} escrituras): se pierde")
+    return path
 
 
 def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, beat_frames: int | None,
@@ -520,8 +554,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="nesband", description="Herramientas de PC para NESBand")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("import-song", help="Importa una canción (NSF, FamiStudio o FamiTracker) y genera sus charts")
-    p.add_argument("source", type=Path, help="archivo .nsf, .nsfe, .fms o .ftm")
+    p = sub.add_parser("import-song", help="Importa una canción (NSF, VGM del NES, FamiStudio o FamiTracker) y genera sus charts")
+    p.add_argument("source", type=Path, help="archivo .nsf, .nsfe, .vgm, .vgz, .fms, .ftm o proyecto de texto (.txt)")
     p.add_argument("--name", required=True, help="identificador de la canción (minúsculas, sin espacios)")
     p.add_argument("--track", type=int,
                    help="pista como la numera el .m3u (desde 1); de ahí salen título, juego y duración")

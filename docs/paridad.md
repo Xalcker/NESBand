@@ -100,7 +100,7 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-10-30: 34 de 55 ca
 | Función | NES | GB | GEN | NG | Notas |
 |---|---|---|---|---|---|
 | Fuentes de importación | NSF, `.fms`, `.ftm` | NSF, FamiStudio texto, GBS, VGM / VGZ | VGM / VGZ | VGM / VGZ (YM2610) | GB: GBS y VGM por la IR (`gbapu.py`); falta probarlos con archivos comerciales |
-| Importar VGM / VGZ de su propia plataforma | ❌ | ✅ | ✅ | ✅ | Además del formato chiptune nativo (NSF en NES, GBS en GB). VGM trae comandos para el APU del NES |
+| Importar VGM / VGZ de su propia plataforma | ✅ | ✅ | ✅ | ✅ | Además del formato chiptune nativo (NSF en NES, GBS en GB). NES: con el APU de `bandcore.nesapu`, cada nota con su duty y envolvente (sin DPCM ni FDS) |
 | Lector de VGM compartido (`bandcore.vgm`) | ❌ | ✅ | ✅ | ✅ | Mismo resultado que los lectores anteriores (huella de los VGM de `audio/` y VGM sintéticos). NES: cuando importe VGM |
 | `band inspect`: chips de un VGM y juego destino | ✅ | ✅ | ✅ | ✅ | Se corre desde `../bandcore`; sirve para los cuatro |
 | Generador de charts compartido y `check_playable` | ✅ | ✅ | ✅ | ✅ | Desde `bandcore.chart` y `bandcore.drums` (GB añade su separación de gemas) |
@@ -207,8 +207,11 @@ de uv. Lo que ya está ahí: lector de VGM, `band inspect`, páginas del editor,
 - [x] ~~Arreglos entre consolas en las 12 direcciones~~ (formato `bandcore.notes`, `export-notes` en GB, GEN y NG,
       `bandcore.famistudio` para NES, GB y NG, `audio/arreglo_fm.py` para GEN). Probado con Mega Man 2, Pokémon,
       Streets of Rage y KOF '94: importan con charts y suenan en el reproductor del editor; sin ROM ni hardware.
-- [ ] Arreglos: timbres para NES, GB y NG (hoy solo GEN tiene A y B); NESBand importar VGM directo (hoy pasa por
-      GBBand `export-notes`); `--duration` automático al importar en NGBand lo que sale de `famistudio.py`.
+- [x] ~~Arreglos: timbres A y B para NES, GB y NG~~ (`band famistudio --timbre A|B|todos`) ~~y NESBand importa VGM
+      directo~~ (`bandcore.nesapu` compartido con GBBand).
+- [ ] `--duration` automático al importar en NGBand lo que sale de `famistudio.py` (hoy hay que pasarlo).
+- [ ] VGM del NES en NESBand: DPCM (los samples vienen en bloques $C2 del VGM y FamiStudio los admite en el proyecto).
+- [ ] Batería al importar en NESBand: sin drums.json no hay chart de batería (GBBand sí pone la sugerencia sola).
 - [ ] Ideas: paquete de canción (`.bandsong`), ROM base + empaquetador sin compiladores, página web para armar la ROM.
 
 ### Futuras (SNES)

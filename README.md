@@ -333,7 +333,12 @@ indica todo a mano (`--song` cuenta desde 0):
 uv run nesband import-song songs_src/megaman2.nsf --name wily --title "Dr. Wily's Castle" --game "Mega Man 2" --duration 75
 ```
 
-Acepta NSF, proyectos de FamiStudio (`.fms`) y de FamiTracker (`.ftm`). Opciones:
+Acepta NSF, VGM del NES (`.vgm` y `.vgz`), proyectos de FamiStudio (`.fms` y de texto) y de FamiTracker (`.ftm`).
+Un VGM ya trae las escrituras al APU, así que no pasa por FamiStudio como un NSF: el APU emulado de
+[bandcore](https://github.com/Xalcker/bandcore) (`bandcore.nesapu`) las graba cuadro por cuadro y cada nota se vuelve
+un instrumento con su duty y su envolvente de volumen reales; ese proyecto de texto sigue el camino de siempre. El
+DPCM y el canal del Famicom Disk System se pierden (con aviso). Título y juego salen de la etiqueta GD3, y la duración
+es una vuelta del VGM (con `--duration`, más segundos repitiendo el bucle). Opciones:
 
 | Opción | Para qué |
 |---|---|
