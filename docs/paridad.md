@@ -200,8 +200,6 @@ de uv. Lo que ya está ahí: lector de VGM, `band inspect`, páginas del editor,
 - [x] ~~Generador de charts (`chart.py`) y batería (`drums.py`), comprobando con `reimport` que los charts no cambien.~~
       (`bandcore.chart` y `bandcore.drums`; `reimport` de 81 canciones, 51 de NES con las comerciales, da archivos
       idénticos byte por byte)
-- [ ] Platillos: GBBand solo marca platillo si su carril sigue en el acorde; NES, GEN y NG pueden marcarlo en un carril
-      que se quitó. Pasar la corrección a `bandcore.drums` cambia charts de batería en experto: decidir y reimportar.
 - [ ] Arreglos entre consolas (VGM de un chip a otro por la IR), empezando por NES → FM.
 - [ ] Ideas: paquete de canción (`.bandsong`), ROM base + empaquetador sin compiladores, página web para armar la ROM.
 
