@@ -106,7 +106,7 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-10-30: 34 de 55 ca
 | Generador de charts compartido y `check_playable` | ✅ | ✅ | ✅ | ✅ | |
 | `reimport` y `list-songs` | ✅ | ✅ | ✅ | ✅ | |
 | `preview` (WAV de cada pista de un NSF) | ✅ | ❌ | ❌ | ❌ | GEN usa `channels` para ver los canales |
-| Editor de charts en el navegador | ✅ | ✅ | ✅ | ✅ | Las páginas (editor, inicio, menú Archivo) son las de `bandcore.editor`; cada juego pone su perfil y su reproductor |
+| Editor de charts en el navegador | ✅ | ✅ | ✅ | ✅ | Páginas y servidor de `bandcore.editor`; cada juego pone su perfil, su reproductor y su `Game` (cargar, generar, exportar) |
 | Editor: lógica de ediciones compartida (`bandcore.chartedit`, `ChartNote`, `check_playable`) | ✅ | ✅ | ✅ | ✅ | `reimport` da los mismos charts que antes en los cuatro |
 | Editor: «Nueva canción» (importar desde el editor) | ✅ | ✅ | ✅ | ❌ | NG importa con `ngband import-song` |
 | Editor: Escuchar con el audio real de la ROM | ✅ | ✅ | ✅ | 🟡 | |
@@ -195,7 +195,8 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 [bandcore](https://github.com/Xalcker/bandcore) es un repo hermano (`../bandcore`) que los cuatro usan como dependencia
 de uv. Lo que ya está ahí: lector de VGM, `band inspect`, páginas del editor, `chartedit`, `ChartNote` y
 `check_playable`.
-- [ ] Servidor del editor compartido (rutas, abrir, guardar, importar); cada juego solo carga y exporta.
+- [x] ~~Servidor del editor compartido (rutas, abrir, guardar, importar); cada juego solo carga y exporta.~~
+      (`bandcore.editor.server`; cada juego define su `Game`)
 - [ ] Generador de charts (`chart.py`) y batería (`drums.py`), comprobando con `reimport` que los charts no cambien.
 - [ ] Arreglos entre consolas (VGM de un chip a otro por la IR), empezando por NES → FM.
 - [ ] Ideas: paquete de canción (`.bandsong`), ROM base + empaquetador sin compiladores, página web para armar la ROM.
