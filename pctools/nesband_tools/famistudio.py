@@ -14,6 +14,8 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from bandcore.chart import Note  # noqa: F401  (la misma en los cuatro juegos)
+
 CHANNEL_TYPES = ["Square1", "Square2", "Triangle", "Noise", "DPCM"]
 
 _ATTR = re.compile(r'(\w+)="([^"]*)"')
@@ -64,15 +66,6 @@ def import_options(source: Path, song: int, duration: int) -> list[str]:
 
 
 # --- Lectura del formato de texto ------------------------------------------------
-
-
-@dataclass
-class Note:
-    frame: int  # cuadro desde que empieza la canción
-    pitch: int  # número MIDI (solo importa para comparar alturas)
-    duration: int
-    extra: int | None = None  # otra altura del mismo gesto (un arpegio fusionado: un acorde "roto"); ver merge_attacks
-    instrument: str | None = None  # nombre del instrumento de FamiStudio (en ruido y DPCM, parte de lo que identifica un golpe)
 
 
 @dataclass

@@ -103,7 +103,7 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-10-30: 34 de 55 ca
 | Importar VGM / VGZ de su propia plataforma | ❌ | ✅ | ✅ | ✅ | Además del formato chiptune nativo (NSF en NES, GBS en GB). VGM trae comandos para el APU del NES |
 | Lector de VGM compartido (`bandcore.vgm`) | ❌ | ✅ | ✅ | ✅ | Mismo resultado que los lectores anteriores (huella de los VGM de `audio/` y VGM sintéticos). NES: cuando importe VGM |
 | `band inspect`: chips de un VGM y juego destino | ✅ | ✅ | ✅ | ✅ | Se corre desde `../bandcore`; sirve para los cuatro |
-| Generador de charts compartido y `check_playable` | ✅ | ✅ | ✅ | ✅ | |
+| Generador de charts compartido y `check_playable` | ✅ | ✅ | ✅ | ✅ | Desde `bandcore.chart` y `bandcore.drums` (GB añade su separación de gemas) |
 | `reimport` y `list-songs` | ✅ | ✅ | ✅ | ✅ | |
 | `preview` (WAV de cada pista de un NSF) | ✅ | ❌ | ❌ | ❌ | GEN usa `channels` para ver los canales |
 | Editor de charts en el navegador | ✅ | ✅ | ✅ | ✅ | Páginas y servidor de `bandcore.editor`; cada juego pone su perfil, su reproductor y su `Game` (cargar, generar, exportar) |
@@ -197,7 +197,11 @@ de uv. Lo que ya está ahí: lector de VGM, `band inspect`, páginas del editor,
 `check_playable`.
 - [x] ~~Servidor del editor compartido (rutas, abrir, guardar, importar); cada juego solo carga y exporta.~~
       (`bandcore.editor.server`; cada juego define su `Game`)
-- [ ] Generador de charts (`chart.py`) y batería (`drums.py`), comprobando con `reimport` que los charts no cambien.
+- [x] ~~Generador de charts (`chart.py`) y batería (`drums.py`), comprobando con `reimport` que los charts no cambien.~~
+      (`bandcore.chart` y `bandcore.drums`; `reimport` de 81 canciones, 51 de NES con las comerciales, da archivos
+      idénticos byte por byte)
+- [ ] Platillos: GBBand solo marca platillo si su carril sigue en el acorde; NES, GEN y NG pueden marcarlo en un carril
+      que se quitó. Pasar la corrección a `bandcore.drums` cambia charts de batería en experto: decidir y reimportar.
 - [ ] Arreglos entre consolas (VGM de un chip a otro por la IR), empezando por NES → FM.
 - [ ] Ideas: paquete de canción (`.bandsong`), ROM base + empaquetador sin compiladores, página web para armar la ROM.
 
