@@ -25,6 +25,16 @@ from dataclasses import dataclass
 
 from .famistudio import Note
 
+# La nota y las reglas de lo que se puede tocar son las mismas en los cuatro juegos: viven en bandcore
+from bandcore.chart import (  # noqa: F401  (se usan como chart.ChartNote, chart.BLOCKED_PAIRS...)
+    BLOCKED_PAIRS,
+    DRUM_BLOCKED_PAIRS,
+    STAR_PHRASE_LEN,
+    ChartNote,
+    check_playable,
+    lanes_clash,
+)
+
 ROLES = ("lead", "keys", "bass")
 KEYS_WINDOW = 6  # vecindario de notas (a cada lado) con el que el teclado reparte sus carriles (la guitarra usa 4)
 
@@ -171,7 +181,6 @@ def assign_lanes(notes: list[Note], lanes: int, window: int = 4) -> list[int]:
 
 
 STAR_FLAG = 0x20  # en la entrada de una nota: forma parte de una frase de poder estelar
-STAR_PHRASE_LEN = 4  # notas por frase (si aciertas todas, la barra sube 25%)
 STAR_FIRST = 10  # índice de la primera nota de la primera frase
 STAR_SPACING = 24  # notas entre el inicio de una frase y el de la siguiente
 SUSTAIN_FLAG = 0x40  # en la entrada de una nota: tiene cola (su fin va en otra entrada)
@@ -179,15 +188,6 @@ END_FLAG = 0x80  # entrada de fin de cola: los bits 0-4 son los carriles que la 
 MIN_SUSTAIN = 16  # cuadros mínimos de cola (0.27 s); más corta no vale la pena mantenerla
 SUSTAIN_TRIM = 4  # la cola termina un poco antes de que acabe la nota: soltar a tiempo no castiga
 SUSTAIN_GAP = 3  # cuadros libres entre el fin de una cola y la siguiente nota del mismo carril
-
-
-@dataclass(frozen=True)
-class ChartNote:
-    frame: int  # cuadro en que suena (contando la entrada de la autopista)
-    mask: int  # bits 0-4 = carriles
-    end: int | None = None  # cuadro en que termina su cola (None = nota normal)
-    star: bool = False  # nota de una frase de poder estelar
-    cymbal: bool = False  # solo en la batería (no usa colas): el pad es un platillo, no un tom; va en el bit $40
 
 
 def sustain_ends(notes: list[Note], lanes: list[int | tuple[int, ...]]) -> list[int | None]:
@@ -208,24 +208,6 @@ def sustain_ends(notes: list[Note], lanes: list[int | tuple[int, ...]]) -> list[
         length = limit - note.frame - SUSTAIN_TRIM
         ends.append(note.frame + length if length >= MIN_SUSTAIN else None)
     return ends
-
-
-# El control de NES tiene una cruz: no se pueden apretar izquierda y derecha a la vez. Los carriles son
-# verde = izquierda, rojo = abajo, amarillo = derecha, azul = B y naranja = A, así que verde + amarillo
-# (carriles 0 y 2) es imposible en un control de verdad. Con la opción ESPEJO los carriles se invierten
-# (0 con 4, 1 con 3): amarillo + naranja (2 y 4) pasaría a ser verde + amarillo. Por eso ningún chart
-# pide esas dos parejas a la vez, ni un acorde ni una nota mientras se sostiene la otra.
-BLOCKED_PAIRS = ({0, 2}, {2, 4})
-
-
-# En la batería el bombo es el carril naranja pero se pisa con el pie, no con la cruz: ahí solo
-# verde + amarillo (los dos toms de los extremos) es imposible. (ESPEJO no aplica a la batería.)
-DRUM_BLOCKED_PAIRS = ({0, 2},)
-
-
-def lanes_clash(a: set[int], b: set[int], blocked=BLOCKED_PAIRS) -> bool:
-    """¿Dos notas con estos carriles no pueden estar activas al mismo tiempo? (mismo carril, o una pareja bloqueada)"""
-    return bool(a & b) or any({x, y} in blocked for x in a for y in b)
 
 
 def second_lane(lane: int, lanes: int, delta: int) -> int | None:
@@ -383,20 +365,3 @@ def chart_to_asm(label: str, chart: list[ChartNote]) -> str:
         comment = "  ; fin" if mask == CHART_END else ""
         lines.append(f"    .byte {delta}, ${mask:02X}{comment}")
     return "\n".join(lines) + "\n"
-
-
-def check_playable(chart: list[ChartNote], blocked=BLOCKED_PAIRS) -> None:
-    """Falla si el chart pide algo imposible con un control de NES: dos carriles de una pareja
-    bloqueada (BLOCKED_PAIRS; en la batería DRUM_BLOCKED_PAIRS) a la vez, ya sea en un acorde o tocando
-    una nota mientras se sostiene otra."""
-    sets = [{b for b in range(5) if n.mask >> b & 1} for n in chart]
-    for i, (note, lanes) in enumerate(zip(chart, sets)):
-        if any({x, y} in blocked for x in lanes for y in lanes):
-            raise ValueError(f"acorde imposible en el cuadro {note.frame}: carriles {sorted(lanes)}")
-        if note.end is None:
-            continue
-        for other, other_lanes in zip(chart[i + 1 :], sets[i + 1 :]):
-            if other.frame >= note.end:
-                break
-            if lanes_clash(other_lanes, lanes, blocked):
-                raise ValueError(f"la nota del cuadro {other.frame} cae mientras se sostiene la del {note.frame}")

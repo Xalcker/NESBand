@@ -11,7 +11,8 @@ Versiones: **NES** (NESBand, ensamblador 6502), **GB** (GBBand, ensamblador SM83
 
 Leyenda: ✅ lo tiene · ❌ falta · 🟡 parcial o por confirmar · n/a no aplica a esa plataforma.
 
-Última revisión: 2026-10-30. Versiones revisadas: NES v0.3.2, GB v0.0.1 (fase 4), GEN v0.4.0, NG v0.1.0. Esta primera tabla salió de
+Última revisión: 2026-10-30 (herramientas de PC: bandcore, importadores de GB). Versiones revisadas: NES v0.3.2,
+GB v0.0.1 (fase 4), GEN v0.4.0, NG v0.1.0. Esta primera tabla salió de
 leer los README, la documentación y el código de los tres repos; los 🟡 son lo que no se pudo confirmar.
 NG: ✅ solo donde pasa un caso del arnés de MAME (`tests/run_tests.sh`); 🟡 si está hecho pero solo lo cubren las
 pruebas del host o su caso de MAME aún falla. Arnés al 2026-10-30: 34 de 55 casos pasan.
@@ -98,12 +99,16 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-10-30: 34 de 55 ca
 
 | Función | NES | GB | GEN | NG | Notas |
 |---|---|---|---|---|---|
-| Fuentes de importación | NSF, `.fms`, `.ftm` | NSF, FamiStudio texto | VGM / VGZ | VGM / VGZ (YM2610) | GB: falta GBS y VGM (fase 5) |
-| Importar VGM / VGZ de su propia plataforma | ❌ | ❌ | ✅ | ✅ | Además del formato chiptune nativo (NSF en NES, GBS en GB). VGM trae comandos para el APU del NES y el DMG de la GB |
+| Fuentes de importación | NSF, `.fms`, `.ftm` | NSF, FamiStudio texto, GBS, VGM / VGZ | VGM / VGZ | VGM / VGZ (YM2610) | GB: GBS y VGM por la IR (`gbapu.py`); falta probarlos con archivos comerciales |
+| Importar VGM / VGZ de su propia plataforma | ❌ | ✅ | ✅ | ✅ | Además del formato chiptune nativo (NSF en NES, GBS en GB). VGM trae comandos para el APU del NES |
+| Lector de VGM compartido (`bandcore.vgm`) | ❌ | ✅ | ✅ | ✅ | Mismo resultado que los lectores anteriores (huella de los VGM de `audio/` y VGM sintéticos). NES: cuando importe VGM |
+| `band inspect`: chips de un VGM y juego destino | ✅ | ✅ | ✅ | ✅ | Se corre desde `../bandcore`; sirve para los cuatro |
 | Generador de charts compartido y `check_playable` | ✅ | ✅ | ✅ | ✅ | |
 | `reimport` y `list-songs` | ✅ | ✅ | ✅ | ✅ | |
 | `preview` (WAV de cada pista de un NSF) | ✅ | ❌ | ❌ | ❌ | GEN usa `channels` para ver los canales |
-| Editor de charts en el navegador | ✅ | ✅ | ✅ | ✅ | |
+| Editor de charts en el navegador | ✅ | ✅ | ✅ | ✅ | Las páginas (editor, inicio, menú Archivo) son las de `bandcore.editor`; cada juego pone su perfil y su reproductor |
+| Editor: lógica de ediciones compartida (`bandcore.chartedit`, `ChartNote`, `check_playable`) | ✅ | ✅ | ✅ | ✅ | `reimport` da los mismos charts que antes en los cuatro |
+| Editor: «Nueva canción» (importar desde el editor) | ✅ | ✅ | ✅ | ❌ | NG importa con `ngband import-song` |
 | Editor: Escuchar con el audio real de la ROM | ✅ | ✅ | ✅ | 🟡 | |
 | Editor: M/S por canal | ✅ | ✅ | ✅ | ✅ | |
 | Editor: tabla de roles de la batería (`drums.json`) | ✅ | ✅ | ✅ | ✅ | |
@@ -148,8 +153,9 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 - [ ] Rombo de los platillos.
 - [ ] 2 jugadores por cable link: VS, Co-Op, selector en el menú y récord de banda.
 - [ ] `preview` de NSF.
-- [ ] Importador GBS (formato chiptune nativo de la GB).
-- [ ] Importar VGM / VGZ con los comandos del DMG (CH1 a CH4).
+- [x] ~~Importador GBS (formato chiptune nativo de la GB).~~ (después de v0.0.1)
+- [x] ~~Importar VGM / VGZ con los comandos del DMG (CH1 a CH4).~~ (después de v0.0.1; lee con bandcore)
+- [ ] Probar GBS y VGM con archivos comerciales; ofrecerlos también en «Nueva canción» del editor.
 - [ ] Primera release publicada (subir VERSION).
 - [ ] Probar en hardware real (DMG y CGB).
 - [ ] Título ilustrado.
@@ -183,6 +189,16 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 - [ ] Escuchar el audio con oído (solo verificado por WAV y por la posición del stream).
 - [ ] `-Nombre`, `preview` de VGM, título ilustrado, fuente privada.
 - [ ] Primera release (falta git) y probar en hardware (MVS/AES, MiSTer).
+- [ ] «Nueva canción» en el editor (el menú compartido ya lo soporta: falta `/api/import` y el perfil `import`).
+
+### bandcore (compartido)
+[bandcore](https://github.com/Xalcker/bandcore) es un repo hermano (`../bandcore`) que los cuatro usan como dependencia
+de uv. Lo que ya está ahí: lector de VGM, `band inspect`, páginas del editor, `chartedit`, `ChartNote` y
+`check_playable`.
+- [ ] Servidor del editor compartido (rutas, abrir, guardar, importar); cada juego solo carga y exporta.
+- [ ] Generador de charts (`chart.py`) y batería (`drums.py`), comprobando con `reimport` que los charts no cambien.
+- [ ] Arreglos entre consolas (VGM de un chip a otro por la IR), empezando por NES → FM.
+- [ ] Ideas: paquete de canción (`.bandsong`), ROM base + empaquetador sin compiladores, página web para armar la ROM.
 
 ### Futuras (SNES)
 Punto de partida: la columna NES entera. Cada versión nueva debe importar VGM de su plataforma además de su formato
