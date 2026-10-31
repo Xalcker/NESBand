@@ -100,6 +100,9 @@ Activision, ni con Guitar Hero ni Rock Band. "NES" solo indica la plataforma par
    y descomprímela en `tools/famistudio/`. Usa la misma versión que el motor de sonido de `src/famistudio/`.
 4. **uv** (para las herramientas de Python): [instrucciones](https://docs.astral.sh/uv/getting-started/installation/).
    `uv sync` crea el venv con todo lo necesario.
+5. **[bandcore](https://github.com/Xalcker/bandcore)**: el editor de charts y el lector de VGM que comparten las
+   versiones de Band. Se clona junto a este repositorio (`git clone https://github.com/Xalcker/bandcore.git
+   ../bandcore`) y `uv sync` lo instala desde ahí.
 
 `tools/` está en `.gitignore`: cada máquina baja sus propias herramientas.
 

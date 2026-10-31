@@ -17,6 +17,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from bandcore import editor as bandeditor
+
 from . import famistudio
 from .chart import DIFFICULTIES, BeatGrid, ChartNote, build_chart, chart_size, chart_to_asm
 from .drums import (
@@ -45,10 +47,46 @@ from .chartedit import (
     validate_chart,
 )
 
-HTML_PATH = Path(__file__).with_name("editor.html")
-HOME_PATH = Path(__file__).with_name("home.html")  # la página sin canción abierta
-MENU_PATH = Path(__file__).with_name("menu.html")  # el menú Archivo, compartido por las dos
+# Las páginas (editor.html, home.html y el menú Archivo) son las de bandcore, compartidas con GBBand, GENBand y
+# NGBand; aquí van el perfil del NES y su reproductor
+HTML_PATH = bandeditor.EDITOR_HTML
+HOME_PATH = bandeditor.HOME_HTML  # la página sin canción abierta
 NESPLAYER_PATH = Path(__file__).with_name("nesplayer.js")  # el 6502 y el APU que tocan la canción
+
+PROFILE = {
+    "game": "NESBand",
+    "cli": "nesband",
+    "pads": ["←", "↓", "→", "B", "A"],
+    "channels": [
+        {"id": "Square1", "label": "Square 1", "color": "#58d0ff", "discrete": False},
+        {"id": "Square2", "label": "Square 2", "color": "#b58cff", "discrete": False},
+        {"id": "Triangle", "label": "Triángulo", "color": "#6be88a", "discrete": False},
+        {"id": "Noise", "label": "Ruido", "color": "#ffb45e", "discrete": True},
+        {"id": "DPCM", "label": "DPCM", "color": "#ff7a9c", "discrete": True},
+    ],
+    "drumInstrument": True,
+    "exportLabel": "Exportar chart.s",
+    "exportTitle": "Guarda y reescribe chart.s con el formato de siempre",
+    "playerTitle": "Toca la canción con el motor de sonido del juego",
+    "import": {
+        "label": "Archivo a importar (NSF, FamiStudio o FamiTracker)",
+        "placeholder": "C:\\ruta\\cancion.nsf o songs_src\\cancion.nsf",
+        "hint": "Importar usa FamiStudio y genera música, charts y ficha en "
+                "<code>src/songs/&lt;identificador&gt;/</code>. Puede tardar un poco.",
+        "status": "Importando con FamiStudio…",
+        "tracks": True,
+        "durationLabel": "Segundos a grabar (NSF)",
+        "durationPlaceholder": "del .m3u, o 120",
+        "durationPattern": r"\.nsfe?$",
+    },
+}
+# nesplayer.js corre el motor de sonido del juego (el servidor lo ensambla con la música) desde el inicio de la canción
+_PLAYER_ADAPTER = """
+window.BandPlayer = {
+  FPS: NesPlayer.CPU_HZ / NesPlayer.FRAME_CYCLES,
+  render: (player, data, opts) => NesPlayer.render(player, data.endFrame - data.leadIn, { ...opts, stems: true }),
+};
+"""
 
 
 @dataclass
@@ -259,11 +297,10 @@ def patch_song_s(text: str, name: str, drums: bool) -> str:
 
 
 def render_page(payload: dict, template: Path = HTML_PATH) -> str:
-    data = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).replace("</", "<\\/")
-    menu = MENU_PATH.read_text(encoding="utf-8")
-    nesplayer = NESPLAYER_PATH.read_text(encoding="utf-8")
-    return (template.read_text(encoding="utf-8").replace("__MENU__", menu, 1)
-            .replace("__NESPLAYER__", nesplayer, 1).replace("__DATA__", data, 1))
+    """La página del editor de bandcore con el perfil del NES. Escuchar existe cuando la página es editable."""
+    payload = {"player": bool(payload.get("editable")), **payload}
+    player = NESPLAYER_PATH.read_text(encoding="utf-8") + _PLAYER_ADAPTER
+    return bandeditor.render_page(payload, PROFILE, player, template)
 
 
 # --- Menú Archivo: canciones disponibles, fuentes para importar y la canción abierta -----------
