@@ -155,7 +155,10 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 - [ ] `preview` de NSF.
 - [x] ~~Importador GBS (formato chiptune nativo de la GB).~~ (después de v0.0.1)
 - [x] ~~Importar VGM / VGZ con los comandos del DMG (CH1 a CH4).~~ (después de v0.0.1; lee con bandcore)
-- [ ] Probar GBS y VGM con archivos comerciales; ofrecerlos también en «Nueva canción» del editor.
+- [ ] Probar GBS con archivos comerciales (VGM ya: Super Mario Land 1-1 importa y suena); ofrecerlos también en
+      «Nueva canción» del editor.
+- [ ] El importador NSF (`nsf.py`) deja mudos los canales tonales de Castlevania (el ruido sí suena); Super Mario Bros.,
+      Double Dragon y Blaster Master salen bien. Revisar qué hace el driver de Konami que el APU emulado no sigue.
 - [ ] Primera release publicada (subir VERSION).
 - [ ] Probar en hardware real (DMG y CGB).
 - [ ] Título ilustrado.
