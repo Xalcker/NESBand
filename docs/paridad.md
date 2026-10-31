@@ -104,6 +104,7 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-10-30: 34 de 55 ca
 | Lector de VGM compartido (`bandcore.vgm`) | ❌ | ✅ | ✅ | ✅ | Mismo resultado que los lectores anteriores (huella de los VGM de `audio/` y VGM sintéticos). NES: cuando importe VGM |
 | `band inspect`: chips de un VGM y juego destino | ✅ | ✅ | ✅ | ✅ | Se corre desde `../bandcore`; sirve para los cuatro |
 | Generador de charts compartido y `check_playable` | ✅ | ✅ | ✅ | ✅ | Desde `bandcore.chart` y `bandcore.drums` (GB añade su separación de gemas) |
+| Arreglo de otra consola (notas a su chip) | ❌ | 🟡 | 🟡 | ❌ | GB: `export-notes` (NSF, VGM, GBS → JSON). GEN: `audio/arreglo_fm.py` con timbres A y B; probado con Blaster Master (NES) y Super Mario Land (GB), solo con el reproductor del editor |
 | `reimport` y `list-songs` | ✅ | ✅ | ✅ | ✅ | |
 | `preview` (WAV de cada pista de un NSF) | ✅ | ❌ | ❌ | ❌ | GEN usa `channels` para ver los canales |
 | Editor de charts en el navegador | ✅ | ✅ | ✅ | ✅ | Páginas y servidor de `bandcore.editor`; cada juego pone su perfil, su reproductor y su `Game` (cargar, generar, exportar) |
@@ -203,7 +204,9 @@ de uv. Lo que ya está ahí: lector de VGM, `band inspect`, páginas del editor,
 - [x] ~~Generador de charts (`chart.py`) y batería (`drums.py`), comprobando con `reimport` que los charts no cambien.~~
       (`bandcore.chart` y `bandcore.drums`; `reimport` de 81 canciones, 51 de NES con las comerciales, da archivos
       idénticos byte por byte)
-- [ ] Arreglos entre consolas (VGM de un chip a otro por la IR), empezando por NES → FM.
+- [ ] Arreglos entre consolas: ya está NES/GB → Genesis (GBBand `export-notes` + GENBand `audio/arreglo_fm.py`, timbres
+      A y B). Falta: pasar el formato de notas y los timbres a bandcore, arreglos hacia GB y NG, y desde VGM de Genesis
+      y Neo Geo (sus notas salen de `extract_notes`).
 - [ ] Ideas: paquete de canción (`.bandsong`), ROM base + empaquetador sin compiladores, página web para armar la ROM.
 
 ### Futuras (SNES)
