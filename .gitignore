@@ -31,3 +31,6 @@ docs/referencias/
 .venv/
 __pycache__/
 *.egg-info/
+
+# macOS
+.DS_Store
