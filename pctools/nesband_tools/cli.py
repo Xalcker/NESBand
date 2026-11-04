@@ -27,6 +27,8 @@ import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from bandcore import testrun
+
 from . import famistudio
 from .chart import (
     DIFFICULTIES,
@@ -521,6 +523,16 @@ def list_songs(args: argparse.Namespace) -> None:
     print(f"{len(names)} canciones en src/songs/list.s: {', '.join(names)}")
 
 
+def cmd_test(args: argparse.Namespace) -> int:
+    from . import testing
+    args.patterns = testing.expand_patterns(args.patterns)
+    build = None if args.rom else testrun.build_command(testing.ROOT, release=args.release)
+    if args.rom:
+        args.no_build = True
+    return testrun.main(args, root=testing.ROOT, cases=testing.build_cases(args), build=build,
+                        emulator=testing.emulator(testing.ROOT, args))
+
+
 def reimport(args: argparse.Namespace) -> None:
     """Vuelve a importar canciones con las mismas opciones (después de mejorar el generador)."""
     names = args.names or sorted(p.parent.name for p in SONGS_DIR.glob("*/import.json"))
@@ -598,8 +610,18 @@ def main() -> None:
     p.add_argument("--html", type=Path, help="en vez de servir, escribe una página HTML de solo lectura en esta ruta")
     p.set_defaults(func=edit_chart)
 
+    p = sub.add_parser("test", help="compila y corre las pruebas (en MAME por omisión, o Mesen; igual en macOS y Windows)")
+    testrun.add_arguments(p)
+    p.add_argument("--release", action="store_true", help="prueba la ROM que se publica (build -Release), solo con canciones de git")
+    p.add_argument("--rom", help="prueba esta copia del ROM (mientras sigues compilando otra)")
+    p.add_argument("--emulador", choices=("mesen", "mame"), default="mame",
+                   help="mame (por omisión, con tests/mame_shim.lua; el mismo emulador de GENBand y NGBand) o mesen")
+    p.set_defaults(func=cmd_test)
+
     args = parser.parse_args()
-    args.func(args)
+    code = args.func(args)
+    if isinstance(code, int) and code:
+        sys.exit(code)
 
 
 if __name__ == "__main__":

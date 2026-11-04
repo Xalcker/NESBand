@@ -531,18 +531,30 @@ efecto, queda disponible en el código como `SFX_<NOMBRE>` (con `lda #SFX_... / 
 ## Pruebas
 
 ```bash
-.\tests\run_tests.ps1           # Windows
-pwsh tests/run_tests.ps1        # macOS / Linux (mismas opciones)
+uv run nesband test                 # compila y corre todo (macOS y Windows, el mismo comando)
+uv run nesband test --rapida -j 6   # la demo y 3 canciones, 6 casos a la vez
+uv run nesband test wily,cv3_*      # solo esas canciones (o un caso: 'wily/1p-guitarra', '*/2p-coop*')
+uv run nesband test --lista         # solo muestra los casos
+uv run nesband test --sin-ventana -j 4   # MAME invisible (sin ninguna ventana que te interrumpa)
+uv run nesband test --emulador mesen     # con Mesen 2 en vez de MAME (más lento)
 uv run pytest
 ```
 
-Con muchas canciones la batería completa tarda (unos 3 minutos por canción); para probar solo
-algunas: `.\tests\run_tests.ps1 -Only wily,cv3_*` (acepta comodines). Para cambios del motor basta la
-corrida rápida, `.\tests\run_tests.ps1 -Rapida` (la demo y 3 canciones representativas); la completa
-es para cambios de charts, del generador o de los bancos. `-Rom` y `-NoBuild` permiten probar una
-copia del ROM (con su `.dbg` al lado) mientras se sigue compilando.
+`tests/run_tests.ps1` y `tests/run_tests.sh` son envoltorios de ese mismo comando; el corredor es el de
+`bandcore.testrun`, el mismo de los otros tres juegos. Con muchas canciones la batería completa tarda (unos 3
+minutos por canción); `-j N` corre N casos a la vez (cada uno con su copia del ROM y su `.sav`). Para cambios del
+motor basta `--rapida` (la demo y 3 canciones representativas); la completa es para cambios de charts, del
+generador o de los bancos. `--rom` y `--no-build` permiten probar una copia del ROM (con su `.dbg` al lado)
+mientras se sigue compilando, y `--release` prueba la ROM que se publica. Las pruebas corren en
+MAME (necesitas `mame` en el PATH o en la variable `MAME`; en macOS, `brew install mame`), el mismo emulador de GENBand y
+NGBand, con `tests/mame_shim.lua`, que le presta a `autoplay.lua` la API de Mesen. Un caso tarda unos 8 s sin ventana (con
+Mesen, unos 2.5 minutos), y en 71 casos (la demo entera y 24 de dos canciones) da exactamente los mismos resultados que
+Mesen. `--emulador mesen` sigue disponible; Mesen 2 sigue siendo el emulador para depurar. En macOS, MAME con
+`-video none` abre una ventana maximizada, así que `--sin-ventana` usa además el driver de video "dummy" de SDL, que no
+abre ninguna. Las fallas ya conocidas irían en
+`tests/known_failures.txt`: no cambian el código de salida, una falla nueva sí.
 
-- `run_tests.ps1` corre la ROM en Mesen, sin ventana, con un bot por jugador (`tests/autoplay.lua`)
+- `nesband test` corre la ROM en Mesen, sin ventana, con un bot por jugador (`tests/autoplay.lua`)
   que recorre todo: título → menú (elige canción, jugadores, instrumentos y experto) → juego →
   resultados. Por cada canción hace 9 partidas (unos 12 minutos con 4 canciones):
   - 1 jugador **perfecto** con guitarra, teclado y bajo: acierta todo y pausa a media canción. El
@@ -594,7 +606,7 @@ Requisitos del `settings.json` del Mesen de pruebas: `AllowIoOsAccess: true` (el
 archivos), `Nes.Port1.Type` y `Nes.Port2.Type: "NesController"` (los dos controles conectados) y
 `Nes.AutoConfigureInput: false`.
 Si junto al ejecutable de Mesen (`tools/mesen/`, o `tools/mesen/Mesen.app/Contents/MacOS/` en macOS) hay un
-`settings.json`, Mesen corre en modo portable y no toca tu configuración normal; si no hay, `run_tests.ps1`
+`settings.json`, Mesen corre en modo portable y no toca tu configuración normal; si no hay, `nesband test`
 crea uno con esas opciones (Mesen completa lo demás con sus valores por defecto). Ojo con la API de Lua de Mesen 2.1: el control va en el tercer argumento,
 `emu.setInput(botones, 0, control)`.
 
