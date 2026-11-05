@@ -15,7 +15,7 @@ Leyenda: ✅ lo tiene · ❌ falta · 🟡 parcial o por confirmar · n/a no apl
 GB v0.0.1 (fase 4), GEN v0.4.0, NG v0.1.0. Esta primera tabla salió de
 leer los README, la documentación y el código de los tres repos; los 🟡 son lo que no se pudo confirmar.
 NG: ✅ solo donde pasa un caso del arnés de MAME (`tests/run_tests.sh`); 🟡 si está hecho pero solo lo cubren las
-pruebas del host o su caso de MAME aún falla. Arnés al 2026-10-30: 34 de 55 casos pasan.
+pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 45 de 57 casos pasan.
 
 ## Núcleo del juego
 
@@ -23,7 +23,7 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-10-30: 34 de 55 ca
 |---|---|---|---|---|---|
 | 5 carriles y 4 dificultades (3/4/5/5 carriles) | ✅ | ✅ | ✅ | ✅ | |
 | Ventana de ±6 cuadros, puntaje 50 × multiplicador (×1 a ×4) | ✅ | ✅ | ✅ | ✅ | |
-| Golpe al aire: rompe combo y calla el instrumento | ✅ | ✅ | ✅ | 🟡 | |
+| Golpe al aire: rompe combo y calla el instrumento | ✅ | ✅ | ✅ | 🟡 | NG: con machacar el audio ya no se atrasa (2026-11-05); ningún caso de MAME revisa que el canal se calle |
 | Notas sostenidas (colas) | ✅ | ✅ | ✅ | ✅ | |
 | Poder estelar (frases de 4, activar, doble puntaje) | ✅ | ✅ | ✅ | 🟡 | |
 | Vida y SIN FALLO | ✅ | ✅ | ✅ | ✅ | |
@@ -184,8 +184,8 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 - [x] ~~Autopista: superficie con carriles visibles.~~ (pista fija con sprites y franjas autoanimadas; sin líneas
       de tiempo con sprites)
 - [ ] Rendimiento con 2 jugadores (VS pierde ~45 cuadros por canción; 1 jugador ya pasa).
-- [ ] Sincronía audio/Chart con fallos y golpes al aire: los comandos de 2 bytes (silenciar, efecto) atrasan la cola
-      unos cuadros; con 2 jugadores se llena.
+- [x] ~~Sincronía audio/Chart con fallos y golpes al aire~~ (2026-11-05: el 68000 manda varios bytes por VBlank con
+      confirmación de la NMI del Z80). Queda `tormenta-pausa-rapida`: muestras aisladas tras pausar a 125%.
 - [ ] Récords: se guardan al inicio de la backup RAM, que es de la BIOS del MVS, y no sobreviven al apagar.
 - [ ] Batería con samples ADPCM-A (el driver ya los toca; faltan los samples en la ROM V).
 - [ ] Temblor al fallar.
