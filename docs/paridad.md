@@ -15,7 +15,7 @@ Leyenda: ✅ lo tiene · ❌ falta · 🟡 parcial o por confirmar · n/a no apl
 GB v0.0.1 (fase 4), GEN v0.4.0, NG v0.1.0. Esta primera tabla salió de
 leer los README, la documentación y el código de los tres repos; los 🟡 son lo que no se pudo confirmar.
 NG: ✅ solo donde pasa un caso del arnés de MAME (`tests/run_tests.sh`); 🟡 si está hecho pero solo lo cubren las
-pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 45 de 57 casos pasan.
+pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 44 de 57 casos pasan.
 
 ## Núcleo del juego
 
@@ -71,14 +71,14 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 45 de 57 ca
 
 | Función | NES | GB | GEN | NG | Notas |
 |---|---|---|---|---|---|
-| 10 canciones originales | ✅ | ✅ | ✅ | ✅ | |
+| 10 canciones originales | ✅ | ✅ | ✅ | ✅ | GEN y NG: el mismo arreglo FM (sonidos de `GENBand/audio/sonidos.py`); NG desde 2026-11-05 |
 | Música del título | ✅ | ✅ | ✅ | ✅ | |
 | Efectos de menú (mover, aceptar, volver) | ✅ | ✅ | ✅ | 🟡 | |
 | 3 efectos de fallo, sin repetir el anterior | ✅ | ✅ | ✅ | 🟡 | |
 | El efecto solo suena al rasguear en falso (no con notas que se pasan) | ✅ | ✅ | ✅ | 🟡 | NES desde 26-oct-2026 |
 | Temblor y rojo al fallar | ✅ (solo 1 jugador) | ✅ | ✅ | 🟡 (rojo; sin temblor) | |
 | Silenciar el canal del instrumento al fallar | ✅ | ✅ | ✅ | 🟡 | |
-| Batería con samples | ✅ DPCM | ❌ parches de ruido | ✅ DAC (Z80) | ❌ (ADPCM-A listo en el driver, sin samples) | GB no tiene DPCM: limitación de hardware |
+| Batería con samples | ✅ DPCM | ❌ parches de ruido | ✅ DAC (Z80) | ❌ bombo FM y ruido del SSG, como GEN sin el DAC (ADPCM-A listo en el driver, sin samples) | GB no tiene DPCM: limitación de hardware |
 
 ## Escenario
 
@@ -190,7 +190,9 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 - [ ] Batería con samples ADPCM-A (el driver ya los toca; faltan los samples en la ROM V).
 - [ ] Temblor al fallar.
 - [ ] Practice en MAME (el bot no ve las vueltas) y calibrar el bot humano.
-- [ ] Escuchar el audio con oído (solo verificado por WAV y por la posición del stream).
+- [ ] Escuchar el audio con oído (solo verificado por WAV y por la posición del stream). Desde 2026-11-05 las
+      canciones usan el arreglo y los sonidos de GENBand.
+- [ ] Rendimiento de la batería en experto (barras de bombo: ~24 cuadros perdidos en tormenta).
 - [ ] `-Nombre`, `preview` de VGM, título ilustrado, fuente privada.
 - [ ] Primera release (falta git) y probar en hardware (MVS/AES, MiSTer).
 - [ ] «Nueva canción» en el editor (el menú compartido ya lo soporta: falta `/api/import` y el perfil `import`).
