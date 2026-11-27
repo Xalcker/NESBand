@@ -39,7 +39,7 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 44 de 57 ca
 | Récord de banda (Co-Op) | ✅ | ❌ | ✅ | 🟡 | |
 | 4 jugadores | ❌ | ❌ | ❌ | ❌ | Idea: Four Score en NES |
 | Control de 6 botones | n/a | n/a | ✅ | n/a | Propio de la Genesis |
-| Velocidad de caída / charts | 6/5/4/3 cuadros por fila | 2,6/2,2/1,7/1,25 s de anticipación | 6/5/4/3 | 6/5/4/3 | GB cae a la mitad (120 px de recorrido) con el mismo chart: las notas del mismo carril muy juntas se dibujan alineadas a la fila (`chart.aligned_frames`, ~2 % en difícil y experto); experto a 1,6 px por cuadro para que quepan las de 5 cuadros |
+| Velocidad de caída / charts | 6/5/4/3 cuadros por fila | 2,6/2,2/1,7/1,25 s de anticipación | 6/5/4/3 | 6/5/4/3 | GB cae a la mitad (120 px de recorrido) con el mismo chart: las notas del mismo carril muy juntas se dibujan alineadas a la fila (`chart.aligned_frames`: 2,3 % en medio y 3,6 % en difícil y experto; ninguna en fácil), con un mapa de bits después del chart; experto a 1,6 px por cuadro para que quepan las de 5 cuadros |
 | Mismo chart en las cuatro consolas (el de NESBand) | ✅ origen | ✅ | ✅ | ✅ | `charts.json` (`bandcore.sharedcharts`): `nesband export-charts` y `band sync-charts`; batería incluida, con su tempo y su duración. Comparado nota por nota en las 10 canciones |
 | Misma duración: una vuelta del VGM | ✅ | ✅ | ✅ | ✅ | GEN y NG ya no repiten un VGM con bucle hasta 120 s (GENBand#1, NGBand#3). La demo de NG es la de NESBand («Primer Ensayo») |
 
