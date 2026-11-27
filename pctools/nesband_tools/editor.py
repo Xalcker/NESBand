@@ -23,9 +23,11 @@ from .drums import (
     ROLE_LABELS,
     ROLE_LANE,
     ROLES,
+    DRUM_CHANNELS,
     build_drum_chart,
     check_assignment,
     drum_groups,
+    group_key,
     drum_hits,
     load_drums,
     save_drums,
@@ -49,6 +51,7 @@ from .chartedit import (
 HTML_PATH = bandeditor.EDITOR_HTML
 HOME_PATH = bandeditor.HOME_HTML  # la página sin canción abierta
 NESPLAYER_PATH = Path(__file__).with_name("nesplayer.js")  # el 6502 y el APU que tocan la canción
+GROUP_HITS = 8  # golpes de cada grupo de la batería que la página puede tocar solos (▶ en la tabla de la batería)
 
 PROFILE = {
     "game": "NESBand",
@@ -192,10 +195,17 @@ def build_payload(src: SongSource) -> dict:
     auto = auto_charts(src, assignment)
     charts, warnings = edited_charts(src, auto)
     meta = read_song_meta(src.song_dir)
+    # Cuadros de los golpes de cada grupo (los primeros GROUP_HITS): con ellos la página toca un grupo solo
+    hits: dict[str, list[int]] = {}
+    for channel in DRUM_CHANNELS:
+        for n in src.song.notes.get(channel, []):
+            frames = hits.setdefault(group_key(channel, n.pitch, n.instrument), [])
+            if len(frames) < GROUP_HITS:
+                frames.append(lead_in + n.frame)
     return {
         "drums": {
             "groups": [{"key": g.key, "channel": g.channel, "tone": g.tone, "instrument": g.instrument,
-                        "count": g.count, "avgDuration": round(g.avg_duration, 1)}
+                        "count": g.count, "avgDuration": round(g.avg_duration, 1), "hits": hits.get(g.key, [])}
                        for g in drum_groups(src.song)],
             "assignment": assignment,
             "suggested": suggested,
