@@ -35,7 +35,8 @@ VROWS = 30
 # Números de tile
 LOW_FIRST = 0x5B  # la fuente termina en la Z ($5A)
 LOW_LAST = 0x7F
-HIGH_STATIC = list(range(0x80, 0x90)) + list(range(0xA9, 0xC0))  # tiles fijos que no cupieron en la parte baja
+CYMBAL_FIRST = 0xBC  # $BC-$BF: platillos de la batería (CYMBAL_TILES en src/chr.s), en todos los bancos
+HIGH_STATIC = list(range(0x80, 0x90)) + list(range(0xA9, CYMBAL_FIRST))  # tiles fijos que no cupieron en la parte baja
 CROWD_FIRST = 0xC0  # + fila * CROWD_COLS + columna
 assert CROWD_FIRST + CROWD_ROWS * CROWD_COLS <= 0x100, "El público no cabe en los tiles $C0-$FF"
 BLANK = 0x00
@@ -383,6 +384,7 @@ def build() -> str:
     emit_tiles(high_lo, ", org")
     w("    BG_STAR_TILES org")
     emit_tiles(high_hi, ", org")
+    w("    CYMBAL_TILES org")
     for pose in range(3):
         w(f"    .if pose = {pose}")
         cv = crowd_canvas(pose)

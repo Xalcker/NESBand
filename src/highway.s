@@ -349,7 +349,7 @@ player_row_mask:
     sta tail_add
     jmp @skip
 @drums:
-    lda (render_ptr),y      ; platillo: sus carriles van en row_cymbal (solo los dibuja draw_drum_lanes)
+    lda (render_ptr),y      ; platillo: sus carriles van en row_cymbal
     and #CHART_SUSTAIN
     beq @skip
     lda (render_ptr),y
@@ -445,7 +445,13 @@ draw_player_lanes:
     lda row_star
     and lane_bit,y
     bne @star_gem
+    lda row_cymbal          ; batería con 2 jugadores: platillo (solo la batería llena row_cymbal)
+    and lane_bit,y
+    bne @cymbal
     lda lane_gem,y          ; mitad izquierda de la gema (con el borde)
+    jmp @gem_tiles
+@cymbal:
+    lda lane_cymbal,y
     jmp @gem_tiles
 @star_gem:
     lda lane_star,y         ; la de las frases de poder estelar tiene forma de diamante
@@ -509,7 +515,7 @@ draw_drum_lanes:
     lda #TILE_GEM_A
     jmp @gem_tiles
 @cymbal:
-    lda #TILE_CYMBAL
+    lda #TILE_CYMBAL_A
     jmp @gem_tiles
 @star_gem:
     lda #TILE_STAR_A
@@ -767,6 +773,7 @@ rev5:
 ; el segundo usa los tiles "B" (color 3 de la paleta).
 lane_gem:       .byte    TILE_GEM_A, TILE_GEM_A, TILE_GEM_B, TILE_GEM_A, TILE_GEM_B
 lane_star:      .byte    TILE_STAR_A, TILE_STAR_A, TILE_STAR_B, TILE_STAR_A, TILE_STAR_B
+lane_cymbal:    .byte    TILE_CYMBAL_A, TILE_CYMBAL_A, TILE_CYMBAL_B, TILE_CYMBAL_A, TILE_CYMBAL_B
 lane_tail:      .byte   TILE_TAIL_A, TILE_TAIL_A, TILE_TAIL_B, TILE_TAIL_A, TILE_TAIL_B
 lane_palette:   .byte    0,      1,      1,      2,      0
 
