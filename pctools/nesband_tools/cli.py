@@ -155,6 +155,10 @@ def import_song(args: argparse.Namespace) -> None:
     # batería) sobrevive a la importación: se lee antes de que convert borre la carpeta, las ediciones se
     # aplican a los charts automáticos y los archivos se vuelven a escribir
     kept = {n: (out_dir / n).read_text(encoding="utf-8") for n in (EDITS_FILE, DRUMS_FILE) if (out_dir / n).exists()}
+    # Un charts.json que no es de NESBand (el que deja `band convert`) manda: se usa tal cual y se conserva
+    shared = foreign_charts(out_dir)
+    if shared is not None:
+        kept[sharedcharts.CHARTS_FILE] = (out_dir / sharedcharts.CHARTS_FILE).read_text(encoding="utf-8")
     edits = load_edits(out_dir)
     drums = load_drums(out_dir)
 
@@ -166,7 +170,7 @@ def import_song(args: argparse.Namespace) -> None:
     for _ in range(6):
         project_source = vgm_project(vgm_data, name, duration, title) if is_vgm else source
         result = convert(fs, project_source, name, song_index, duration, args.beat_frames, is_nsf, out_dir, work_dir,
-                         edits, drums)
+                         edits, drums, shared)
         restore_manual_work()
         if result.fits:
             break
@@ -190,7 +194,9 @@ def import_song(args: argparse.Namespace) -> None:
 
     write_lf(out_dir / "chart.s", chart_file_text(source.name, [asm for _, asm, _ in charts]))
     # El mismo chart para GBBand, GENBand y NGBand (bandcore.sharedcharts): NESBand es el origen
-    sharedcharts.save(out_dir, result.notes, LEAD_IN, "NESBand", song.length_frames, grid.frames_per_beat, grid.first_beat)
+    if shared is None:
+        sharedcharts.save(out_dir, result.notes, LEAD_IN, "NESBand", song.length_frames, grid.frames_per_beat,
+                          grid.first_beat)
 
     # Samples DPCM: al final del slot. Los datos de la música dicen dónde están
     # con FAMISTUDIO_DPCM_PTR, que es el mismo para todas las canciones; lo
@@ -216,6 +222,8 @@ song_{name}_data_end:
     title = to_nes_text(title or song.name)
     game = to_nes_text(game or project.attrs.get("Name", ""))
     end_frame = LEAD_IN + song.length_frames
+    if shared is not None:   # con el chart de `band convert`, también su duración: la música se detiene ahí
+        end_frame = LEAD_IN + min(song.length_frames, shared.music_frames)
     charts_lines = "\n".join(
         f"    .addr {', '.join(chart_labels[i * len(DIFFICULTIES):(i + 1) * len(DIFFICULTIES)])}  ; {inst}"
         for i, (inst, _) in enumerate(INSTRUMENTS)
@@ -289,6 +297,13 @@ class Converted:
     notes: dict = field(default_factory=dict)  # "instrumento/dificultad" -> notas del chart (para charts.json)
 
 
+def foreign_charts(song_dir: Path) -> sharedcharts.SharedCharts | None:
+    """El charts.json de la canción si lo trajo otro (`band convert`): ese manda. El que escribe NESBand (source
+    "NESBand") es su propia salida para los otros juegos y aquí no se lee."""
+    shared = sharedcharts.load(song_dir, LEAD_IN)
+    return shared if shared is not None and shared.source != "NESBand" else None
+
+
 def vgm_project(data, name: str, duration: int, title: str | None) -> Path:
     """Un VGM del NES como proyecto de texto de FamiStudio (el que importa convert): sus escrituras pasan por el APU
     emulado de bandcore y cada nota conserva su duty y su envolvente de volumen. El DPCM y el canal del Famicom Disk
@@ -312,8 +327,9 @@ def vgm_project(data, name: str, duration: int, title: str | None) -> Path:
 
 def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, beat_frames: int | None,
             is_nsf: bool, out_dir: Path, work_dir: Path, edits: dict | None = None,
-            drums: dict | None = None) -> Converted:
-    """Pasa la canción por FamiStudio, genera los charts y ve si todo cabe en un slot."""
+            drums: dict | None = None, shared: sharedcharts.SharedCharts | None = None) -> Converted:
+    """Pasa la canción por FamiStudio, genera los charts y ve si todo cabe en un slot. Con `shared` (un charts.json de
+    otro origen, ver foreign_charts) los charts y su tempo son esos tal cual, en vez de generarlos."""
     for d in (out_dir, work_dir):
         if d.exists():
             shutil.rmtree(d)
@@ -354,6 +370,8 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
 
     # 3) Tempo
     grid = song_grid(song, beat_frames, is_nsf)
+    if shared is not None:
+        grid = BeatGrid(shared.frames_per_beat, shared.first_beat)
 
     # 4) Charts por instrumento y dificultad
     charts: list[tuple[str, str, int]] = []  # (etiqueta, ensamblador, bytes)
@@ -365,7 +383,7 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
     # pero trae golpes de ruido o DPCM, se usa la sugerencia automática y se guarda (como en GBBand), para
     # que tenga chart de batería desde el principio; luego se corrige en el editor. Si ningún grupo tiene
     # papel, la canción no tiene chart de batería y el menú del juego no la ofrece
-    if drums is None:
+    if drums is None and shared is None:
         groups = drum_groups(song)
         if groups:
             drums = suggest_assignment(groups)
@@ -374,7 +392,9 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
     drum_notes = drum_hits(song, drums) if drums else []
     for index, (instrument, channel) in enumerate(INSTRUMENTS):
         notes = song.notes.get(channel, []) if channel else []
-        if not notes and not (instrument == "bateria" and drum_notes):
+        if shared is not None:   # el chart compartido decide qué instrumentos hay
+            notes = [True] if shared.chart(instrument, DIFFICULTIES[0].name) else []
+        if not notes and not (instrument == "bateria" and drum_notes and shared is None):
             chart_labels += ["0"] * len(DIFFICULTIES)
             summary.append(f"  {instrument:9} -")
             continue
@@ -382,7 +402,9 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
         counts = []
         for difficulty in DIFFICULTIES:
             label = f"chart_{name}_{instrument}_{difficulty.name}"
-            if instrument == "bateria":
+            if shared is not None:
+                chart = shared.chart(instrument, difficulty.name)
+            elif instrument == "bateria":
                 chart = build_drum_chart(drum_notes, difficulty.name, grid, LEAD_IN)
             else:
                 role, partner_channel = ROLE_OF[instrument]
@@ -553,7 +575,8 @@ def export_charts(args: argparse.Namespace) -> None:
 
     names = args.names or sorted(p.parent.name for p in SONGS_DIR.glob("*/import.json"))
     for name in names:
-        print(f"{name}: {export_shared_charts(name).relative_to(ROOT)}")
+        path = export_shared_charts(name)
+        print(f"{name}: {path.relative_to(ROOT)}" if path else f"{name}: su charts.json viene de otro origen; no se toca")
 
 
 def reimport(args: argparse.Namespace) -> None:

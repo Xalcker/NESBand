@@ -122,6 +122,9 @@ def load_song_source(name: str) -> SongSource:
     project = famistudio.parse_text(text_path.read_text(encoding="utf-8"))
     song = project.songs[0] if len(project.songs) == 1 else project.songs[options["song"]]
     grid = cli.song_grid(song, options["beat_frames"], is_nsf)
+    shared = cli.foreign_charts(song_dir)
+    if shared is not None:   # el chart de `band convert` trae su rejilla de tiempos
+        grid = BeatGrid(shared.frames_per_beat, shared.first_beat)
     return SongSource(name, song_dir, options, song, grid, is_nsf)
 
 
@@ -154,6 +157,9 @@ def auto_charts(src: SongSource, assignment: dict | None = None) -> dict[str, li
     La batería sale de la asignación de papeles (ver drums.py) y solo existe si algún grupo tiene papel."""
     from . import cli
 
+    shared = cli.foreign_charts(src.song_dir)   # el chart que trajo `band convert` manda
+    if shared is not None:
+        return dict(shared.charts)
     charts: dict[str, list[ChartNote]] = {}
     hits = drum_hits(src.song, drum_assignment(src, assignment)[0])
     if hits:
@@ -186,6 +192,14 @@ def chart_json(chart: list[ChartNote]) -> list[dict]:
     return [{"frame": n.frame, "mask": n.mask, "end": n.end, "star": n.star, "cymbal": n.cymbal} for n in chart]
 
 
+def song_frames(src: SongSource) -> int:
+    """Cuadros de música de la canción: con el chart de `band convert`, la música se detiene donde termina el suyo."""
+    from . import cli
+
+    shared = cli.foreign_charts(src.song_dir)
+    return min(src.song.length_frames, shared.music_frames) if shared else src.song.length_frames
+
+
 def build_payload(src: SongSource) -> dict:
     """Todo lo que la página necesita, como JSON."""
     from . import cli
@@ -215,7 +229,7 @@ def build_payload(src: SongSource) -> dict:
         "title": meta.get("title") or src.name,
         "game": meta.get("game") or "",
         "leadIn": lead_in,
-        "endFrame": lead_in + src.song.length_frames,
+        "endFrame": lead_in + song_frames(src),
         "framesPerBeat": src.grid.frames_per_beat,
         "firstBeat": lead_in + src.grid.first_beat,
         # [cuadro, altura, duración] por canal; los cuadros ya cuentan la entrada de la autopista
@@ -289,17 +303,20 @@ def export_chart_s(src: SongSource, charts: dict[str, list[ChartNote]], assignme
     return f"chart.s escrito ({sum(chart_size(c) for c in charts.values())} bytes de charts)"
 
 
-def save_shared_charts(src: SongSource, charts: dict[str, list[ChartNote]]) -> Path:
-    """charts.json: el chart de NESBand para GBBand, GENBand y NGBand (bandcore.sharedcharts)."""
+def save_shared_charts(src: SongSource, charts: dict[str, list[ChartNote]]) -> Path | None:
+    """charts.json: el chart de NESBand para GBBand, GENBand y NGBand (bandcore.sharedcharts). Si la canción trae uno de
+    otro origen (de `band convert`), ese no se toca: None."""
     from bandcore import sharedcharts
 
     from . import cli
 
+    if cli.foreign_charts(src.song_dir) is not None:
+        return None
     return sharedcharts.save(src.song_dir, charts, cli.LEAD_IN, "NESBand", src.song.length_frames,
                              src.grid.frames_per_beat, src.grid.first_beat)
 
 
-def export_shared_charts(name: str) -> Path:
+def export_shared_charts(name: str) -> Path | None:
     """Escribe charts.json de una canción ya importada (los charts automáticos con sus ediciones), sin reimportarla."""
     src = load_song_source(name)
     charts, warnings = edited_charts(src, auto_charts(src))
