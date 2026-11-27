@@ -32,7 +32,7 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 44 de 57 ca
 | Pausa | ✅ | ✅ | ✅ | ✅ | |
 | Guitarra, teclado, bajo y batería | ✅ | ✅ | ✅ | ✅ | |
 | Batería: bombo como barra naranja | ✅ | ✅ | ✅ | 🟡 | |
-| Batería: platillos como rombo (solo experto) | 🟡 | ❌ | ✅ | 🟡 | Pendiente en GB; el bit `$40` ya viene en el chart. NES: elipse con campana (el diamante ya es la gema estelar), solo con 1 jugador; con 2 se ven como toms (falta CHR para el color 3) |
+| Batería: platillos como rombo (solo experto) | ✅ | ❌ | ✅ | 🟡 | Pendiente en GB; el bit `$40` ya viene en el chart. NES: elipse con campana (el diamante ya es la gema estelar), con 1 y 2 jugadores |
 | 1 jugador | ✅ | ✅ | ✅ | ✅ | |
 | 2 jugadores VS (local) | ✅ | ❌ | ✅ | 🟡 | GB: por cable link (fase 5) |
 | 2 jugadores Co-Op (revivir con media barra) | ✅ | ❌ | ✅ | 🟡 | GB: por cable link (fase 5) |
@@ -142,9 +142,8 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 44 de 57 ca
 Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y anota la versión.
 
 ### NES
-- [x] ~~Platillos de la batería en experto~~ (después de v0.3.2: elipse con campana, `TILE_CYMBAL` $9D-$9E).
-- [ ] Platillos con 2 jugadores: hoy se ven como toms. Falta la versión de color 3 y solo queda libre el tile $9F
-      (en el banco base y en los del escenario).
+- [x] ~~Platillos de la batería en experto, con 1 y 2 jugadores~~ (después de v0.3.2: elipse con campana,
+      `CYMBAL_TILES` en $BC-$BF del banco base y de los del escenario).
 - [ ] Título ilustrado (ver `ideas.md`).
 - [ ] 4 jugadores con Four Score (idea).
 - [ ] Batería "pro" con la Power Pad y modo con rasgueo (idea).
