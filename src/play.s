@@ -622,7 +622,8 @@ play_update:
     lsr a                   ; pasos de juego de este cuadro: 0, 1 o 2
     beq @no_step
     sta step_count          ; si son dos, @done repite @go con jmp (no con jsr: si el primer paso
-    bne @go                 ; salta a enter_results/enter_play, el rts de ppu_on regresaría aquí)
+    sta frame_steps         ; salta a enter_results/enter_play, el rts de ppu_on regresaría aquí)
+    bne @go
 @no_step:
     lda pad_pressed         ; lo que presionaste en un cuadro sin paso cuenta en el siguiente
     ora pad_latch
@@ -658,9 +659,9 @@ play_update:
     jsr update_holds        ; puntos de las notas sostenidas
     jsr update_star         ; Select activa el poder estelar; la barra se vacía
 @no_judge:
-    lda step_count          ; el marcador solo se dibuja en el último paso del cuadro
-    cmp #1                  ; (hud_dirty y rings_shown acumulan, no se pierde nada)
-    bne @no_hud
+    lda frame_steps         ; el marcador se dibuja en los cuadros de un paso: en uno de dos pasos
+    cmp #2                  ; (VELOCIDAD 125%) espera al siguiente, que tiene CPU de sobra; con 2
+    beq @no_hud             ; jugadores no cabría (#25). hud_dirty y rings_shown acumulan: no se pierde nada
     jsr update_hud          ; aros y marcador
 @no_hud:
     jsr store_player
@@ -692,7 +693,11 @@ play_update:
     lda step_count          ; lo que solo prepara el dibujo va una vez por cuadro: en un cuadro
     cmp #1                  ; de dos pasos el primero hace solo la lógica (VELOCIDAD 125%, #23)
     bne @no_draw
+    lda frame_steps         ; los medidores tampoco en un cuadro de dos pasos: leen player_save, así
+    cmp #2                  ; que el siguiente cuadro los dibuja igual
+    beq @no_meters
     jsr update_meters       ; medidores de vida
+@no_meters:
     jsr update_fx           ; llamaradas de los aciertos
     jsr update_bolts        ; y los rayos de las notas estelares
     jsr update_rowpix_scroll
