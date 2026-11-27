@@ -11,7 +11,8 @@ Versiones: **NES** (NESBand, ensamblador 6502), **GB** (GBBand, ensamblador SM83
 
 Leyenda: ✅ lo tiene · ❌ falta · 🟡 parcial o por confirmar · n/a no aplica a esa plataforma.
 
-Última revisión: 2026-10-30 (herramientas de PC: bandcore, importadores de GB). Versiones revisadas: NES v0.3.2,
+Última revisión: 2026-11-26 (platillos en NES, importar VGM en NES); antes 2026-10-30 (herramientas de PC:
+bandcore, importadores de GB). Versiones revisadas: NES v0.3.2,
 GB v0.0.1 (fase 4), GEN v0.4.0, NG v0.1.0. Esta primera tabla salió de
 leer los README, la documentación y el código de los tres repos; los 🟡 son lo que no se pudo confirmar.
 NG: ✅ solo donde pasa un caso del arnés de MAME (`tests/run_tests.sh`); 🟡 si está hecho pero solo lo cubren las
@@ -31,7 +32,7 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 44 de 57 ca
 | Pausa | ✅ | ✅ | ✅ | ✅ | |
 | Guitarra, teclado, bajo y batería | ✅ | ✅ | ✅ | ✅ | |
 | Batería: bombo como barra naranja | ✅ | ✅ | ✅ | 🟡 | |
-| Batería: platillos como rombo (solo experto) | ❌ | ❌ | ✅ | 🟡 | Pendiente en NES y GB; el bit `$40` ya viene en el chart |
+| Batería: platillos como rombo (solo experto) | 🟡 | ❌ | ✅ | 🟡 | Pendiente en GB; el bit `$40` ya viene en el chart. NES: elipse con campana (el diamante ya es la gema estelar), solo con 1 jugador; con 2 se ven como toms (falta CHR para el color 3) |
 | 1 jugador | ✅ | ✅ | ✅ | ✅ | |
 | 2 jugadores VS (local) | ✅ | ❌ | ✅ | 🟡 | GB: por cable link (fase 5) |
 | 2 jugadores Co-Op (revivir con media barra) | ✅ | ❌ | ✅ | 🟡 | GB: por cable link (fase 5) |
@@ -99,9 +100,9 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 44 de 57 ca
 
 | Función | NES | GB | GEN | NG | Notas |
 |---|---|---|---|---|---|
-| Fuentes de importación | NSF, `.fms`, `.ftm` | NSF, FamiStudio texto, GBS, VGM / VGZ | VGM / VGZ | VGM / VGZ (YM2610) | GB: GBS y VGM por la IR (`gbapu.py`); falta probarlos con archivos comerciales |
+| Fuentes de importación | NSF, `.fms`, `.ftm`, VGM / VGZ | NSF, FamiStudio texto, GBS, VGM / VGZ | VGM / VGZ | VGM / VGZ (YM2610) | GB: GBS y VGM por la IR (`gbapu.py`); falta probarlos con archivos comerciales |
 | Importar VGM / VGZ de su propia plataforma | ✅ | ✅ | ✅ | ✅ | Además del formato chiptune nativo (NSF en NES, GBS en GB). NES: con el APU de `bandcore.nesapu`, cada nota con su duty y envolvente (sin DPCM ni FDS) |
-| Lector de VGM compartido (`bandcore.vgm`) | ❌ | ✅ | ✅ | ✅ | Mismo resultado que los lectores anteriores (huella de los VGM de `audio/` y VGM sintéticos). NES: cuando importe VGM |
+| Lector de VGM compartido (`bandcore.vgm`) | ✅ | ✅ | ✅ | ✅ | Mismo resultado que los lectores anteriores (huella de los VGM de `audio/` y VGM sintéticos). NES: `nesband import` lee el VGM con `bandcore.vgm` |
 | `band inspect`: chips de un VGM y juego destino | ✅ | ✅ | ✅ | ✅ | Se corre desde `../bandcore`; sirve para los cuatro |
 | Generador de charts compartido y `check_playable` | ✅ | ✅ | ✅ | ✅ | Desde `bandcore.chart` y `bandcore.drums` (GB añade su separación de gemas) |
 | Arreglo de otra consola (notas a su chip) | 🟡 | 🟡 | 🟡 | 🟡 | Las 12 direcciones: notas con `export-notes` (GB: NSF, VGM de NES y GB, GBS; GEN y NG: su VGM) y destino por proyecto de FamiStudio (NES, GB, NG) o `audio/arreglo_fm.py` (GEN). Probado con importación y el reproductor del editor, no en ROM |
@@ -140,12 +141,15 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 44 de 57 ca
 Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y anota la versión.
 
 ### NES
-- [ ] Rombo de los platillos (hoy se dibujan como toms; el chart ya trae el bit).
+- [x] ~~Platillos de la batería en experto~~ (después de v0.3.2: elipse con campana, `TILE_CYMBAL` $9D-$9E).
+- [ ] Platillos con 2 jugadores: hoy se ven como toms. Falta la versión de color 3 y solo queda libre el tile $9F
+      (en el banco base y en los del escenario).
 - [ ] Título ilustrado (ver `ideas.md`).
 - [ ] 4 jugadores con Four Score (idea).
 - [ ] Batería "pro" con la Power Pad y modo con rasgueo (idea).
 - [ ] Escuchar un solo grupo de golpes en el editor.
-- [ ] Importar VGM / VGZ con los comandos del APU del NES (además de NSF, `.fms` y `.ftm`).
+- [x] ~~Importar VGM / VGZ con los comandos del APU del NES (además de NSF, `.fms` y `.ftm`).~~ (con
+      `bandcore.nesapu`; falta DPCM, anotado en bandcore)
 - [ ] Identificar las pistas de NSF sin `.m3u` (Battletoads, Bomberman, Bad Dudes, BTTF).
 
 ### GB

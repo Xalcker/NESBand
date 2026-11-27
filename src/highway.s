@@ -299,6 +299,7 @@ player_row_mask:
     lda #0
     sta row_mask
     sta row_star
+    sta row_cymbal
     sta tail_add
     sta tail_rem
     lda row_lo+1
@@ -338,7 +339,7 @@ player_row_mask:
 @not_star:
     lda cur_instrument      ; batería: el bit $40 es un platillo, no una cola (no se abre cola)
     cmp #INSTR_DRUMS
-    beq @skip
+    beq @drums
     lda (render_ptr),y
     and #CHART_SUSTAIN
     beq @skip
@@ -346,6 +347,15 @@ player_row_mask:
     and #%00011111
     ora tail_add
     sta tail_add
+    jmp @skip
+@drums:
+    lda (render_ptr),y      ; platillo: sus carriles van en row_cymbal (solo los dibuja draw_drum_lanes)
+    and #CHART_SUSTAIN
+    beq @skip
+    lda (render_ptr),y
+    and #%00011111
+    ora row_cymbal
+    sta row_cymbal
     jmp @skip
 @release:
     and #%00011111          ; los carriles que sueltan: su cola termina en esta fila
@@ -493,7 +503,13 @@ draw_drum_lanes:
     lda row_star
     and lane_bit,y
     bne @star_gem
+    lda row_cymbal          ; platillo (experto): elipse en vez de gema; la estrella gana, como en GENBand
+    and lane_bit,y
+    bne @cymbal
     lda #TILE_GEM_A
+    jmp @gem_tiles
+@cymbal:
+    lda #TILE_CYMBAL
     jmp @gem_tiles
 @star_gem:
     lda #TILE_STAR_A
