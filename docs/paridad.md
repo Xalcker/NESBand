@@ -114,6 +114,7 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 44 de 57 ca
 | Editor: Escuchar con el audio real de la ROM | ✅ | ✅ | ✅ | 🟡 | |
 | Editor: M/S por canal | ✅ | ✅ | ✅ | ✅ | |
 | Editor: tabla de roles de la batería (`drums.json`) | ✅ | ✅ | ✅ | ✅ | |
+| Importar sin `drums.json`: chart de batería con la asignación sugerida | ✅ | ✅ | ✅ | ✅ | NES desde 2026-11-26 (la guarda en `drums.json`, como GB). GEN y NG: visto en el código (`drum_assignment`, `songgen.py`) |
 | `edits.json` sobrevive a `reimport` | ✅ | ✅ | ✅ | ✅ | |
 | VGM con streams del DAC (`$9x`) | n/a | n/a | ❌ | n/a | |
 
@@ -217,7 +218,8 @@ de uv. Lo que ya está ahí: lector de VGM, `band inspect`, páginas del editor,
       directo~~ (`bandcore.nesapu` compartido con GBBand).
 - [ ] `--duration` automático al importar en NGBand lo que sale de `famistudio.py` (hoy hay que pasarlo).
 - [ ] VGM del NES en NESBand: DPCM (los samples vienen en bloques $C2 del VGM y FamiStudio los admite en el proyecto).
-- [ ] Batería al importar en NESBand: sin drums.json no hay chart de batería (GBBand sí pone la sugerencia sola).
+- [x] ~~Batería al importar en NESBand: sin drums.json no hay chart de batería (GBBand sí pone la sugerencia sola).~~
+      (2026-11-26: `nesband import-song` usa `suggest_assignment` y guarda `drums.json`; el arreglo fue en NESBand)
 - [ ] Ideas: paquete de canción (`.bandsong`), ROM base + empaquetador sin compiladores, página web para armar la ROM.
 
 ### Futuras (SNES)
