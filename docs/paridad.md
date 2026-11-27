@@ -200,8 +200,10 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 - [ ] Batería con samples ADPCM-A (el driver ya los toca; faltan los samples en la ROM V).
 - [ ] Temblor al fallar.
 - [ ] Practice en MAME (el bot no ve las vueltas) y calibrar el bot humano.
-- [ ] Escuchar el audio con oído (solo verificado por WAV y por la posición del stream). Desde 2026-11-05 las
-      canciones usan el arreglo y los sonidos de GENBand.
+- [ ] El audio suena un poco raro: escuchado con oído el 2026-11-26 con *Green Hill Zone* (`band convert --to todos`),
+      junto a NES, GB y GEN; NG fue la única rara (el chart sí es el mismo). Falta precisar qué (timbres FM, volúmenes,
+      batería en SSG); detalles en NGBand `docs/ESTADO.md`, pendiente 6. Desde 2026-11-05 las canciones usan el
+      arreglo y los sonidos de GENBand.
 - [ ] Rendimiento de la batería en experto (barras de bombo: ~24 cuadros perdidos en tormenta).
 - [ ] `-Nombre`, `preview` de VGM, título ilustrado, fuente privada.
 - [ ] Primera release (falta git) y probar en hardware (MVS/AES, MiSTer).
