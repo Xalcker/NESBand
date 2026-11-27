@@ -76,6 +76,7 @@ TILE_BIG        = $80   ; + máscara de 4 bits (ver BIG_ROW)
 
 TILE_STAR_A     = $99   ; gema estelar (diamante, color 2) + $9A mitad derecha
 TILE_STAR_B     = $9B   ; (color 3) + $9C
+TILE_CYMBAL     = $9D   ; platillo de la batería (elipse con campana, color 2) + $9E mitad derecha
 TILE_BAR        = $90   ; barra de poder estelar: + 0..8 píxeles llenos (blanco)
 TILE_BAR_ON     = $A0   ; lo mismo con el poder activo (azul)
 TILE_BOLT       = $A9   ; rayo de las frases estelares: dos dibujos, $A9 y $AA
@@ -219,6 +220,13 @@ TILE "1.....22", "1...2222", "1.222222", "12222222", "12222222", "1.222222", "1.
 TILE "22......", "2222....", "222222..", "2222222.", "2222222.", "222222..", "2222....", "22......"
 TILE "1.....33", "1...3333", "1.333333", "13333333", "13333333", "1.333333", "1...3333", "1.....33"
 TILE "33......", "3333....", "333333..", "3333333.", "3333333.", "333333..", "3333....", "33......"
+
+; Platillos de la batería (experto): una elipse plana de 14 px con la campana en blanco (color 1). No es
+; rombo como en GENBand porque aquí el diamante ya es la gema estelar. Solo color 2: la batería de un
+; jugador (drum_look) pinta todas sus gemas con el color 2 de la paleta de cada pad.
+; $9D-$9E (el $9F queda libre)
+TILE "1.......", "1....222", "1.222222", "12222211", "12222211", "1.222222", "1....222", "1......."
+TILE "........", "222.....", "222222..", "1122222.", "1122222.", "222222..", "222.....", "........"
 
 TILE_AT TILE_BAR_ON, org
 .repeat 9, n

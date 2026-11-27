@@ -209,6 +209,7 @@ next_vrow:      .res 1   ; fila de la nametable donde va
 row_mask:       .res 1   ; carriles con nota en la fila que se está dibujando
 star_hit:       .res 1   ; 1 = la nota que se acaba de acertar completó una frase estelar (set_fx lanza el rayo)
 row_star:       .res 1   ; carriles de esa fila cuya gema es de una frase estelar
+row_cymbal:     .res 1   ; batería: carriles de esa fila cuya gema es un platillo (bit $40 del chart, solo en experto)
 rec_ptr:        .res 2   ; registro de récord (de rec_find)
 rec_free:       .res 2   ; primer registro libre (de rec_find); byte alto 0 = no hay
 song_hash:      .res 2   ; identificador de la canción elegida (hash de su título y juego)
