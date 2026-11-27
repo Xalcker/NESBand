@@ -32,7 +32,7 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 44 de 57 ca
 | Pausa | ✅ | ✅ | ✅ | ✅ | |
 | Guitarra, teclado, bajo y batería | ✅ | ✅ | ✅ | ✅ | |
 | Batería: bombo como barra naranja | ✅ | ✅ | ✅ | 🟡 | |
-| Batería: platillos como rombo (solo experto) | ✅ | ❌ | ✅ | 🟡 | Pendiente en GB; el bit `$40` ya viene en el chart. NES: elipse con campana (el diamante ya es la gema estelar), con 1 y 2 jugadores |
+| Batería: platillos como rombo (solo experto) | ✅ | ✅ | ✅ | 🟡 | El bit `$40` viene en el chart. NES: elipse con campana (el diamante ya es la gema estelar), con 1 y 2 jugadores. GB: elipse con campana igual en todos los carriles (color por la paleta en CGB; en DMG, la forma) |
 | 1 jugador | ✅ | ✅ | ✅ | ✅ | |
 | 2 jugadores VS (local) | ✅ | ❌ | ✅ | 🟡 | GB: por cable link (fase 5) |
 | 2 jugadores Co-Op (revivir con media barra) | ✅ | ❌ | ✅ | 🟡 | GB: por cable link (fase 5) |
@@ -114,6 +114,7 @@ pruebas del host o su caso de MAME aún falla. Arnés al 2026-11-05: 44 de 57 ca
 | Editor: Escuchar con el audio real de la ROM | ✅ | ✅ | ✅ | 🟡 | |
 | Editor: M/S por canal | ✅ | ✅ | ✅ | ✅ | |
 | Editor: tabla de roles de la batería (`drums.json`) | ✅ | ✅ | ✅ | ✅ | |
+| Editor: ▶ escuchar un solo grupo de golpes | ✅ | ❌ | ❌ | ❌ | La página (bandcore) ya lo hace; cada juego solo debe mandar `hits` (cuadros de los primeros golpes) en cada grupo de `drums.groups` |
 | Importar sin `drums.json`: chart de batería con la asignación sugerida | ✅ | ✅ | ✅ | ✅ | NES desde 2026-11-26 (la guarda en `drums.json`, como GB). GEN y NG: visto en el código (`drum_assignment`, `songgen.py`) |
 | `edits.json` sobrevive a `reimport` | ✅ | ✅ | ✅ | ✅ | |
 | VGM con streams del DAC (`$9x`) | n/a | n/a | ❌ | n/a | |
@@ -147,7 +148,7 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 - [ ] Título ilustrado (ver `ideas.md`).
 - [ ] 4 jugadores con Four Score (idea).
 - [ ] Batería "pro" con la Power Pad y modo con rasgueo (idea).
-- [ ] Escuchar un solo grupo de golpes en el editor.
+- [x] ~~Escuchar un solo grupo de golpes en el editor.~~ (2026-11-26: ▶ en la tabla de la batería; `hits` en el payload)
 - [x] ~~Importar VGM / VGZ con los comandos del APU del NES (además de NSF, `.fms` y `.ftm`).~~ (con
       `bandcore.nesapu`; falta DPCM, anotado en bandcore)
 - [ ] Identificar las pistas de NSF sin `.m3u` (Battletoads, Bomberman, Bad Dudes, BTTF).
@@ -155,7 +156,7 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 ### GB
 - [ ] Escenario: luces ligadas al poder estelar, rayo/destello en la frase estelar y luces apagadas al perder.
 - [ ] Confirmar si el público se queda quieto sin combo (y añadir una prueba).
-- [ ] Rombo de los platillos.
+- [x] ~~Rombo de los platillos.~~ (2026-11-26: elipse con campana, `TILE_CYMBAL` $D0-$DD; GBBand PR #3)
 - [ ] 2 jugadores por cable link: VS, Co-Op, selector en el menú y récord de banda.
 - [ ] `preview` de NSF.
 - [x] ~~Importador GBS (formato chiptune nativo de la GB).~~ (después de v0.0.1)
@@ -170,6 +171,7 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 - [ ] Fuente privada.
 - [ ] Actualizar el README, que describe la fase 3 (dice que faltan título, opciones, pausa, resultados y récords).
 - [ ] Ideas de plataforma: borde Super Game Boy, rumble del MBC5, Game Boy Printer; compresión del stream FRS.
+- [ ] Editor: ▶ escuchar un grupo de golpes de la batería: mandar `hits` en cada grupo de `drums.groups` (como `nesband_tools/editor.py`).
 
 ### GEN
 - [ ] Prueba de sincronía nota/audio (también después de pausar).
@@ -183,6 +185,7 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 - [ ] Título ilustrado.
 - [ ] Fuente privada.
 - [ ] Soporte PAL.
+- [ ] Editor: ▶ escuchar un grupo de golpes de la batería: mandar `hits` en cada grupo de `drums.groups` (como `nesband_tools/editor.py`).
 
 ### NG
 - [x] ~~Autopista: superficie con carriles visibles.~~ (pista fija con sprites y franjas autoanimadas; sin líneas
@@ -200,6 +203,7 @@ Ordenados más o menos por prioridad. Táchalos con `~~texto~~` al cerrarlos y a
 - [ ] `-Nombre`, `preview` de VGM, título ilustrado, fuente privada.
 - [ ] Primera release (falta git) y probar en hardware (MVS/AES, MiSTer).
 - [ ] «Nueva canción» en el editor (el menú compartido ya lo soporta: falta `/api/import` y el perfil `import`).
+- [ ] Editor: ▶ escuchar un grupo de golpes de la batería: mandar `hits` en cada grupo de `drums.groups` (como `nesband_tools/editor.py`).
 
 ### bandcore (compartido)
 [bandcore](https://github.com/Xalcker/bandcore) es un repo hermano (`../bandcore`) que los cuatro usan como dependencia
