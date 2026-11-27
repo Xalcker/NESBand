@@ -40,7 +40,7 @@ from .chart import (
     estimate_beat,
     merge_attacks,
 )
-from .drums import DRUMS_FILE, build_drum_chart, drum_hits, load_drums
+from .drums import DRUMS_FILE, build_drum_chart, drum_groups, drum_hits, load_drums, save_drums, suggest_assignment
 from .chartedit import EDITS_FILE, apply_edits, chart_file_text, load_edits, validate_chart
 from .m3u import find_playlist
 
@@ -356,8 +356,16 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
     chart_labels: list[str] = []
     instrument_mask = 0
     summary = []
-    # La batería sale de la asignación de papeles de drums.json (ver drums.py): sin ella, o si ningún grupo
-    # tiene papel, la canción no tiene chart de batería y el menú del juego no la ofrece
+    # La batería sale de la asignación de papeles de drums.json (ver drums.py). Si la canción aún no tiene,
+    # pero trae golpes de ruido o DPCM, se usa la sugerencia automática y se guarda (como en GBBand), para
+    # que tenga chart de batería desde el principio; luego se corrige en el editor. Si ningún grupo tiene
+    # papel, la canción no tiene chart de batería y el menú del juego no la ofrece
+    if drums is None:
+        groups = drum_groups(song)
+        if groups:
+            drums = suggest_assignment(groups)
+            save_drums(out_dir, drums)
+            summary.append(f"  {DRUMS_FILE}: asignación automática de la batería (revísala en el editor)")
     drum_notes = drum_hits(song, drums) if drums else []
     for index, (instrument, channel) in enumerate(INSTRUMENTS):
         notes = song.notes.get(channel, []) if channel else []
