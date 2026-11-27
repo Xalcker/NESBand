@@ -281,11 +281,31 @@ def export_chart_s(src: SongSource, charts: dict[str, list[ChartNote]], assignme
                 blocks.append(chart_to_asm(f"chart_{src.name}_{instrument}_{difficulty.name}", charts[key]))
     source_name = Path(src.options["source"]).name
     cli.write_lf(src.song_dir / "chart.s", chart_file_text(source_name, blocks))
+    save_shared_charts(src, charts)
     song_s = src.song_dir / "song.s"
     if song_s.exists():
         patched = patch_song_s(song_s.read_text(encoding="utf-8"), src.name, any(k.startswith("bateria/") for k in charts))
         cli.write_lf(song_s, patched)
     return f"chart.s escrito ({sum(chart_size(c) for c in charts.values())} bytes de charts)"
+
+
+def save_shared_charts(src: SongSource, charts: dict[str, list[ChartNote]]) -> Path:
+    """charts.json: el chart de NESBand para GBBand, GENBand y NGBand (bandcore.sharedcharts)."""
+    from bandcore import sharedcharts
+
+    from . import cli
+
+    return sharedcharts.save(src.song_dir, charts, cli.LEAD_IN, "NESBand", src.song.length_frames,
+                             src.grid.frames_per_beat, src.grid.first_beat)
+
+
+def export_shared_charts(name: str) -> Path:
+    """Escribe charts.json de una canción ya importada (los charts automáticos con sus ediciones), sin reimportarla."""
+    src = load_song_source(name)
+    charts, warnings = edited_charts(src, auto_charts(src))
+    for warning in warnings:
+        print(f"  AVISO {warning}")
+    return save_shared_charts(src, charts)
 
 
 def patch_song_s(text: str, name: str, drums: bool) -> str:

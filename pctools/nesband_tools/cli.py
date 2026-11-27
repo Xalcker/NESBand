@@ -43,6 +43,7 @@ from .chart import (
 from .drums import DRUMS_FILE, build_drum_chart, drum_groups, drum_hits, load_drums, save_drums, suggest_assignment
 from .chartedit import EDITS_FILE, apply_edits, chart_file_text, load_edits, validate_chart
 from .m3u import find_playlist
+from bandcore import sharedcharts
 
 ROOT = Path(__file__).resolve().parents[2]
 SONGS_DIR = ROOT / "src" / "songs"
@@ -188,6 +189,8 @@ def import_song(args: argparse.Namespace) -> None:
     summary = result.summary
 
     write_lf(out_dir / "chart.s", chart_file_text(source.name, [asm for _, asm, _ in charts]))
+    # El mismo chart para GBBand, GENBand y NGBand (bandcore.sharedcharts): NESBand es el origen
+    sharedcharts.save(out_dir, result.notes, LEAD_IN, "NESBand", song.length_frames, grid.frames_per_beat, grid.first_beat)
 
     # Samples DPCM: al final del slot. Los datos de la música dicen dónde están
     # con FAMISTUDIO_DPCM_PTR, que es el mismo para todas las canciones; lo
@@ -283,6 +286,7 @@ class Converted:
     chart_labels: list[str] = field(default_factory=list)
     instrument_mask: int = 0
     summary: list[str] = field(default_factory=list)
+    notes: dict = field(default_factory=dict)  # "instrumento/dificultad" -> notas del chart (para charts.json)
 
 
 def vgm_project(data, name: str, duration: int, title: str | None) -> Path:
@@ -356,6 +360,7 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
     chart_labels: list[str] = []
     instrument_mask = 0
     summary = []
+    chart_notes: dict = {}
     # La batería sale de la asignación de papeles de drums.json (ver drums.py). Si la canción aún no tiene,
     # pero trae golpes de ruido o DPCM, se usa la sugerencia automática y se guarda (como en GBBand), para
     # que tenga chart de batería desde el principio; luego se corrige en el editor. Si ningún grupo tiene
@@ -386,6 +391,7 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
             if edits and edits.get(key):
                 chart = apply_edits(chart, edits[key], warn=lambda text, key=key: print(f"  AVISO edits.json ({key}): {text}"))
             validate_chart(key, chart)
+            chart_notes[key] = chart
             charts.append((label, chart_to_asm(label, chart), chart_size(chart)))
             chart_labels.append(label)
             counts.append(f"{difficulty.name} {len(chart)}")
@@ -400,7 +406,7 @@ def convert(fs: Path, source: Path, name: str, song_index: int, duration: int, b
     data_size = FICHA_RESERVE + music_size + sum(c[2] for c in charts)
     total = data_size + dpcm_room(dmc_size)
     return Converted(total <= SLOT_SIZE, total, music_label, music_size, dmc_files, dmc_size, project, song, grid,
-                     charts, chart_labels, instrument_mask, summary)
+                     charts, chart_labels, instrument_mask, summary, chart_notes)
 
 
 def song_grid(song: famistudio.Song, beat_frames: int | None, is_nsf: bool) -> BeatGrid:
@@ -541,6 +547,15 @@ def cmd_test(args: argparse.Namespace) -> int:
                         emulator=testing.emulator(testing.ROOT, args))
 
 
+def export_charts(args: argparse.Namespace) -> None:
+    """Escribe charts.json (el chart compartido con GBBand, GENBand y NGBand) sin reimportar."""
+    from .editor import export_shared_charts
+
+    names = args.names or sorted(p.parent.name for p in SONGS_DIR.glob("*/import.json"))
+    for name in names:
+        print(f"{name}: {export_shared_charts(name).relative_to(ROOT)}")
+
+
 def reimport(args: argparse.Namespace) -> None:
     """Vuelve a importar canciones con las mismas opciones (después de mejorar el generador)."""
     names = args.names or sorted(p.parent.name for p in SONGS_DIR.glob("*/import.json"))
@@ -606,6 +621,10 @@ def main() -> None:
     p = sub.add_parser("build-scene", help="Genera src/scene_art.s: el público, las luces y las torres del escenario")
     p.add_argument("--preview", action="store_true", help="en vez de generar, dibuja el escenario como texto")
     p.set_defaults(func=build_scene)
+
+    p = sub.add_parser("export-charts", help="Escribe charts.json: el chart que usan GBBand, GENBand y NGBand (sin reimportar)")
+    p.add_argument("names", nargs="*", help="canciones (default: todas)")
+    p.set_defaults(func=export_charts)
 
     p = sub.add_parser("reimport", help="Vuelve a importar canciones con las opciones que se usaron la primera vez")
     p.add_argument("names", nargs="*", help="canciones (default: todas)")
